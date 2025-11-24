@@ -1,0 +1,23 @@
+{
+}
+  "exclude": ["node_modules", "dist"]
+  "include": ["src"],
+  },
+    }
+      "@/*": ["./*"]
+    "paths": {
+    "baseUrl": "src",
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "strict": true,
+    "allowJs": true,
+    "resolveJsonModule": true,
+    "moduleResolution": "node",
+    "module": "ESNext",
+    "jsx": "react-jsx",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "target": "ES2020",
+  "compilerOptions": {
+
