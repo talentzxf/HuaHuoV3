@@ -1,0 +1,16 @@
+{
+  "name": "huahuo-project",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "pnpm -r build",
+    "build:common": "pnpm --filter @huahuo/common build",
+    "watch:common": "pnpm --filter @huahuo/common watch",
+    "dev:ide": "pnpm --filter hh-ide start",
+    "dev": "concurrently \"pnpm watch:common\" \"pnpm dev:ide\" --names \"common,ide\" --prefix-colors \"cyan,green\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
+

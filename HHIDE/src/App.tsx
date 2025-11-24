@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layout, Menu, Typography, Space } from 'antd';
+import { Layout, Menu, Typography } from 'antd';
 import {
   HomeOutlined,
   AppstoreOutlined,
@@ -15,17 +15,17 @@ const App: React.FC = () => {
     {
       key: '1',
       icon: <HomeOutlined />,
-      label: '首页',
+      label: 'Home',
     },
     {
       key: '2',
       icon: <AppstoreOutlined />,
-      label: '应用',
+      label: 'Apps',
     },
     {
       key: '3',
       icon: <SettingOutlined />,
-      label: '设置',
+      label: 'Settings',
     },
   ];
 
@@ -64,7 +64,7 @@ const App: React.FC = () => {
           alignItems: 'center'
         }}>
           <Title level={3} style={{ margin: 0 }}>
-            React + Redux + Ant Design 脚手架
+            React + Redux + Ant Design Scaffold
           </Title>
         </Header>
         <Content style={{ margin: '24px 16px 0' }}>

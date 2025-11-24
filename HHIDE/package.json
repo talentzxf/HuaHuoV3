@@ -16,6 +16,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@ant-design/icons": "^6.1.0",
+    "@huahuo/common": "workspace:*",
     "@reduxjs/toolkit": "^2.8.2",
     "@types/react": "^19.1.12",
     "@types/react-dom": "^19.1.9",

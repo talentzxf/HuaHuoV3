@@ -2,7 +2,6 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { Provider } from 'react-redux';
 import { ConfigProvider } from 'antd';
-import zhCN from 'antd/locale/zh_CN';
 import { store } from './store/store';
 import App from './App';
 import 'antd/dist/reset.css';
@@ -14,7 +13,7 @@ const root = ReactDOM.createRoot(
 root.render(
   <React.StrictMode>
     <Provider store={store}>
-      <ConfigProvider locale={zhCN}>
+      <ConfigProvider>
         <App />
       </ConfigProvider>
     </Provider>
