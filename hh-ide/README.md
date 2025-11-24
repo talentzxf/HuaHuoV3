@@ -1,6 +1,6 @@
 # HH IDE
 
-React + Redux + Ant Design application.
+React + Redux + Ant Design IDE application.
 
 ## Tech Stack
 
@@ -13,7 +13,7 @@ React + Redux + Ant Design application.
 
 ```bash
 npm install
-npm start          # http://localhost:3002
+npm start          # http://localhost:3005
 npm run build      # production build
 ```
 
@@ -21,6 +21,8 @@ npm run build      # production build
 
 ```typescript
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import { Panel } from '@huahuo/hh-panel';
+import { formatDate } from '@huahuo/hh-common';
 ```
 
 

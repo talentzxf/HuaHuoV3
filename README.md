@@ -4,8 +4,9 @@ Monorepo with pnpm workspace.
 
 ## Structure
 
-- `HHIDE/` - React IDE application
-- `packages/common/` - Shared library (Redux store, utilities)
+- `hh-ide/` - React IDE application
+- `packages/hh-common/` - Shared library (Redux store, utilities)
+- `packages/hh-panel/` - Panel component library
 
 ## Quick Start
 
@@ -43,7 +44,7 @@ pnpm dev
 
 ## Features
 
-- ✅ Hot Module Replacement (HMR) - Changes to HHIDE code reload instantly
+- ✅ Hot Module Replacement (HMR) - Changes to hh-ide code reload instantly
 - ✅ Watch mode for common library - Changes auto-rebuild
 - ✅ Monorepo with workspace dependencies
 
@@ -52,10 +53,12 @@ pnpm dev
 ```bash
 # Add to specific package
 pnpm add <package> --filter hh-ide
-pnpm add <package> --filter @huahuo/common
+pnpm add <package> --filter @huahuo/hh-common
+pnpm add <package> --filter @huahuo/hh-panel
 
 # Add workspace dependency
-pnpm add @huahuo/common --filter hh-ide --workspace
+pnpm add @huahuo/hh-common --filter hh-ide --workspace
+pnpm add @huahuo/hh-panel --filter hh-ide --workspace
 ```
 
 

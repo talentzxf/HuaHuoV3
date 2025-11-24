@@ -1,5 +1,5 @@
 import { configureStore } from '@reduxjs/toolkit';
-import { authSlice, appSlice } from '@huahuo/common';
+import { authSlice, appSlice } from '@huahuo/hh-common';
 import counterReducer from './features/counter/counterSlice';
 
 export const store = configureStore({
