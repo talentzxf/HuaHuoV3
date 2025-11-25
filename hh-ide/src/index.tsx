@@ -5,6 +5,7 @@ import { ConfigProvider } from 'antd';
 import { store } from './store/store';
 import App from './App';
 import 'antd/dist/reset.css';
+import './styles/flexlayout-custom.css';
 
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement
