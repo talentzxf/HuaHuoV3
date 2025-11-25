@@ -1,12 +1,15 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { useAppDispatch, useAppSelector } from './store/hooks';
+import { setPlaying } from './store/features/playback/playbackSlice';
 import FlexLayoutWrapper from './components/FlexLayoutWrapper';
 import MainMenu from './components/MainMenu';
 import { message } from 'antd';
 
 const App: React.FC = () => {
   const { t } = useTranslation();
-  const [isPlaying, setIsPlaying] = useState(false);
+  const dispatch = useAppDispatch();
+  const isPlaying = useAppSelector((state) => state.playback.isPlaying);
 
   const handleSave = () => {
     message.success(t('messages.projectSaved'));
@@ -34,13 +37,13 @@ const App: React.FC = () => {
   };
 
   const handlePlay = () => {
-    setIsPlaying(true);
+    dispatch(setPlaying(true));
     message.success(t('messages.playing'));
     // TODO: Implement play logic
   };
 
   const handlePause = () => {
-    setIsPlaying(false);
+    dispatch(setPlaying(false));
     message.warning(t('messages.paused'));
     // TODO: Implement pause logic
   };

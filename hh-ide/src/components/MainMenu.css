@@ -73,7 +73,6 @@
   gap: 8px;
   border-radius: 6px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-  transition: all 0.2s;
 }
 
 .main-menu-play-button {
@@ -84,8 +83,6 @@
 .main-menu-play-button:hover {
   background: #73d13d !important;
   border-color: #73d13d !important;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(82, 196, 26, 0.3);
 }
 
 .main-menu-pause-button {
@@ -96,28 +93,5 @@
 .main-menu-pause-button:hover {
   background: #ff7875 !important;
   border-color: #ff7875 !important;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(255, 77, 79, 0.3);
-}
-
-/* Animation for play/pause transition */
-@keyframes pulse {
-  0% {
-    transform: translateX(-50%) scale(1);
-  }
-  50% {
-    transform: translateX(-50%) scale(1.05);
-  }
-  100% {
-    transform: translateX(-50%) scale(1);
-  }
-}
-
-.main-menu-center button {
-  animation: none;
-}
-
-.main-menu-center button:active {
-  animation: pulse 0.3s ease-in-out;
 }
 

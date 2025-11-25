@@ -1,12 +1,14 @@
 import { configureStore } from '@reduxjs/toolkit';
 import { authSlice, appSlice } from '@huahuo/hh-common';
 import counterReducer from './features/counter/counterSlice';
+import playbackReducer from './features/playback/playbackSlice';
 
 export const store = configureStore({
   reducer: {
     auth: authSlice.reducer,
     app: appSlice.reducer,
     counter: counterReducer,
+    playback: playbackReducer,
   },
 });
 

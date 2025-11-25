@@ -123,30 +123,28 @@ const MainMenu: React.FC<MainMenuProps> = ({
       {/* Center Section: Play/Pause Controls */}
       <div className="main-menu-section main-menu-center">
         {!isPlaying ? (
-          <Tooltip title={t('tooltips.play')}>
-            <Button
-              type="primary"
-              icon={<CaretRightOutlined />}
-              onClick={onPlay}
-              className="main-menu-play-button"
-              size="large"
-            >
-              {t('mainMenu.play')}
-            </Button>
-          </Tooltip>
+          <Button
+            type="primary"
+            icon={<CaretRightOutlined />}
+            onClick={onPlay}
+            className="main-menu-play-button"
+            size="large"
+            title={t('tooltips.play')}
+          >
+            {t('mainMenu.play')}
+          </Button>
         ) : (
-          <Tooltip title={t('tooltips.pause')}>
-            <Button
-              type="primary"
-              icon={<PauseOutlined />}
-              onClick={onPause}
-              className="main-menu-pause-button"
-              size="large"
-              danger
-            >
-              {t('mainMenu.pause')}
-            </Button>
-          </Tooltip>
+          <Button
+            type="primary"
+            icon={<PauseOutlined />}
+            onClick={onPause}
+            className="main-menu-pause-button"
+            size="large"
+            danger
+            title={t('tooltips.pause')}
+          >
+            {t('mainMenu.pause')}
+          </Button>
         )}
       </div>
 
