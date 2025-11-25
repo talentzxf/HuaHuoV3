@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   SaveOutlined,
   FolderOpenOutlined,
@@ -9,6 +10,7 @@ import {
   PauseOutlined,
 } from '@ant-design/icons';
 import { Button, Tooltip } from 'antd';
+import LanguageSwitcher from './LanguageSwitcher';
 import './MainMenu.css';
 
 interface MainMenuProps {
@@ -32,6 +34,8 @@ const MainMenu: React.FC<MainMenuProps> = ({
   onPause,
   isPlaying = false,
 }) => {
+  const { t } = useTranslation();
+
   // Add keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -67,38 +71,38 @@ const MainMenu: React.FC<MainMenuProps> = ({
     <div className="main-menu-container">
       {/* Left Section: File Operations */}
       <div className="main-menu-section main-menu-left">
-        <Tooltip title="Save (Ctrl+S)">
+        <Tooltip title={t('tooltips.saveShortcut')}>
           <Button
             type="text"
             icon={<SaveOutlined />}
             onClick={onSave}
             className="main-menu-button"
           >
-            Save
+            {t('mainMenu.save')}
           </Button>
         </Tooltip>
-        <Tooltip title="Open (Ctrl+O)">
+        <Tooltip title={t('tooltips.openShortcut')}>
           <Button
             type="text"
             icon={<FolderOpenOutlined />}
             onClick={onOpen}
             className="main-menu-button"
           >
-            Open
+            {t('mainMenu.open')}
           </Button>
         </Tooltip>
-        <Tooltip title="Preview">
+        <Tooltip title={t('tooltips.preview')}>
           <Button
             type="text"
             icon={<EyeOutlined />}
             onClick={onPreview}
             className="main-menu-button"
           >
-            Preview
+            {t('mainMenu.preview')}
           </Button>
         </Tooltip>
         <div className="main-menu-divider" />
-        <Tooltip title="Undo (Ctrl+Z)">
+        <Tooltip title={t('tooltips.undoShortcut')}>
           <Button
             type="text"
             icon={<UndoOutlined />}
@@ -106,7 +110,7 @@ const MainMenu: React.FC<MainMenuProps> = ({
             className="main-menu-button"
           />
         </Tooltip>
-        <Tooltip title="Redo (Ctrl+Y)">
+        <Tooltip title={t('tooltips.redoShortcut')}>
           <Button
             type="text"
             icon={<RedoOutlined />}
@@ -119,7 +123,7 @@ const MainMenu: React.FC<MainMenuProps> = ({
       {/* Center Section: Play/Pause Controls */}
       <div className="main-menu-section main-menu-center">
         {!isPlaying ? (
-          <Tooltip title="Play">
+          <Tooltip title={t('tooltips.play')}>
             <Button
               type="primary"
               icon={<CaretRightOutlined />}
@@ -127,11 +131,11 @@ const MainMenu: React.FC<MainMenuProps> = ({
               className="main-menu-play-button"
               size="large"
             >
-              Play
+              {t('mainMenu.play')}
             </Button>
           </Tooltip>
         ) : (
-          <Tooltip title="Pause">
+          <Tooltip title={t('tooltips.pause')}>
             <Button
               type="primary"
               icon={<PauseOutlined />}
@@ -140,7 +144,7 @@ const MainMenu: React.FC<MainMenuProps> = ({
               size="large"
               danger
             >
-              Pause
+              {t('mainMenu.pause')}
             </Button>
           </Tooltip>
         )}
@@ -148,7 +152,7 @@ const MainMenu: React.FC<MainMenuProps> = ({
 
       {/* Right Section: Empty for now, can be used for future features */}
       <div className="main-menu-section main-menu-right">
-        {/* Reserved for future use */}
+        <LanguageSwitcher />
       </div>
     </div>
   );

@@ -1,0 +1,30 @@
+{
+  "mainMenu": {
+    "save": "Save",
+    "open": "Open",
+    "preview": "Preview",
+    "undo": "Undo",
+    "redo": "Redo",
+    "play": "Play",
+    "pause": "Pause"
+  },
+  "messages": {
+    "projectSaved": "Project saved successfully!",
+    "openingProject": "Opening project...",
+    "openingPreview": "Opening preview...",
+    "undo": "Undo",
+    "redo": "Redo",
+    "playing": "Playing...",
+    "paused": "Paused"
+  },
+  "tooltips": {
+    "saveShortcut": "Save (Ctrl+S)",
+    "openShortcut": "Open (Ctrl+O)",
+    "preview": "Preview",
+    "undoShortcut": "Undo (Ctrl+Z)",
+    "redoShortcut": "Redo (Ctrl+Y)",
+    "play": "Play",
+    "pause": "Pause"
+  }
+}
+

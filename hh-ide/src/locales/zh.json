@@ -1,0 +1,30 @@
+{
+  "mainMenu": {
+    "save": "保存",
+    "open": "打开",
+    "preview": "预览",
+    "undo": "撤销",
+    "redo": "重做",
+    "play": "播放",
+    "pause": "暂停"
+  },
+  "messages": {
+    "projectSaved": "项目保存成功！",
+    "openingProject": "正在打开项目...",
+    "openingPreview": "正在打开预览...",
+    "undo": "撤销",
+    "redo": "重做",
+    "playing": "正在播放...",
+    "paused": "已暂停"
+  },
+  "tooltips": {
+    "saveShortcut": "保存 (Ctrl+S)",
+    "openShortcut": "打开 (Ctrl+O)",
+    "preview": "预览",
+    "undoShortcut": "撤销 (Ctrl+Z)",
+    "redoShortcut": "重做 (Ctrl+Y)",
+    "play": "播放",
+    "pause": "暂停"
+  }
+}
+

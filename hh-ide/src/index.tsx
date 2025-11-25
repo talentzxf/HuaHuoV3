@@ -4,6 +4,7 @@ import { Provider } from 'react-redux';
 import { ConfigProvider } from 'antd';
 import { store } from './store/store';
 import App from './App';
+import './i18n'; // Initialize i18n
 import 'antd/dist/reset.css';
 import './styles/flexlayout-custom.css';
 

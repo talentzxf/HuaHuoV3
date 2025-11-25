@@ -1,45 +1,47 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import FlexLayoutWrapper from './components/FlexLayoutWrapper';
 import MainMenu from './components/MainMenu';
 import { message } from 'antd';
 
 const App: React.FC = () => {
+  const { t } = useTranslation();
   const [isPlaying, setIsPlaying] = useState(false);
 
   const handleSave = () => {
-    message.success('Project saved successfully!');
+    message.success(t('messages.projectSaved'));
     // TODO: Implement save logic
   };
 
   const handleOpen = () => {
-    message.info('Opening project...');
+    message.info(t('messages.openingProject'));
     // TODO: Implement open logic
   };
 
   const handlePreview = () => {
-    message.info('Opening preview...');
+    message.info(t('messages.openingPreview'));
     // TODO: Implement preview logic
   };
 
   const handleUndo = () => {
-    message.info('Undo');
+    message.info(t('messages.undo'));
     // TODO: Implement undo logic
   };
 
   const handleRedo = () => {
-    message.info('Redo');
+    message.info(t('messages.redo'));
     // TODO: Implement redo logic
   };
 
   const handlePlay = () => {
     setIsPlaying(true);
-    message.success('Playing...');
+    message.success(t('messages.playing'));
     // TODO: Implement play logic
   };
 
   const handlePause = () => {
     setIsPlaying(false);
-    message.warning('Paused');
+    message.warning(t('messages.paused'));
     // TODO: Implement pause logic
   };
 
