@@ -87,9 +87,9 @@ const FlexLayoutWrapper: React.FC<FlexLayoutWrapperProps> = () => {
     <div
       style={{
         width: '100%',
-        height: '100vh',
+        height: 'calc(100vh - 48px)',
         position: 'absolute',
-        top: 0,
+        top: '48px',
         left: 0,
         right: 0,
         bottom: 0,
