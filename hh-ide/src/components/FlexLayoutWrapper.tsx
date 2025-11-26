@@ -7,6 +7,8 @@ import HomePanel from './panels/HomePanel';
 import AppsPanel from './panels/AppsPanel';
 import SettingsPanel from './panels/SettingsPanel';
 import PropertyPanel from "@/components/panels/PropertyPanel";
+import LogsPanel from './panels/LogsPanel';
+import CanvasPanel from './panels/CanvasPanel';
 
 interface FlexLayoutWrapperProps {
 }
@@ -29,39 +31,68 @@ const json: IJsonModel = {
         weight: 100,
         children: [
             {
-                type: 'tabset',
-                weight: 20,
+                type: 'column',
+                weight: 100,
                 children: [
                     {
-                        type:'tab',
-                        name: '🏠 Properties',
-                        component: 'property',
-                    }
-                ],
-            },
-            {
-                type: 'tabset',
-                weight: 80,
-                children: [
-                    {
-                        type: 'tab',
-                        name: '📱 Apps',
-                        component: 'apps',
+                        type: 'row',
+                        weight: 75,
+                        children: [
+                            {
+                                type: 'tabset',
+                                weight: 20,
+                                children: [
+                                    {
+                                        type:'tab',
+                                        name: '🏠 Properties',
+                                        component: 'property',
+                                    }
+                                ],
+                            },
+                            {
+                                type: 'tabset',
+                                weight: 80,
+                                children: [
+                                    {
+                                        type: 'tab',
+                                        name: '🎨 Canvas',
+                                        component: 'canvas',
+                                    },
+                                    {
+                                        type: 'tab',
+                                        name: '📱 Apps',
+                                        component: 'apps',
+                                    },
+                                    {
+                                        type: 'tab',
+                                        name: '⚙️ Settings',
+                                        component: 'settings',
+                                    },
+                                    {
+                                        type: 'tab',
+                                        name: '🏠 Home',
+                                        component: 'home',
+                                    },
+                                    {
+                                        type: 'tab',
+                                        name: '🔢 Counter',
+                                        component: 'counter',
+                                    },
+                                ],
+                            },
+                        ],
                     },
                     {
-                        type: 'tab',
-                        name: '⚙️ Settings',
-                        component: 'settings',
-                    },
-                    {
-                        type: 'tab',
-                        name: '🏠 Home',
-                        component: 'home',
-                    },
-                    {
-                        type: 'tab',
-                        name: '🔢 Counter',
-                        component: 'counter',
+                        type: 'tabset',
+                        weight: 25,
+                        children: [
+                            {
+                                type: 'tab',
+                                name: '📋 Logs',
+                                component: 'logs',
+                                enableClose: false,
+                            }
+                        ],
                     },
                 ],
             },
@@ -70,13 +101,15 @@ const json: IJsonModel = {
 };
 
 const FlexLayoutWrapper: React.FC<FlexLayoutWrapperProps> = () => {
-    const model = Model.fromJson(json);
+    const model = React.useMemo(() => Model.fromJson(json), []);
 
     // Factory function to render components
     const factory = (node: TabNode) => {
         const component = node.getComponent();
 
         switch (component) {
+            case 'canvas':
+                return <CanvasPanel/>;
             case 'home':
                 return <HomePanel/>;
             case 'counter':
@@ -86,7 +119,9 @@ const FlexLayoutWrapper: React.FC<FlexLayoutWrapperProps> = () => {
             case 'settings':
                 return <SettingsPanel/>;
             case 'property':
-                return <PropertyPanel/>
+                return <PropertyPanel/>;
+            case 'logs':
+                return <LogsPanel/>;
             default:
                 return <div>Component not found: {component}</div>;
         }
@@ -104,7 +139,10 @@ const FlexLayoutWrapper: React.FC<FlexLayoutWrapperProps> = () => {
                 bottom: 0,
             }}
         >
-            <Layout model={model} factory={factory}/>
+            <Layout
+                model={model}
+                factory={factory}
+            />
         </div>
     );
 };

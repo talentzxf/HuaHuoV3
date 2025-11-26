@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAppDispatch, useAppSelector } from './store/hooks';
 import { setPlaying } from './store/features/playback/playbackSlice';
@@ -10,6 +10,11 @@ const App: React.FC = () => {
   const { t } = useTranslation();
   const dispatch = useAppDispatch();
   const isPlaying = useAppSelector((state) => state.playback.isPlaying);
+
+  useEffect(() => {
+    console.info('🎉 HuaHuo IDE loaded successfully!');
+    console.log('Console logs will appear in the Logs panel at the bottom.');
+  }, []);
 
   const handleSave = () => {
     message.success(t('messages.projectSaved'));

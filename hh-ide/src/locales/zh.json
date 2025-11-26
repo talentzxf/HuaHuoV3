@@ -25,6 +25,24 @@
     "redoShortcut": "重做 (Ctrl+Y)",
     "play": "播放",
     "pause": "暂停"
+  },
+  "canvas": {
+    "tools": {
+      "circle": "画圆",
+      "rectangle": "画矩形",
+      "line": "画直线"
+    },
+    "hint": "请选择一个绘图工具开始绘制",
+    "status": {
+      "currentTool": "当前工具",
+      "color": "颜色",
+      "shapeCount": "图形数量"
+    },
+    "toolNames": {
+      "circle": "圆形",
+      "rectangle": "矩形",
+      "line": "直线"
+    }
   }
 }
 

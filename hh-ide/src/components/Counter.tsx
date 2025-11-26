@@ -10,6 +10,21 @@ const Counter: React.FC = () => {
   const count = useAppSelector((state) => state.counter.value);
   const dispatch = useAppDispatch();
 
+  const handleIncrement = () => {
+    dispatch(increment());
+    console.log('Counter incremented to:', count + 1);
+  };
+
+  const handleDecrement = () => {
+    dispatch(decrement());
+    console.log('Counter decremented to:', count - 1);
+  };
+
+  const handleReset = () => {
+    dispatch(reset());
+    console.info('Counter reset to 0');
+  };
+
   return (
     <div style={{
       textAlign: 'center',
@@ -35,14 +50,14 @@ const Counter: React.FC = () => {
           type="primary"
           danger
           icon={<MinusOutlined />}
-          onClick={() => dispatch(decrement())}
+          onClick={handleDecrement}
           size="large"
         >
           Decrement
         </Button>
         <Button
           icon={<ReloadOutlined />}
-          onClick={() => dispatch(reset())}
+          onClick={handleReset}
           size="large"
         >
           Reset
@@ -50,7 +65,7 @@ const Counter: React.FC = () => {
         <Button
           type="primary"
           icon={<PlusOutlined />}
-          onClick={() => dispatch(increment())}
+          onClick={handleIncrement}
           size="large"
         >
           Increment

@@ -25,6 +25,24 @@
     "redoShortcut": "Redo (Ctrl+Y)",
     "play": "Play",
     "pause": "Pause"
+  },
+  "canvas": {
+    "tools": {
+      "circle": "Draw Circle",
+      "rectangle": "Draw Rectangle",
+      "line": "Draw Line"
+    },
+    "hint": "Please select a drawing tool to start",
+    "status": {
+      "currentTool": "Current Tool",
+      "color": "Color",
+      "shapeCount": "Shapes"
+    },
+    "toolNames": {
+      "circle": "Circle",
+      "rectangle": "Rectangle",
+      "line": "Line"
+    }
   }
 }
 
