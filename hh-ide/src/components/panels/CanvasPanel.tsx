@@ -3,31 +3,19 @@ import { useTranslation } from 'react-i18next';
 import { Button, Space } from 'antd';
 import {
   BorderOutlined,
+  DragOutlined,
 } from '@ant-design/icons';
+import paper from 'paper';
 import './CanvasPanel.css';
 
-type DrawTool = 'circle' | 'rectangle' | 'line' | null;
-
-interface Point {
-  x: number;
-  y: number;
-}
-
-interface Shape {
-  type: 'circle' | 'rectangle' | 'line';
-  start: Point;
-  end: Point;
-  color: string;
-}
+type DrawTool = 'pointer' | 'circle' | 'rectangle' | 'line' | null;
 
 const CanvasPanel: React.FC = () => {
   const { t } = useTranslation();
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [currentTool, setCurrentTool] = useState<DrawTool>(null);
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [startPoint, setStartPoint] = useState<Point | null>(null);
-  const [shapes, setShapes] = useState<Shape[]>([]);
-  const [currentColor, setCurrentColor] = useState('#1890ff');
+  const [currentTool, setCurrentTool] = useState<DrawTool>('pointer');
+  const currentToolRef = useRef<DrawTool>('pointer');
+  const [currentColor] = useState('#1890ff');
 
   // Toolbar dragging state
   const [toolbarPosition, setToolbarPosition] = useState<{ x: number; y: number } | null>(null);
@@ -35,111 +23,162 @@ const CanvasPanel: React.FC = () => {
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const toolbarRef = useRef<HTMLDivElement>(null);
 
-  // Redraw all shapes
-  const redrawCanvas = (ctx: CanvasRenderingContext2D, tempShape?: Shape) => {
+  // Paper.js references
+  const paperScopeRef = useRef<paper.PaperScope | null>(null);
+  const currentPathRef = useRef<paper.Path | null>(null);
+  const startPointRef = useRef<paper.Point | null>(null);
+
+  // Update current tool ref when tool changes
+  useEffect(() => {
+    currentToolRef.current = currentTool;
+  }, [currentTool]);
+
+  // Initialize Paper.js
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Setup Paper.js
+    const scope = new paper.PaperScope();
+    scope.setup(canvas);
+    paperScopeRef.current = scope;
 
-    // Draw all saved shapes
-    shapes.forEach(shape => {
-      drawShape(ctx, shape);
-    });
+    // Tool for drawing and selection
+    const tool = new scope.Tool();
 
-    // Draw temporary shape (currently being drawn)
-    if (tempShape) {
-      drawShape(ctx, tempShape);
-    }
-  };
+    tool.onMouseDown = (event: paper.ToolEvent) => {
+      const currentToolValue = currentToolRef.current;
 
-  // Draw a single shape
-  const drawShape = (ctx: CanvasRenderingContext2D, shape: Shape) => {
-    ctx.strokeStyle = shape.color;
-    ctx.lineWidth = 2;
+      if (currentToolValue === 'pointer') {
+        // Selection mode
+        const hitResult = scope.project.hitTest(event.point, {
+          segments: true,
+          stroke: true,
+          fill: true,
+          tolerance: 5
+        });
 
-    switch (shape.type) {
-      case 'circle':
-        const radius = Math.sqrt(
-          Math.pow(shape.end.x - shape.start.x, 2) +
-          Math.pow(shape.end.y - shape.start.y, 2)
-        );
-        ctx.beginPath();
-        ctx.arc(shape.start.x, shape.start.y, radius, 0, 2 * Math.PI);
-        ctx.stroke();
-        break;
+        // Deselect all
+        scope.project.activeLayer.children.forEach((item: any) => {
+          item.selected = false;
+        });
 
-      case 'rectangle':
-        const width = shape.end.x - shape.start.x;
-        const height = shape.end.y - shape.start.y;
-        ctx.strokeRect(shape.start.x, shape.start.y, width, height);
-        break;
+        if (hitResult && hitResult.item) {
+          hitResult.item.selected = true;
+          console.log('Selected shape:', hitResult.item);
+        }
+      } else {
+        // Drawing mode
+        startPointRef.current = event.point;
 
-      case 'line':
-        ctx.beginPath();
-        ctx.moveTo(shape.start.x, shape.start.y);
-        ctx.lineTo(shape.end.x, shape.end.y);
-        ctx.stroke();
-        break;
-    }
-  };
+        switch (currentToolValue) {
+          case 'circle':
+            currentPathRef.current = new scope.Path.Circle({
+              center: event.point,
+              radius: 1,
+              strokeColor: new scope.Color(currentColor),
+              strokeWidth: 2,
+            });
+            break;
 
-  // Mouse down event
-  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!currentTool || !canvasRef.current) return;
+          case 'rectangle':
+            currentPathRef.current = new scope.Path.Rectangle({
+              from: event.point,
+              to: event.point,
+              strokeColor: new scope.Color(currentColor),
+              strokeWidth: 2,
+            });
+            break;
 
-    const rect = canvasRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    setIsDrawing(true);
-    setStartPoint({ x, y });
-  };
-
-  // Mouse move event
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawing || !startPoint || !currentTool || !canvasRef.current) return;
-
-    const rect = canvasRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    const ctx = canvasRef.current.getContext('2d');
-    if (!ctx) return;
-
-    // Create temporary shape for preview
-    const tempShape: Shape = {
-      type: currentTool,
-      start: startPoint,
-      end: { x, y },
-      color: currentColor,
+          case 'line':
+            currentPathRef.current = new scope.Path.Line({
+              from: event.point,
+              to: event.point,
+              strokeColor: new scope.Color(currentColor),
+              strokeWidth: 2,
+            });
+            break;
+        }
+      }
     };
 
-    redrawCanvas(ctx, tempShape);
-  };
+    tool.onMouseDrag = (event: paper.ToolEvent) => {
+      const currentToolValue = currentToolRef.current;
 
-  // Mouse up event
-  const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawing || !startPoint || !currentTool || !canvasRef.current) return;
+      if (currentToolValue === 'pointer' || !currentPathRef.current || !startPointRef.current) return;
 
-    const rect = canvasRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+      const start = startPointRef.current;
+      const current = event.point;
 
-    // Save the shape
-    const newShape: Shape = {
-      type: currentTool,
-      start: startPoint,
-      end: { x, y },
-      color: currentColor,
+      switch (currentToolValue) {
+        case 'circle':
+          const radius = start.getDistance(current);
+          (currentPathRef.current as any).radius = radius;
+          break;
+
+        case 'rectangle':
+          currentPathRef.current.remove();
+          currentPathRef.current = new scope.Path.Rectangle({
+            from: start,
+            to: current,
+            strokeColor: new scope.Color(currentColor),
+            strokeWidth: 2,
+          });
+          break;
+
+        case 'line':
+          currentPathRef.current.segments[1].point = current;
+          break;
+      }
     };
 
-    setShapes([...shapes, newShape]);
-    setIsDrawing(false);
-    setStartPoint(null);
+    tool.onMouseUp = (event: paper.ToolEvent) => {
+      const currentToolValue = currentToolRef.current;
 
-    console.log('Shape drawn:', newShape);
-  };
+      if (currentToolValue === 'pointer') return;
+
+      if (currentPathRef.current) {
+        console.log('Shape created:', currentPathRef.current);
+        currentPathRef.current = null;
+      }
+      startPointRef.current = null;
+    };
+
+    // Handle delete key for selected items
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (scope.project) {
+          scope.project.activeLayer.children.forEach((item: any) => {
+            if (item.selected) {
+              item.remove();
+            }
+          });
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    // Resize handler
+    const resizeCanvas = () => {
+      const container = canvas.parentElement;
+      if (container && scope.view) {
+        scope.view.viewSize = new scope.Size(container.clientWidth, container.clientHeight);
+      }
+    };
+
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    return () => {
+      window.removeEventListener('resize', resizeCanvas);
+      window.removeEventListener('keydown', handleKeyDown);
+      // Clean up paper.js project
+      if (scope.project) {
+        scope.project.clear();
+      }
+    };
+  }, [currentColor]);
 
   // Toolbar drag handlers
   const handleToolbarDragStart = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -226,38 +265,6 @@ const CanvasPanel: React.FC = () => {
     }
   }, [toolbarPosition]);
 
-  // Initialize canvas size
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const resizeCanvas = () => {
-      const container = canvas.parentElement;
-      if (container) {
-        canvas.width = container.clientWidth;
-        canvas.height = container.clientHeight;
-
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          redrawCanvas(ctx);
-        }
-      }
-    };
-
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
-    return () => window.removeEventListener('resize', resizeCanvas);
-  }, []);
-
-  // Redraw canvas when shapes list changes
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d');
-    if (ctx) {
-      redrawCanvas(ctx);
-    }
-  }, [shapes]);
-
   return (
     <div className="canvas-panel">
       {/* Floating toolbar */}
@@ -280,6 +287,13 @@ const CanvasPanel: React.FC = () => {
         </div>
 
         <Space size="small">
+          <Button
+            type={currentTool === 'pointer' ? 'primary' : 'default'}
+            icon={<DragOutlined />}
+            onClick={() => setCurrentTool('pointer')}
+            title={t('canvas.tools.pointer')}
+            className="canvas-tool-button"
+          />
           <Button
             type={currentTool === 'circle' ? 'primary' : 'default'}
             onClick={() => setCurrentTool('circle')}
@@ -310,15 +324,7 @@ const CanvasPanel: React.FC = () => {
       <canvas
         ref={canvasRef}
         className="canvas-drawing-area"
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={() => {
-          if (isDrawing) {
-            setIsDrawing(false);
-            setStartPoint(null);
-          }
-        }}
+        style={{ cursor: currentTool === 'pointer' ? 'default' : 'crosshair' }}
       />
 
       {/* Hint message */}

@@ -28,6 +28,7 @@
   },
   "canvas": {
     "tools": {
+      "pointer": "Select",
       "circle": "Draw Circle",
       "rectangle": "Draw Rectangle",
       "line": "Draw Line"
@@ -39,6 +40,7 @@
       "shapeCount": "Shapes"
     },
     "toolNames": {
+      "pointer": "Select",
       "circle": "Circle",
       "rectangle": "Rectangle",
       "line": "Line"

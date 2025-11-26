@@ -28,6 +28,7 @@
   },
   "canvas": {
     "tools": {
+      "pointer": "选择",
       "circle": "画圆",
       "rectangle": "画矩形",
       "line": "画直线"
@@ -39,6 +40,7 @@
       "shapeCount": "图形数量"
     },
     "toolNames": {
+      "pointer": "选择",
       "circle": "圆形",
       "rectangle": "矩形",
       "line": "直线"
