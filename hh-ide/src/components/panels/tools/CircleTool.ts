@@ -18,7 +18,16 @@ export class CircleTool extends BaseTool {
   onMouseDrag(event: paper.ToolEvent, scope: paper.PaperScope): void {
     if (!this.currentPath || !this.startPoint) return;
 
-    (this.currentPath as any).radius = this.startPoint.getDistance(event.point);
+    const radius = this.startPoint.getDistance(event.point);
+
+    // Remove old circle and create new one with updated radius
+    this.currentPath.remove();
+    this.currentPath = new scope.Path.Circle({
+      center: this.startPoint,
+      radius: radius,
+      strokeColor: new scope.Color(this.color),
+      strokeWidth: 2,
+    });
   }
 
   onMouseUp(event: paper.ToolEvent, scope: paper.PaperScope): void {
