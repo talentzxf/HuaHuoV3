@@ -24,6 +24,7 @@ const json: IJsonModel = {
         tabSetEnableDivide: true,
         tabEnableDrag: true,
         tabDragSpeed: 0.3,
+        tabEnableRenderOnDemand: false,
     },
     borders: [],
     layout: {

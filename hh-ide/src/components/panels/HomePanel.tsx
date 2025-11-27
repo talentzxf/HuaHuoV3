@@ -7,7 +7,7 @@ const { Title, Paragraph } = Typography;
 const HomePanel: React.FC = () => {
   return (
     <div style={{ padding: '20px', height: '100%', overflow: 'auto', background: '#fff' }}>
-      <Card bordered={false}>
+      <Card variant="borderless">
         <Title level={2}>
           <HomeOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
           Welcome to HH IDE

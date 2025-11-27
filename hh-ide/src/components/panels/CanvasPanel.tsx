@@ -123,6 +123,13 @@ const CanvasPanel: React.FC = () => {
       const containerWidth = container.clientWidth;
       const containerHeight = container.clientHeight;
 
+      // Skip resize if container is hidden (width/height = 0)
+      // This happens when FlexLayout hides the tab
+      if (containerWidth === 0 || containerHeight === 0) {
+        console.log('Container hidden, skipping resize');
+        return;
+      }
+
       // Update Paper.js view size
       scope.view.viewSize = new scope.Size(containerWidth, containerHeight);
 
@@ -167,6 +174,7 @@ const CanvasPanel: React.FC = () => {
 
     // Use ResizeObserver for better resize detection
     const resizeObserver = new ResizeObserver(() => {
+        console.log('resize observer');
       resizeCanvas();
     });
 
@@ -179,6 +187,7 @@ const CanvasPanel: React.FC = () => {
       window.removeEventListener('keydown', handleKeyDown);
       // Clean up paper.js project
       if (scope.project) {
+          console.log("Clearing Paper.js project");
         scope.project.clear();
       }
     };

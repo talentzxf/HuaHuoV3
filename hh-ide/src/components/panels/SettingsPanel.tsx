@@ -8,7 +8,7 @@ const { Option } = Select;
 const SettingsPanel: React.FC = () => {
   return (
     <div style={{ padding: '20px', height: '100%', overflow: 'auto', background: '#fff' }}>
-      <Card bordered={false}>
+      <Card variant="borderless">
         <Title level={2}>
           <SettingOutlined style={{ color: '#faad14', marginRight: '8px' }} />
           Settings
