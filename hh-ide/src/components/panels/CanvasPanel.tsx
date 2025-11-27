@@ -66,7 +66,7 @@ const CanvasPanel: React.FC = () => {
       registry.handleMouseUp(event, scope);
     };
 
-    // Handle delete key for selected items
+    // Handle delete key for selected items and ESC key to switch to pointer
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (scope.project) {
@@ -76,6 +76,10 @@ const CanvasPanel: React.FC = () => {
             }
           });
         }
+      } else if (e.key === 'Escape') {
+        // Switch to pointer tool
+        setCurrentTool('pointer');
+        SDK.Editor.Tools.setCurrentTool('pointer');
       }
     };
 
