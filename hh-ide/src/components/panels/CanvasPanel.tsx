@@ -6,6 +6,7 @@ import {
   DragOutlined,
 } from '@ant-design/icons';
 import paper from 'paper';
+import { SDK } from '@/sdk';
 import './CanvasPanel.css';
 
 type DrawTool = 'pointer' | 'circle' | 'rectangle' | 'line' | null;
@@ -25,12 +26,14 @@ const CanvasPanel: React.FC = () => {
 
   // Paper.js references
   const paperScopeRef = useRef<paper.PaperScope | null>(null);
-  const currentPathRef = useRef<paper.Path | null>(null);
-  const startPointRef = useRef<paper.Point | null>(null);
 
   // Update current tool ref when tool changes
   useEffect(() => {
     currentToolRef.current = currentTool;
+    // Update tool registry when tool changes
+    if (currentTool) {
+      SDK.Editor.Tools.setCurrentTool(currentTool);
+    }
   }, [currentTool]);
 
   // Initialize Paper.js
@@ -43,105 +46,25 @@ const CanvasPanel: React.FC = () => {
     scope.setup(canvas);
     paperScopeRef.current = scope;
 
+    // Get internal registry for event handling
+    const registry = SDK.Editor.Tools.getRegistry();
+
+    // Set default tool
+    SDK.Editor.Tools.setCurrentTool('pointer');
+
     // Tool for drawing and selection
     const tool = new scope.Tool();
 
     tool.onMouseDown = (event: paper.ToolEvent) => {
-      const currentToolValue = currentToolRef.current;
-
-      if (currentToolValue === 'pointer') {
-        // Selection mode
-        const hitResult = scope.project.hitTest(event.point, {
-          segments: true,
-          stroke: true,
-          fill: true,
-          tolerance: 5
-        });
-
-        // Deselect all
-        scope.project.activeLayer.children.forEach((item: any) => {
-          item.selected = false;
-        });
-
-        if (hitResult && hitResult.item) {
-          hitResult.item.selected = true;
-          console.log('Selected shape:', hitResult.item);
-        }
-      } else {
-        // Drawing mode
-        startPointRef.current = event.point;
-
-        switch (currentToolValue) {
-          case 'circle':
-            currentPathRef.current = new scope.Path.Circle({
-              center: event.point,
-              radius: 1,
-              strokeColor: new scope.Color(currentColor),
-              strokeWidth: 2,
-            });
-            break;
-
-          case 'rectangle':
-            currentPathRef.current = new scope.Path.Rectangle({
-              from: event.point,
-              to: event.point,
-              strokeColor: new scope.Color(currentColor),
-              strokeWidth: 2,
-            });
-            break;
-
-          case 'line':
-            currentPathRef.current = new scope.Path.Line({
-              from: event.point,
-              to: event.point,
-              strokeColor: new scope.Color(currentColor),
-              strokeWidth: 2,
-            });
-            break;
-        }
-      }
+      registry.handleMouseDown(event, scope);
     };
 
     tool.onMouseDrag = (event: paper.ToolEvent) => {
-      const currentToolValue = currentToolRef.current;
-
-      if (currentToolValue === 'pointer' || !currentPathRef.current || !startPointRef.current) return;
-
-      const start = startPointRef.current;
-      const current = event.point;
-
-      switch (currentToolValue) {
-        case 'circle':
-          const radius = start.getDistance(current);
-          (currentPathRef.current as any).radius = radius;
-          break;
-
-        case 'rectangle':
-          currentPathRef.current.remove();
-          currentPathRef.current = new scope.Path.Rectangle({
-            from: start,
-            to: current,
-            strokeColor: new scope.Color(currentColor),
-            strokeWidth: 2,
-          });
-          break;
-
-        case 'line':
-          currentPathRef.current.segments[1].point = current;
-          break;
-      }
+      registry.handleMouseDrag(event, scope);
     };
 
     tool.onMouseUp = (event: paper.ToolEvent) => {
-      const currentToolValue = currentToolRef.current;
-
-      if (currentToolValue === 'pointer') return;
-
-      if (currentPathRef.current) {
-        console.log('Shape created:', currentPathRef.current);
-        currentPathRef.current = null;
-      }
-      startPointRef.current = null;
+      registry.handleMouseUp(event, scope);
     };
 
     // Handle delete key for selected items
