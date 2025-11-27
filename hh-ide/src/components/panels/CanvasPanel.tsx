@@ -45,6 +45,16 @@ const CanvasPanel: React.FC = () => {
     scope.setup(canvas);
     paperScopeRef.current = scope;
 
+    // Initialize Scene SDK
+    SDK.Scene.initialize(scope);
+
+    // Create default scene and layers
+    const scene = SDK.Scene.createScene('DefaultScene');
+    scene.addLayer('background');
+    scene.addLayer('drawing');
+
+    console.log('Scene initialized:', scene);
+
     // Get internal registry for event handling
     const registry = SDK.Editor.Tools.getRegistry();
 
@@ -90,15 +100,24 @@ const CanvasPanel: React.FC = () => {
     const BASE_WIDTH = 800;
     const BASE_HEIGHT = BASE_WIDTH / CANVAS_ASPECT_RATIO; // 600
 
-    // Create background layer (non-drawing layer)
-    const backgroundLayer = new scope.Layer();
-    backgroundLayer.name = 'background';
-    backgroundLayer.locked = true; // Lock background layer to prevent selection
+    // Get Paper.js layers from Scene system
+    const sceneBackgroundLayer = scene.getLayer('background');
+    const sceneDrawingLayer = scene.getLayer('drawing');
 
-    // Create drawing layer (for user drawings)
-    const drawingLayer = new scope.Layer();
-    drawingLayer.name = 'drawing';
-    drawingLayer.activate(); // Activate drawing layer for user drawings
+    if (!sceneBackgroundLayer || !sceneDrawingLayer) {
+      console.error('Failed to get scene layers');
+      return;
+    }
+
+    // Get the actual Paper.js Layer objects
+    const backgroundLayer = (sceneBackgroundLayer as any).getPaperLayer() as paper.Layer;
+    const drawingLayer = (sceneDrawingLayer as any).getPaperLayer() as paper.Layer;
+
+    // Lock background layer to prevent selection
+    backgroundLayer.locked = true;
+
+    // Activate drawing layer for user drawings
+    drawingLayer.activate();
 
     // Create white canvas rectangle (fixed 4:3 aspect ratio)
     const whiteCanvas = new scope.Path.Rectangle({

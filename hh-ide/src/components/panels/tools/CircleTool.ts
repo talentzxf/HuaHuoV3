@@ -45,6 +45,15 @@ export class CircleTool extends BaseTool {
   onMouseUp(event: paper.ToolEvent, scope: paper.PaperScope): void {
     if (this.currentPath) {
       console.log('Circle created:', this.currentPath);
+
+      // Create GameObject from Paper.js item
+      const gameObject = SDK.Scene.createGameObjectFromPaperItem(this.currentPath, 'drawing');
+      if (gameObject) {
+        console.log('GameObject created:', gameObject);
+      }
+
+      // Remove the original Paper.js path since it's now managed by the GameObject
+      this.currentPath.remove();
     }
     this.cleanup();
   }

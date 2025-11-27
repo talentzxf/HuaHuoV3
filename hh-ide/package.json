@@ -17,6 +17,7 @@
   "license": "ISC",
   "dependencies": {
     "@ant-design/icons": "^6.1.0",
+    "@huahuo/engine": "workspace:*",
     "@huahuo/hh-common": "workspace:*",
     "@reduxjs/toolkit": "^2.8.2",
     "@types/paper": "^0.12.3",

@@ -42,6 +42,15 @@ export class RectangleTool extends BaseTool {
   onMouseUp(event: paper.ToolEvent, scope: paper.PaperScope): void {
     if (this.currentPath) {
       console.log('Rectangle created:', this.currentPath);
+
+      // Create GameObject from Paper.js item
+      const gameObject = SDK.Scene.createGameObjectFromPaperItem(this.currentPath, 'drawing');
+      if (gameObject) {
+        console.log('GameObject created:', gameObject);
+      }
+
+      // Remove the original Paper.js path since it's now managed by the GameObject
+      this.currentPath.remove();
     }
     this.fillColor = null;
     this.cleanup();
