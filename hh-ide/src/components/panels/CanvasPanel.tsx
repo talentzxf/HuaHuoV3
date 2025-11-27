@@ -90,6 +90,7 @@ const CanvasPanel: React.FC = () => {
     // Create background layer (non-drawing layer)
     const backgroundLayer = new scope.Layer();
     backgroundLayer.name = 'background';
+    backgroundLayer.locked = true; // Lock background layer to prevent selection
 
     // Create drawing layer (for user drawings)
     const drawingLayer = new scope.Layer();
@@ -105,6 +106,7 @@ const CanvasPanel: React.FC = () => {
       strokeWidth: 2,
     });
     whiteCanvas.name = 'whiteCanvas';
+    whiteCanvas.locked = true; // Lock white canvas to prevent selection
     backgroundLayer.addChild(whiteCanvas);
 
     // Store reference to white canvas for later access

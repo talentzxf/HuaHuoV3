@@ -6,16 +6,20 @@ export class PointerTool extends BaseTool {
   name = 'pointer';
 
   onMouseDown(event: paper.ToolEvent, scope: paper.PaperScope): void {
-    // Selection mode
-    const hitResult = scope.project.hitTest(event.point, {
+    // Selection mode - only test hits on the drawing layer
+    const drawingLayer = scope.project.layers.find((layer: any) => layer.name === 'drawing');
+
+    if (!drawingLayer) return;
+
+    const hitResult = drawingLayer.hitTest(event.point, {
       segments: true,
       stroke: true,
       fill: true,
       tolerance: 5
     });
 
-    // Deselect all
-    scope.project.activeLayer.children.forEach((item: any) => {
+    // Deselect all items in drawing layer only
+    drawingLayer.children.forEach((item: any) => {
       item.selected = false;
     });
 
