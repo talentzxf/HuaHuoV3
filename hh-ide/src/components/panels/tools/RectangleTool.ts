@@ -1,6 +1,6 @@
 import paper from 'paper';
 import { BaseTool } from './BaseTool';
-import { SDK } from '@/sdk';
+import { SDK } from '@huahuo/sdk';
 
 export class RectangleTool extends BaseTool {
   name = 'rectangle';
@@ -44,19 +44,16 @@ export class RectangleTool extends BaseTool {
       console.log('Rectangle created:', this.currentPath);
 
       // Create GameObject from Paper.js item
-      const gameObject = SDK.Scene.createGameObjectFromPaperItem(this.currentPath, 'drawing');
+      const gameObject = SDK.instance.Scene.createGameObjectFromPaperItem(this.currentPath, 'drawing');
       if (gameObject) {
         console.log('GameObject created:', gameObject);
       }
 
-      // Remove the original Paper.js path since it's now managed by the GameObject
-      this.currentPath.remove();
+      // Keep the original path for now (GameObject has its own renderer)
     }
     this.fillColor = null;
     this.cleanup();
   }
 }
 
-// Auto-register this tool
-SDK.Editor.Tools.register(new RectangleTool('#1890ff'));
 

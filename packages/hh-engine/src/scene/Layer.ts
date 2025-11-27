@@ -13,12 +13,19 @@ export class Layer implements ILayer {
   private scope: paper.PaperScope;
   private componentRegistry: Map<string, any>;
 
-  constructor(name: string, scope: paper.PaperScope, componentRegistry: Map<string, any>) {
+  constructor(name: string, scope: paper.PaperScope, componentRegistry: Map<string, any>, paperLayer?: paper.Layer) {
     this.name = name;
     this.scope = scope;
     this.componentRegistry = componentRegistry;
-    this.paperLayer = new scope.Layer();
-    this.paperLayer.name = name;
+
+    // Use provided paper layer or create a new one
+    if (paperLayer) {
+      this.paperLayer = paperLayer;
+      this.paperLayer.name = name;
+    } else {
+      this.paperLayer = new scope.Layer();
+      this.paperLayer.name = name;
+    }
   }
 
   addGameObject(name: string): IGameObject {

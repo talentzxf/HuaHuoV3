@@ -1,6 +1,6 @@
 import paper from 'paper';
 import { BaseTool } from './BaseTool';
-import { SDK } from '@/sdk';
+import { SDK } from '@huahuo/sdk';
 
 export class CircleTool extends BaseTool {
   name = 'circle';
@@ -47,18 +47,16 @@ export class CircleTool extends BaseTool {
       console.log('Circle created:', this.currentPath);
 
       // Create GameObject from Paper.js item
-      const gameObject = SDK.Scene.createGameObjectFromPaperItem(this.currentPath, 'drawing');
+      const gameObject = SDK.instance.Scene.createGameObjectFromPaperItem(this.currentPath, 'drawing');
       if (gameObject) {
         console.log('GameObject created:', gameObject);
       }
 
-      // Remove the original Paper.js path since it's now managed by the GameObject
-      this.currentPath.remove();
+      // Keep the original path for now (GameObject has its own renderer)
+      // TODO: Later we can remove the original and only use GameObject's renderer
     }
     this.cleanup();
   }
 }
 
-// Auto-register this tool
-SDK.Editor.Tools.register(new CircleTool('#1890ff'));
 

@@ -1,7 +1,6 @@
 // Export base classes for external extension
 export type { ICanvasTool } from './BaseTool';
 export { BaseTool } from './BaseTool';
-export { ToolRegistry } from './ToolRegistry';
 
 // Import tools to trigger auto-registration
 // These imports cause the tools to register themselves

@@ -1,0 +1,25 @@
+{
+  "name": "@huahuo/sdk",
+  "version": "1.0.0",
+  "description": "HuaHuo SDK - API layer for Engine",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "keywords": [
+    "sdk",
+    "game-engine"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@huahuo/engine": "workspace:*",
+    "paper": "^0.12.18"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.3"
+  }
+}
+

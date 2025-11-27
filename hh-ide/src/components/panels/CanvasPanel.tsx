@@ -6,7 +6,8 @@ import {
   DragOutlined,
 } from '@ant-design/icons';
 import paper from 'paper';
-import { SDK } from '@/sdk';
+import { SDK } from '@huahuo/sdk';
+import { PointerTool, CircleTool, RectangleTool, LineTool } from './tools';
 import './CanvasPanel.css';
 
 type DrawTool = 'pointer' | 'circle' | 'rectangle' | 'line' | null;
@@ -30,8 +31,8 @@ const CanvasPanel: React.FC = () => {
   useEffect(() => {
     currentToolRef.current = currentTool;
     // Update tool registry when tool changes
-    if (currentTool) {
-      SDK.Editor.Tools.setCurrentTool(currentTool);
+    if (currentTool && SDK.isInitialized()) {
+      SDK.instance.Editor.setCurrentTool(currentTool);
     }
   }, [currentTool]);
 
@@ -45,21 +46,36 @@ const CanvasPanel: React.FC = () => {
     scope.setup(canvas);
     paperScopeRef.current = scope;
 
-    // Initialize Scene SDK
-    SDK.Scene.initialize(scope);
+    // Initialize SDK
+    SDK.initialize(scope);
 
-    // Create default scene and layers
-    const scene = SDK.Scene.createScene('DefaultScene');
-    scene.addLayer('background');
-    scene.addLayer('drawing');
+    // Register tools
+    SDK.instance.Editor.registerTool(new PointerTool('#1890ff'));
+    SDK.instance.Editor.registerTool(new CircleTool('#1890ff'));
+    SDK.instance.Editor.registerTool(new RectangleTool('#1890ff'));
+    SDK.instance.Editor.registerTool(new LineTool('#1890ff'));
+
+    // Create Paper.js layers first
+    const paperBackgroundLayer = new scope.Layer();
+    paperBackgroundLayer.name = 'background';
+    paperBackgroundLayer.locked = true;
+
+    const paperDrawingLayer = new scope.Layer();
+    paperDrawingLayer.name = 'drawing';
+    paperDrawingLayer.activate();
+
+    // Create default scene and bind to existing Paper.js layers
+    const scene = SDK.instance.Scene.createScene('DefaultScene');
+    scene.addLayer('background', paperBackgroundLayer);
+    scene.addLayer('drawing', paperDrawingLayer);
 
     console.log('Scene initialized:', scene);
 
     // Get internal registry for event handling
-    const registry = SDK.Editor.Tools.getRegistry();
+    const registry = SDK.instance.Editor.getToolRegistry();
 
     // Set default tool
-    SDK.Editor.Tools.setCurrentTool('pointer');
+    SDK.instance.Editor.setCurrentTool('pointer');
 
     // Tool for drawing and selection
     const tool = new scope.Tool();
@@ -89,7 +105,7 @@ const CanvasPanel: React.FC = () => {
       } else if (e.key === 'Escape') {
         // Switch to pointer tool
         setCurrentTool('pointer');
-        SDK.Editor.Tools.setCurrentTool('pointer');
+        SDK.instance.Editor.setCurrentTool('pointer');
       }
     };
 
@@ -100,19 +116,9 @@ const CanvasPanel: React.FC = () => {
     const BASE_WIDTH = 800;
     const BASE_HEIGHT = BASE_WIDTH / CANVAS_ASPECT_RATIO; // 600
 
-    // Get Paper.js layers from Scene system
-    const sceneBackgroundLayer = scene.getLayer('background');
-    const sceneDrawingLayer = scene.getLayer('drawing');
-
-    if (!sceneBackgroundLayer || !sceneDrawingLayer) {
-      console.error('Failed to get scene layers');
-      return;
-    }
-
-    // Get the actual Paper.js Layer objects
-    const backgroundLayer = (sceneBackgroundLayer as any).getPaperLayer() as paper.Layer;
-    const drawingLayer = (sceneDrawingLayer as any).getPaperLayer() as paper.Layer;
-
+    // Use the Paper.js layers we created above
+    const backgroundLayer = paperBackgroundLayer;
+    const drawingLayer = paperDrawingLayer;
     // Lock background layer to prevent selection
     backgroundLayer.locked = true;
 

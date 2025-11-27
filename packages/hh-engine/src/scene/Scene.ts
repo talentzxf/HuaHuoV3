@@ -16,8 +16,8 @@ export class Scene implements IScene {
     this.componentRegistry = componentRegistry;
   }
 
-  addLayer(name: string): ILayer {
-    const layer = new Layer(name, this.scope, this.componentRegistry);
+  addLayer(name: string, paperLayer?: paper.Layer): ILayer {
+    const layer = new Layer(name, this.scope, this.componentRegistry, paperLayer);
     this.layers.push(layer);
     return layer;
   }

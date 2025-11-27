@@ -1,6 +1,6 @@
 import paper from 'paper';
 import { BaseTool } from './BaseTool';
-import { SDK } from '@/sdk';
+import { SDK } from '@huahuo/sdk';
 
 export class LineTool extends BaseTool {
   name = 'line';
@@ -29,6 +29,4 @@ export class LineTool extends BaseTool {
   }
 }
 
-// Auto-register this tool
-SDK.Editor.Tools.register(new LineTool('#1890ff'));
 

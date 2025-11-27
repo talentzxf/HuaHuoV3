@@ -9,6 +9,7 @@ import SettingsPanel from './panels/SettingsPanel';
 import PropertyPanel from "@/components/panels/PropertyPanel";
 import LogsPanel from './panels/LogsPanel';
 import CanvasPanel from './panels/CanvasPanel';
+import HierarchyPanel from './panels/HierarchyPanel';
 
 interface FlexLayoutWrapperProps {
 }
@@ -41,18 +42,18 @@ const json: IJsonModel = {
                         children: [
                             {
                                 type: 'tabset',
-                                weight: 20,
+                                weight: 15,
                                 children: [
                                     {
                                         type:'tab',
-                                        name: '🏠 Properties',
-                                        component: 'property',
+                                        name: '📋 Hierarchy',
+                                        component: 'hierarchy',
                                     }
                                 ],
                             },
                             {
                                 type: 'tabset',
-                                weight: 80,
+                                weight: 70,
                                 children: [
                                     {
                                         type: 'tab',
@@ -79,6 +80,17 @@ const json: IJsonModel = {
                                         name: '🔢 Counter',
                                         component: 'counter',
                                     },
+                                ],
+                            },
+                            {
+                                type: 'tabset',
+                                weight: 15,
+                                children: [
+                                    {
+                                        type:'tab',
+                                        name: '🏠 Properties',
+                                        component: 'property',
+                                    }
                                 ],
                             },
                         ],
@@ -111,6 +123,8 @@ const FlexLayoutWrapper: React.FC<FlexLayoutWrapperProps> = () => {
         switch (component) {
             case 'canvas':
                 return <CanvasPanel/>;
+            case 'hierarchy':
+                return <HierarchyPanel/>;
             case 'home':
                 return <HomePanel/>;
             case 'counter':
