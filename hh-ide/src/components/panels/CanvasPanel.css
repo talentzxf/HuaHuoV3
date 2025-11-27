@@ -65,7 +65,7 @@
 .canvas-drawing-area {
   flex: 1;
   cursor: crosshair;
-  background: #ffffff;
+  background: #e0e0e0;
   border: 1px solid #d9d9d9;
 }
 

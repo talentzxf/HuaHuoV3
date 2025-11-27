@@ -38,7 +38,7 @@ const CanvasPanel: React.FC = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Setup Paper.js
+    // Setup Paper.js - it will automatically read canvas dimensions
     const scope = new paper.PaperScope();
     scope.setup(canvas);
     paperScopeRef.current = scope;
@@ -159,19 +159,99 @@ const CanvasPanel: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
 
-    // Resize handler
+    // Define canvas aspect ratio (4:3)
+    const CANVAS_ASPECT_RATIO = 4 / 3;
+    const BASE_WIDTH = 800;
+    const BASE_HEIGHT = BASE_WIDTH / CANVAS_ASPECT_RATIO; // 600
+
+    // Create background layer (non-drawing layer)
+    const backgroundLayer = new scope.Layer();
+    backgroundLayer.name = 'background';
+
+    // Create drawing layer (for user drawings)
+    const drawingLayer = new scope.Layer();
+    drawingLayer.name = 'drawing';
+    drawingLayer.activate(); // Activate drawing layer for user drawings
+
+    // Create white canvas rectangle (fixed 4:3 aspect ratio)
+    const whiteCanvas = new scope.Path.Rectangle({
+      point: [0, 0],
+      size: [BASE_WIDTH, BASE_HEIGHT],
+      fillColor: new scope.Color('white'),
+      strokeColor: new scope.Color('#cccccc'),
+      strokeWidth: 2,
+    });
+    whiteCanvas.name = 'whiteCanvas';
+    backgroundLayer.addChild(whiteCanvas);
+
+    // Store reference to white canvas for later access
+    let whiteCanvasRect = whiteCanvas;
+
+    // Store previous scale to calculate delta
+    let previousScale = 1;
+    let previousOffset = new scope.Point(0, 0);
+
+    // Resize handler - maintain 4:3 aspect ratio and fit to window
     const resizeCanvas = () => {
       const container = canvas.parentElement;
-      if (container && scope.view) {
-        scope.view.viewSize = new scope.Size(container.clientWidth, container.clientHeight);
+      if (!container || !scope.view) return;
+
+      const containerWidth = container.clientWidth;
+      const containerHeight = container.clientHeight;
+
+      // Update Paper.js view size
+      scope.view.viewSize = new scope.Size(containerWidth, containerHeight);
+
+      // Calculate scale to fit canvas with 4:3 ratio in container
+      const scaleX = containerWidth / BASE_WIDTH;
+      const scaleY = containerHeight / BASE_HEIGHT;
+      const scale = Math.min(scaleX, scaleY) * 0.9; // 0.9 for some padding
+
+      // Position and scale white canvas to center
+      const scaledWidth = BASE_WIDTH * scale;
+      const scaledHeight = BASE_HEIGHT * scale;
+      const x = (containerWidth - scaledWidth) / 2;
+      const y = (containerHeight - scaledHeight) / 2;
+      const newOffset = new scope.Point(x, y);
+
+      // Reset background layer transformations
+      backgroundLayer.transform(new scope.Matrix());
+
+      // Update white canvas position and size
+      whiteCanvasRect.bounds = new scope.Rectangle(x, y, scaledWidth, scaledHeight);
+
+      // Calculate delta scale and delta offset
+      const deltaScale = scale / previousScale;
+      const deltaOffset = newOffset.subtract(previousOffset);
+
+      // Apply incremental transformation to drawing layer
+      // First, translate to compensate for offset change
+      drawingLayer.translate(deltaOffset);
+
+      // Then scale from the new origin point
+      if (deltaScale !== 1) {
+        drawingLayer.scale(deltaScale, newOffset);
       }
+
+      // Update previous values
+      previousScale = scale;
+      previousOffset = newOffset;
     };
 
+    // Initial size setup
     resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
+
+    // Use ResizeObserver for better resize detection
+    const resizeObserver = new ResizeObserver(() => {
+      resizeCanvas();
+    });
+
+    if (canvas.parentElement) {
+      resizeObserver.observe(canvas.parentElement);
+    }
 
     return () => {
-      window.removeEventListener('resize', resizeCanvas);
+      resizeObserver.disconnect();
       window.removeEventListener('keydown', handleKeyDown);
       // Clean up paper.js project
       if (scope.project) {
