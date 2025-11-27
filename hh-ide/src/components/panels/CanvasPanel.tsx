@@ -16,7 +16,6 @@ const CanvasPanel: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [currentTool, setCurrentTool] = useState<DrawTool>('pointer');
   const currentToolRef = useRef<DrawTool>('pointer');
-  const [currentColor] = useState('#1890ff');
 
   // Toolbar dragging state
   const [toolbarPosition, setToolbarPosition] = useState<{ x: number; y: number } | null>(null);
@@ -183,7 +182,7 @@ const CanvasPanel: React.FC = () => {
         scope.project.clear();
       }
     };
-  }, [currentColor]);
+  }, []);
 
   // Toolbar drag handlers
   const handleToolbarDragStart = (e: React.MouseEvent<HTMLDivElement>) => {
