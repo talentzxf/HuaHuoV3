@@ -56,7 +56,7 @@ export class Engine {
 
     // Get or create layer
     let layer = layerName
-      ? this.currentScene.getLayer(layerName)
+      ? this.currentScene.getLayerByName(layerName)
       : this.currentScene.layers[0];
 
     if (!layer && layerName) {
@@ -78,7 +78,7 @@ export class Engine {
     // Add appropriate renderer based on Paper.js item type
     if (item instanceof this.scope.Path.Circle) {
       const circle = item as paper.Path.Circle;
-      gameObject.addComponent('CircleRenderer', {
+        gameObject.addComponent('CircleRenderer', {
         radius: circle.bounds.width / 2,
         fillColor: circle.fillColor?.toCSS(true),
         strokeColor: circle.strokeColor?.toCSS(true),

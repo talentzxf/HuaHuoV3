@@ -3,7 +3,8 @@ import { Tree, Typography } from 'antd';
 import type { TreeDataNode } from 'antd';
 import { FolderOutlined, FileOutlined, AppstoreOutlined } from '@ant-design/icons';
 import { SDK } from '@huahuo/sdk';
-import type { IScene, ILayer, IGameObject } from '@huahuo/sdk';
+import type { IGameObject } from '@huahuo/sdk';
+import './HierarchyPanel.css';
 
 const { Title } = Typography;
 
@@ -82,21 +83,18 @@ const HierarchyPanel: React.FC<HierarchyPanelProps> = ({ onSelectGameObject }) =
       height: '100%',
       overflow: 'auto',
       background: '#1e1e1e',
-      color: '#cccccc'
+      color: '#e8e8e8'
     }}>
-      <Title level={5} style={{ color: '#cccccc', margin: '0 0 12px 0' }}>
+      <Title level={5} style={{ color: '#e8e8e8', margin: '0 0 12px 0' }}>
         Hierarchy
       </Title>
       <Tree
+        className="hierarchy-tree"
         showIcon
         defaultExpandAll
         selectedKeys={selectedKeys}
         onSelect={onSelect}
         treeData={treeData}
-        style={{
-          background: 'transparent',
-          color: '#cccccc'
-        }}
       />
     </div>
   );

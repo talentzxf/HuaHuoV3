@@ -1,59 +1,71 @@
-import paper from 'paper';
-import { IScene } from '../core/IScene';
-import { ILayer } from '../core/ILayer';
-import { Layer } from './Layer';
+import paper from "paper";
+import { store } from "../store/store";
+import { Layer } from "./Layer";
+import {IScene} from "../core/IScene";
+import { ILayer } from "../core/ILayer";
+import {addLayerToScene, createScene, setCurrentScene} from "../store/SceneSlice";
+import {createLayer} from "../store/LayerSlice";
 
 export class Scene implements IScene {
-  public name: string;
-  public layers: Layer[] = [];
+    readonly id: string;
+    private scope: paper.PaperScope;
+    private layerCache = new Map<string, paper.Layer>();
 
-  private scope: paper.PaperScope;
-  private componentRegistry: Map<string, any>;
-
-  constructor(name: string, scope: paper.PaperScope, componentRegistry: Map<string, any>) {
-    this.name = name;
-    this.scope = scope;
-    this.componentRegistry = componentRegistry;
-  }
-
-  addLayer(name: string, paperLayer?: paper.Layer): ILayer {
-    const layer = new Layer(name, this.scope, this.componentRegistry, paperLayer);
-    this.layers.push(layer);
-    return layer;
-  }
-
-  removeLayer(layer: ILayer): void {
-    const index = this.layers.indexOf(layer as Layer);
-    if (index !== -1) {
-      layer.destroy();
-      this.layers.splice(index, 1);
+    getPaperLayerById(layerId: string): paper.Layer {
+        if (!this.layerCache.has(layerId)) {
+            const paperLayer = new this.scope.Layer();
+            this.layerCache.set(layerId, paperLayer);
+            return paperLayer;
+        }
+        return this.layerCache.get(layerId)!;
     }
-  }
 
-  getLayer(name: string): ILayer | undefined {
-    return this.layers.find(l => l.name === name);
-  }
+    constructor(sceneId: string, scope: paper.PaperScope) {
+        this.id = sceneId;
+        this.scope = scope;
+    }
 
-  update(deltaTime: number): void {
-    this.layers.forEach(layer => layer.update(deltaTime));
-  }
+    getLayerByName(name: string): ILayer | undefined {
+        throw new Error("Method not implemented.");
+    }
+    destroy(): void {
+        throw new Error("Method not implemented.");
+    }
 
-  destroy(): void {
-    this.layers.forEach(layer => layer.destroy());
-    this.layers = [];
-  }
+    static create(name: string, scope: paper.PaperScope): Scene {
+        const sceneId = store.dispatch(createScene(name)).payload.id;
+        store.dispatch(setCurrentScene(sceneId));
+        return new Scene(sceneId, scope);
+    }
 
-  toJSON(): any {
-    return {
-      name: this.name,
-      layers: this.layers.map(layer => layer.toJSON()),
-    };
-  }
+    get name(): string {
+        return store.getState().scenes.byId[this.id].name;
+    }
 
-  static fromJSON(data: any, scope: paper.PaperScope, componentRegistry: Map<string, any>): Scene {
-    const scene = new Scene(data.name, scope, componentRegistry);
-    // TODO: Implement layer restoration from JSON
-    return scene;
-  }
+    get layers(): Layer[] {
+        const state = store.getState();
+        const scene = state.scenes.byId[this.id];
+
+        return scene.layerIds.map(
+            (layerId) => new Layer(layerId, this.scope, this.getPaperLayerById(layerId))
+        );
+    }
+
+    addLayer(name: string): Layer {
+        const layerId = store.dispatch(createLayer(name)).payload.id;
+        store.dispatch(
+            addLayerToScene({ sceneId: this.id, layerId })
+        );
+
+        const paperLayer = new this.scope.Layer();
+        return new Layer(layerId, this.scope, paperLayer);
+    }
+
+    removeLayer(layer: Layer) {
+        throw new Error("Method not implemented.");
+    }
+
+    update(deltaTime: number) {
+        throw new Error("Method not implemented.");
+    }
 }
-

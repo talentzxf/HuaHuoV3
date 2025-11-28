@@ -17,7 +17,7 @@ const LogsPanel: React.FC = () => {
   const logIdRef = useRef(0);
 
   useEffect(() => {
-    // 保存原始的 console 方法
+    // Store original console methods
     const originalConsole = {
       log: console.log,
       info: console.info,
@@ -25,13 +25,13 @@ const LogsPanel: React.FC = () => {
       error: console.error,
     };
 
-    // 创建日志记录函数
+    // Create logger function
     const createLogger = (type: LogEntry['type'], originalMethod: Function) => {
       return (...args: any[]) => {
-        // 调用原始方法
+        // Call original method
         originalMethod.apply(console, args);
 
-        // 记录日志
+        // Record log
         const message = args
           .map((arg) => {
             if (typeof arg === 'object') {
@@ -58,13 +58,13 @@ const LogsPanel: React.FC = () => {
       };
     };
 
-    // 覆盖 console 方法
+    // Override console methods
     console.log = createLogger('log', originalConsole.log);
     console.info = createLogger('info', originalConsole.info);
     console.warn = createLogger('warn', originalConsole.warn);
     console.error = createLogger('error', originalConsole.error);
 
-    // 清理函数：恢复原始 console 方法
+    // Cleanup: restore original console methods
     return () => {
       console.log = originalConsole.log;
       console.info = originalConsole.info;
@@ -73,7 +73,7 @@ const LogsPanel: React.FC = () => {
     };
   }, []);
 
-  // 自动滚动到底部
+  // Auto-scroll to bottom
   useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [logs]);

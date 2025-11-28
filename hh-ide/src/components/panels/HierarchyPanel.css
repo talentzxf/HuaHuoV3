@@ -1,0 +1,46 @@
+.hierarchy-tree {
+  background: transparent !important;
+}
+
+.hierarchy-tree .ant-tree-treenode {
+  color: #e8e8e8 !important;
+}
+
+.hierarchy-tree .ant-tree-node-content-wrapper {
+  color: #e8e8e8 !important;
+}
+
+.hierarchy-tree .ant-tree-node-content-wrapper:hover {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.hierarchy-tree .ant-tree-node-content-wrapper-open,
+.hierarchy-tree .ant-tree-node-content-wrapper-close {
+  color: #e8e8e8 !important;
+}
+
+.hierarchy-tree .ant-tree-node-selected .ant-tree-node-content-wrapper {
+  background-color: #1890ff !important;
+  color: #000 !important;
+}
+
+.hierarchy-tree .ant-tree-node-selected .ant-tree-title {
+  color: #000 !important;
+}
+
+.hierarchy-tree .ant-tree-node-selected .ant-tree-iconEle {
+  color: #000 !important;
+}
+
+.hierarchy-tree .ant-tree-switcher {
+  color: #e8e8e8 !important;
+}
+
+.hierarchy-tree .ant-tree-iconEle {
+  color: #e8e8e8 !important;
+}
+
+.hierarchy-tree .ant-tree-title {
+  color: #e8e8e8 !important;
+}
+

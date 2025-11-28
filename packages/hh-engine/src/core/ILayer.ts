@@ -11,6 +11,5 @@ export interface ILayer {
   findGameObject(name: string): IGameObject | undefined;
 
   destroy(): void;
-  toJSON(): any;
 }
 

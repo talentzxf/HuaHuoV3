@@ -1,73 +1,133 @@
-import paper from 'paper';
-import { ILayer } from '../core/ILayer';
-import { IGameObject } from '../core/IGameObject';
-import { GameObject } from './GameObject';
+import paper from "paper";
+import { ILayer } from "../core/ILayer";
+import { IGameObject } from "../core/IGameObject";
+import { GameObject } from "./GameObject";
+
+import { store } from "../store/store";
+import {
+    renameLayer,
+    setLayerVisible,
+    setLayerLocked,
+    addGameObjectToLayer,
+    removeGameObjectFromLayer,
+} from "../store/LayerSlice";
+import {
+    createGameObject,
+    deleteGameObject,
+} from "../store/GameObjectSlice";
 
 export class Layer implements ILayer {
-  public name: string;
-  public gameObjects: GameObject[] = [];
-  public visible: boolean = true;
-  public locked: boolean = false;
+    readonly id: string;
 
-  private paperLayer: paper.Layer;
-  private scope: paper.PaperScope;
-  private componentRegistry: Map<string, any>;
+    private scope: paper.PaperScope;
+    private paperLayer: paper.Layer;
 
-  constructor(name: string, scope: paper.PaperScope, componentRegistry: Map<string, any>, paperLayer?: paper.Layer) {
-    this.name = name;
-    this.scope = scope;
-    this.componentRegistry = componentRegistry;
+    private gameObjectPaperItemCache = new Map<string, paper.Item>();
 
-    // Use provided paper layer or create a new one
-    if (paperLayer) {
-      this.paperLayer = paperLayer;
-      this.paperLayer.name = name;
-    } else {
-      this.paperLayer = new scope.Layer();
-      this.paperLayer.name = name;
+    private getPaperItemById(gameObjectId: string): paper.Item {
+        if (!this.gameObjectPaperItemCache.has(gameObjectId)) {
+            throw new Error(`GameObject with ID ${gameObjectId} not found in layer ${this.id}`);
+        }
+        return this.gameObjectPaperItemCache.get(gameObjectId)!;
     }
-  }
 
-  addGameObject(name: string): IGameObject {
-    const gameObject = new GameObject(name, this.scope, this.paperLayer, this.componentRegistry);
-    this.gameObjects.push(gameObject);
-    return gameObject;
-  }
+    constructor(
+        layerId: string,
+        scope: paper.PaperScope,
+        paperLayer: paper.Layer,
+    ) {
+        this.id = layerId;
+        this.scope = scope;
+        this.paperLayer = paperLayer;
 
-  removeGameObject(gameObject: IGameObject): void {
-    const index = this.gameObjects.indexOf(gameObject as GameObject);
-    if (index !== -1) {
-      gameObject.destroy();
-      this.gameObjects.splice(index, 1);
+        this.paperLayer.name = this.name;
     }
-  }
 
-  findGameObject(name: string): IGameObject | undefined {
-    return this.gameObjects.find(obj => obj.name === name);
-  }
+    get name(): string {
+        return store.getState().layers.byId[this.id].name;
+    }
 
-  update(deltaTime: number): void {
-    if (!this.visible) return;
-    this.gameObjects.forEach(obj => obj.update(deltaTime));
-  }
+    get gameObjects(): ReadonlyArray<IGameObject> {
+        const state = store.getState();
+        const layer = state.layers.byId[this.id];
+        if (!layer) return [];
 
-  destroy(): void {
-    this.gameObjects.forEach(obj => obj.destroy());
-    this.gameObjects = [];
-    this.paperLayer.remove();
-  }
+        return layer.gameObjectIds.map(
+            (goId) =>
+                new GameObject(goId, this.scope, this.paperLayer, this.getPaperItemById(goId))
+        );
+    }
 
-  getPaperLayer(): paper.Layer {
-    return this.paperLayer;
-  }
+    get visible(): boolean {
+        return store.getState().layers.byId[this.id].visible;
+    }
 
-  toJSON(): any {
-    return {
-      name: this.name,
-      visible: this.visible,
-      locked: this.locked,
-      gameObjects: this.gameObjects.map(obj => obj.toJSON()),
-    };
-  }
+    set visible(v: boolean) {
+        store.dispatch(setLayerVisible({ layerId: this.id, visible: v }));
+        this.paperLayer.visible = v;
+    }
+
+    get locked(): boolean {
+        return store.getState().layers.byId[this.id].locked;
+    }
+
+    set locked(v: boolean) {
+        store.dispatch(setLayerLocked({ layerId: this.id, locked: v }));
+        this.paperLayer.locked = v;
+    }
+
+    addGameObject(name: string, item: paper.Item): IGameObject {
+        const action = createGameObject(name, this.id);
+        const { id: gameObjectId } = store.dispatch(action).payload;
+
+        store.dispatch(
+            addGameObjectToLayer({ layerId: this.id, gameObjectId })
+        );
+
+        this.gameObjectPaperItemCache.set(gameObjectId, item);
+
+        const gameObject = new GameObject(
+            gameObjectId,
+            this.scope,
+            this.paperLayer,
+            item
+        );
+
+        return gameObject;
+    }
+
+    removeGameObject(gameObject: IGameObject): void {
+        const go = gameObject as GameObject;
+
+        store.dispatch(
+            removeGameObjectFromLayer({
+                layerId: this.id,
+                gameObjectId: go.id,
+            })
+        );
+
+        store.dispatch(deleteGameObject(go.id));
+
+        go.destroy();
+    }
+
+    findGameObject(name: string): IGameObject | undefined {
+        return this.gameObjects.find((obj) => obj.name === name);
+    }
+
+    destroy(): void {
+        this.gameObjects.forEach((obj) => {
+            const go = obj as GameObject;
+            store.dispatch(
+                removeGameObjectFromLayer({
+                    layerId: this.id,
+                    gameObjectId: go.id,
+                })
+            );
+            store.dispatch(deleteGameObject(go.id));
+            go.destroy();
+        });
+
+        this.paperLayer.remove();
+    }
 }
-

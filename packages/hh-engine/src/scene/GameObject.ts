@@ -19,12 +19,13 @@ export class GameObject implements IGameObject {
     name: string,
     scope: paper.PaperScope,
     layer: paper.Layer,
-    componentRegistry: Map<string, any>
+    item: paper.Item
   ) {
     this.name = name;
     this.scope = scope;
     this.layer = layer;
-    this.componentRegistry = componentRegistry;
+
+    this.componentRegistry = new Map();
 
     // Every GameObject has a Transform component
     this.transform = new Transform(this);
