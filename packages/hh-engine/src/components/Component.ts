@@ -3,6 +3,7 @@ import { IGameObject } from '../core/IGameObject';
 import { getEngineStore, getEngineState } from '../core/EngineGlobals';
 import { updateComponentProps } from '../store/ComponentSlice';
 import { instanceRegistry } from '../core/InstanceRegistry';
+import { createComponentProxy } from '../core/ComponentProxy';
 
 export abstract class Component implements IComponent {
   public enabled: boolean = true;
@@ -11,8 +12,11 @@ export abstract class Component implements IComponent {
   protected gameObject: IGameObject;
   protected componentId: string | null = null;
 
-  constructor(gameObject: IGameObject) {
+  constructor(gameObject: IGameObject, config?: Record<string, any>) {
     this.gameObject = gameObject;
+
+    // Automatically wrap this component with a Proxy for auto-syncing properties
+    return createComponentProxy(this, config);
   }
 
   // Lifecycle methods
