@@ -11,9 +11,7 @@ export * from './renderer';
 // Components
 export { Component } from './components/Component';
 export { Transform } from './components/Transform';
-export { Renderer } from './components/Renderer';
-export { CircleRenderer } from './components/CircleRenderer';
-export { RectangleRenderer } from './components/RectangleRenderer';
+export { Visual } from './components/Visual';
 export { registerBuiltInComponents } from './components/registerComponents';
 
 // Scene system
@@ -22,7 +20,8 @@ export { Layer } from './scene/Layer';
 export { Scene } from './scene/Scene';
 
 // Engine
-export { Engine, getEngineStore, getEngineState } from './Engine';
+export { Engine } from './Engine';
+export { getEngineStore, getEngineState } from './core/EngineGlobals';
 
 // Redux Store - DO NOT export store instance, only reducers and types
 export * from './store';

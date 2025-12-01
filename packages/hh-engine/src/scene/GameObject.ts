@@ -3,11 +3,12 @@ import { IComponent, ITransform } from '../core/IComponent';
 import { Transform } from '../components/Transform';
 import { Component } from '../components/Component';
 import { IRenderer } from '../renderer';
-import { getEngineState } from '../Engine';
+import { getEngineState, getEngineStore } from '../core/EngineGlobals';
 import { ComponentRegistry } from '../core/ComponentRegistry';
+import { createComponent } from '../store/ComponentSlice';
+import { RegistrableEntity } from '../core/RegistrableEntity';
 
-export class GameObject implements IGameObject {
-  public readonly id: string;
+export class GameObject extends RegistrableEntity implements IGameObject {
   public transform: ITransform;
 
   public components: Component[] = [];
@@ -22,10 +23,17 @@ export class GameObject implements IGameObject {
     layerContext: any,
     renderItem?: any
   ) {
-    this.id = gameObjectId;
+    // Call RegistrableEntity constructor - auto-registers
+    super(gameObjectId);
+
     this.renderer = renderer;
     this.layerContext = layerContext;
     this.renderItem = renderItem;
+
+    // Register render item in renderer's registry
+    if (renderItem && (renderer as any).registerRenderItem) {
+      (renderer as any).registerRenderItem(gameObjectId, renderItem);
+    }
 
     // Every GameObject has a Transform component
     this.transform = new Transform(this);
@@ -57,9 +65,14 @@ export class GameObject implements IGameObject {
       throw new Error(`Component type "${componentType}" not registered`);
     }
 
+    // Create component data in Redux Store first
+    getEngineStore().dispatch(createComponent(componentType, this.id, config || {}));
+
+    // Then create the behavior wrapper
     const component = factory(this, this.layerContext, config);
     this.components.push(component);
     component.onAdd();
+
     return component as T;
   }
 
@@ -91,6 +104,14 @@ export class GameObject implements IGameObject {
   destroy(): void {
     this.components.forEach(component => component.onRemove());
     this.components = [];
+
+    // Unregister from registry (base class handles this)
+    this.unregister();
+
+    // Unregister render item from renderer's registry
+    if ((this.renderer as any).unregisterRenderItem) {
+      (this.renderer as any).unregisterRenderItem(this.id);
+    }
 
     if (this.renderItem) {
       this.renderer.removeRenderItem(this.renderItem);

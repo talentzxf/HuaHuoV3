@@ -1,34 +1,17 @@
 import { IScene } from './core/IScene';
 import { IGameObject } from './core/IGameObject';
 import { Scene } from './scene/Scene';
-import { IRenderer, PaperRenderer, ReduxRenderer } from './renderer';
+import { IRenderer, PaperRenderer, ReduxAdapter } from './renderer';
 import { ComponentRegistry } from './core/ComponentRegistry';
 import { registerBuiltInComponents } from './components/registerComponents';
 import type { Store } from '@reduxjs/toolkit';
 import type { EngineState } from './store/store';
-
-// Global store reference and selector for Engine internals to access
-let globalStore: Store | null = null;
-let engineStateSelector: ((state: any) => EngineState) | null = null;
-
-export function getEngineStore(): Store {
-  if (!globalStore) {
-    throw new Error('Engine store not initialized. Make sure Engine is constructed with a store.');
-  }
-  return globalStore;
-}
-
-export function getEngineState(): EngineState {
-  if (!globalStore || !engineStateSelector) {
-    throw new Error('Engine not initialized properly.');
-  }
-  return engineStateSelector(globalStore.getState());
-}
+import { initEngineStore } from './core/EngineGlobals';
 
 export class Engine {
   private currentScene: Scene | null = null;
   private renderer: IRenderer;
-  private reduxRenderer: ReduxRenderer;
+  private reduxAdapter: ReduxAdapter;
   private sceneContext: any;
 
   constructor(
@@ -37,21 +20,21 @@ export class Engine {
     selectEngineState: (state: any) => EngineState,
     renderer?: IRenderer
   ) {
-    // Set global store reference and selector so other Engine classes can access it
-    globalStore = store;
-    engineStateSelector = selectEngineState;
+    // Initialize global store reference
+    initEngineStore(store, selectEngineState);
 
     this.renderer = renderer || new PaperRenderer();
     this.renderer.initialize(canvas);
     this.sceneContext = this.renderer.createSceneContext();
 
-    // Setup Redux-aware renderer
-    this.reduxRenderer = new ReduxRenderer(this.renderer, store);
-    this.reduxRenderer.startListening();
+    // Setup Redux to Renderer adapter
+    this.reduxAdapter = new ReduxAdapter(this.renderer, store);
+    this.reduxAdapter.startListening();
 
     // Register built-in components
-    registerBuiltInComponents(this.renderer);
+    registerBuiltInComponents();
   }
+
 
   registerComponent(componentType: string, factory: any): void {
     ComponentRegistry.getInstance().register(componentType, factory);
@@ -100,37 +83,23 @@ export class Engine {
     // This ensures the renderItem is cached in the Layer
     const gameObject = layer.addGameObject(item.name || 'GameObject', item);
 
-    // Set Transform
+    // Set Transform from Paper.js item
     gameObject.transform.position = { x: item.position.x, y: item.position.y };
     gameObject.transform.rotation = item.rotation || 0;
+    gameObject.transform.scale = {
+      x: item.scaling?.x || 1,
+      y: item.scaling?.y || 1
+    };
 
-    // Detect item type and add appropriate renderer component
-    // Check for circle (has radius property or is a circle path)
-    if (item.className === 'Path' && item.segments && item.segments.length > 0) {
-      // Check if it's a circle by checking if all points are equidistant from center
-      const bounds = item.bounds;
-      const width = bounds.width;
-      const height = bounds.height;
-
-      // If width and height are similar and has few segments, it's likely a circle
-      if (Math.abs(width - height) < 1 && item.segments.length <= 4) {
-        gameObject.addComponent('CircleRenderer', {
-          radius: width / 2,
-          fillColor: item.fillColor ? this.colorToCSS(item.fillColor) : undefined,
-          strokeColor: item.strokeColor ? this.colorToCSS(item.strokeColor) : undefined,
-          strokeWidth: item.strokeWidth || 1,
-        });
-      } else {
-        // It's a rectangle or other shape
-        gameObject.addComponent('RectangleRenderer', {
-          width: width,
-          height: height,
-          fillColor: item.fillColor ? this.colorToCSS(item.fillColor) : undefined,
-          strokeColor: item.strokeColor ? this.colorToCSS(item.strokeColor) : undefined,
-          strokeWidth: item.strokeWidth || 1,
-        });
-      }
-    }
+    // Extract visual properties and add Visual component
+    // The item itself (circle, rectangle, or any shape) is the renderItem
+    // Shape can be changed later through vertex editing tools
+    gameObject.addComponent('Visual', {
+      fillColor: item.fillColor ? this.colorToCSS(item.fillColor) : undefined,
+      strokeColor: item.strokeColor ? this.colorToCSS(item.strokeColor) : undefined,
+      strokeWidth: item.strokeWidth || 2,
+      opacity: item.opacity !== undefined ? item.opacity : 1,
+    });
 
     return gameObject;
   }
@@ -159,7 +128,7 @@ export class Engine {
   }
 
   dispose(): void {
-    this.reduxRenderer.stopListening();
+    this.reduxAdapter.stopListening();
     this.renderer.dispose();
   }
 

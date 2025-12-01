@@ -13,9 +13,4 @@ export interface ITransform extends IComponent {
   scale: { x: number; y: number };
 }
 
-export interface IRendererComponent extends IComponent {
-  fillColor?: string;
-  strokeColor?: string;
-  strokeWidth?: number;
-}
 

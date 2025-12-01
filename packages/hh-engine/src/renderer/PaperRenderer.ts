@@ -8,6 +8,12 @@ import { RenderItemFactory } from "./RenderItemFactory";
 export class PaperRenderer implements IRenderer {
     private scope: paper.PaperScope | null = null;
 
+    /**
+     * GameObject ID to Paper.js Item mapping
+     * This is where Paper.js items should be managed
+     */
+    private renderItemRegistry = new Map<string, paper.Item>();
+
     initialize(canvas: HTMLCanvasElement): void {
         this.scope = new paper.PaperScope();
         this.scope.setup(canvas);
@@ -77,8 +83,54 @@ export class PaperRenderer implements IRenderer {
         item.remove();
     }
 
+    updateItemVisual(
+        item: paper.Item,
+        visual: {
+            fillColor?: string;
+            strokeColor?: string;
+            strokeWidth?: number;
+            opacity?: number;
+        }
+    ): void {
+        const scope = this.scope!;
+
+        if (visual.fillColor !== undefined) {
+            item.fillColor = visual.fillColor ? new scope.Color(visual.fillColor) : null;
+        }
+        if (visual.strokeColor !== undefined) {
+            item.strokeColor = visual.strokeColor ? new scope.Color(visual.strokeColor) : null;
+        }
+        if (visual.strokeWidth !== undefined) {
+            item.strokeWidth = visual.strokeWidth;
+        }
+        if (visual.opacity !== undefined) {
+            item.opacity = visual.opacity;
+        }
+    }
+
     removeLayer(layerContext: paper.Layer): void {
         layerContext.remove();
+    }
+
+    /**
+     * Register a render item for a GameObject
+     */
+    registerRenderItem(gameObjectId: string, item: paper.Item): void {
+        this.renderItemRegistry.set(gameObjectId, item);
+    }
+
+    /**
+     * Unregister a render item for a GameObject
+     */
+    unregisterRenderItem(gameObjectId: string): void {
+        this.renderItemRegistry.delete(gameObjectId);
+    }
+
+    /**
+     * Get the render item for a GameObject
+     */
+    getRenderItem(gameObjectId: string): paper.Item | undefined {
+        return this.renderItemRegistry.get(gameObjectId);
     }
 
     getView(sceneContext: paper.PaperScope): paper.View {

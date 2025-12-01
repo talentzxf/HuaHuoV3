@@ -1,13 +1,13 @@
-import { getEngineStore, getEngineState } from "../Engine";
+import { getEngineStore, getEngineState } from "../core/EngineGlobals";
 import { Layer } from "./Layer";
 import {IScene} from "../core/IScene";
 import { ILayer } from "../core/ILayer";
 import {addLayerToScene, createScene, setCurrentScene} from "../store/SceneSlice";
 import {createLayer} from "../store/LayerSlice";
 import { IRenderer } from "../renderer";
+import { RegistrableEntity } from "../core/RegistrableEntity";
 
-export class Scene implements IScene {
-    readonly id: string;
+export class Scene extends RegistrableEntity implements IScene {
     private renderer: IRenderer;
     private sceneContext: any;
     private layerContextCache = new Map<string, any>();
@@ -22,7 +22,9 @@ export class Scene implements IScene {
     }
 
     constructor(sceneId: string, renderer: IRenderer, sceneContext: any) {
-        this.id = sceneId;
+        // Call RegistrableEntity constructor - auto-registers
+        super(sceneId);
+
         this.renderer = renderer;
         this.sceneContext = sceneContext;
     }

@@ -21,7 +21,6 @@ export class Transform extends Component implements ITransform {
 
   set position(value: { x: number; y: number }) {
     this._position = { ...value };
-    this.notifyTransformChanged();
   }
 
   get rotation(): number {
@@ -30,7 +29,6 @@ export class Transform extends Component implements ITransform {
 
   set rotation(value: number) {
     this._rotation = value;
-    this.notifyTransformChanged();
   }
 
   get scale(): { x: number; y: number } {
@@ -39,19 +37,6 @@ export class Transform extends Component implements ITransform {
 
   set scale(value: { x: number; y: number }) {
     this._scale = { ...value };
-    this.notifyTransformChanged();
-  }
-
-  private notifyTransformChanged(): void {
-    // Notify other components that transform changed
-    const components = (this.gameObject as any).components as Component[];
-    if (components) {
-      components.forEach(component => {
-        if (component !== this && 'onTransformChanged' in component) {
-          (component as any).onTransformChanged();
-        }
-      });
-    }
   }
 
   // TODO: Move transform data to Redux Store

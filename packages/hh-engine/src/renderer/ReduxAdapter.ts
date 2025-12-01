@@ -1,10 +1,13 @@
 import { Store, Unsubscribe } from "@reduxjs/toolkit";
 import { IRenderer } from "./IRenderer";
+import { instanceRegistry } from "../core/InstanceRegistry";
 
 /**
- * Redux-aware renderer that listens to store changes and updates rendering automatically
+ * Redux to Renderer Adapter
+ * Listens to Redux store changes and updates rendering automatically
+ * This is an adapter that bridges Redux state management and the rendering system
  */
-export class ReduxRenderer {
+export class ReduxAdapter {
     private renderer: IRenderer;
     private store: Store;
     private unsubscribe: Unsubscribe | null = null;
@@ -148,36 +151,55 @@ export class ReduxRenderer {
     }
 
     private handleComponentChanges(previousComponents: any, currentComponents: any): void {
-        // Handle component additions, removals, and property changes
-        const previousComponentIds = previousComponents.allIds || [];
-        const currentComponentIds = currentComponents.allIds || [];
+        const prevById = previousComponents.byId || {};
+        const currById = currentComponents.byId || {};
 
-        // Check for new components
-        const newComponentIds = currentComponentIds.filter((id: string) => !previousComponentIds.includes(id));
-        newComponentIds.forEach((componentId: string) => {
-            console.log(`Component added: ${componentId}`);
+        // Check all current components for changes
+        Object.keys(currById).forEach((componentId: string) => {
+            const prevComponent = prevById[componentId];
+            const currComponent = currById[componentId];
+
+            if (!prevComponent) {
+                // New component added
+                console.log(`Component added: ${componentId} (${currComponent.type})`);
+                return;
+            }
+
+            // Check if props changed
+            if (JSON.stringify(prevComponent.props) !== JSON.stringify(currComponent.props)) {
+                this.handleComponentPropsChange(currComponent);
+            }
         });
 
         // Check for removed components
-        const removedComponentIds = previousComponentIds.filter((id: string) => !currentComponentIds.includes(id));
-        removedComponentIds.forEach((componentId: string) => {
-            console.log(`Component removed: ${componentId}`);
-        });
-
-        // Check for component property changes (transform, etc.)
-        currentComponentIds.forEach((componentId: string) => {
-            if (previousComponentIds.includes(componentId)) {
-                const prevComponent = previousComponents.byId[componentId];
-                const currComponent = currentComponents.byId[componentId];
-
-                if (prevComponent && currComponent) {
-                    // Deep comparison for transform changes
-                    if (JSON.stringify(prevComponent) !== JSON.stringify(currComponent)) {
-                        console.log(`Component changed: ${componentId}`);
-                    }
-                }
+        Object.keys(prevById).forEach((componentId: string) => {
+            if (!currById[componentId]) {
+                console.log(`Component removed: ${componentId}`);
             }
         });
+    }
+
+    /**
+     * Handle component props change and update rendering
+     */
+    private handleComponentPropsChange(component: any): void {
+        const { id: componentId, parentId } = component;
+
+        // Get the component instance from registry
+        const componentInstance = instanceRegistry.get(componentId);
+        if (!componentInstance) {
+            return; // Component instance not found (might not be registered yet)
+        }
+
+        // Get render item from renderer's registry
+        const renderItem = (this.renderer as any).getRenderItem?.(parentId);
+        if (!renderItem) {
+            return; // GameObject doesn't have a render item yet
+        }
+
+        // Let the component handle its own rendering update
+        // Each component knows how to apply its data to the renderer
+        componentInstance.applyToRenderer(this.renderer, renderItem);
     }
 
     getRenderer(): IRenderer {

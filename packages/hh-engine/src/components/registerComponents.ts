@@ -3,29 +3,23 @@
  * Each component registers itself using the ComponentRegistry
  */
 import { ComponentRegistry } from '../core/ComponentRegistry';
-import { CircleRenderer } from './CircleRenderer';
-import { RectangleRenderer } from './RectangleRenderer';
-import { IRenderer } from '../renderer';
+import { Visual } from './Visual';
 
 /**
  * Register all built-in components
  * This function should be called once during engine initialization
  */
-export function registerBuiltInComponents(renderer: IRenderer): void {
+export function registerBuiltInComponents(): void {
   const registry = ComponentRegistry.getInstance();
 
-  // Register CircleRenderer
-  registry.register('CircleRenderer', (gameObject: any, layerContext: any, config: any) => {
-    return new CircleRenderer(gameObject, renderer, layerContext, config);
-  });
-
-  // Register RectangleRenderer
-  registry.register('RectangleRenderer', (gameObject: any, layerContext: any, config: any) => {
-    return new RectangleRenderer(gameObject, renderer, layerContext, config);
+  // Register Visual component (data component for visual properties)
+  registry.register('Visual', (gameObject: any, _layerContext: any, config: any) => {
+    return new Visual(gameObject, config);
   });
 
   // Future components can be added here:
-  // registry.register('LineRenderer', ...);
-  // registry.register('TextRenderer', ...);
+  // registry.register('Physics', ...);
+  // registry.register('Collider', ...);
+  // registry.register('Script', ...);
 }
 

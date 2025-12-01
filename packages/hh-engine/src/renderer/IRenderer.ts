@@ -51,6 +51,16 @@ export interface IRenderer {
     removeRenderItem(item: any): void;
 
     /**
+     * Update render item visual properties (colors, stroke, etc.)
+     */
+    updateItemVisual(item: any, visual: {
+        fillColor?: string;
+        strokeColor?: string;
+        strokeWidth?: number;
+        opacity?: number;
+    }): void;
+
+    /**
      * Remove a layer
      */
     removeLayer(layerContext: any): void;

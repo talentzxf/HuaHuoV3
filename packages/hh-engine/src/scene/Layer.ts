@@ -2,7 +2,7 @@ import { ILayer } from "../core/ILayer";
 import { IGameObject } from "../core/IGameObject";
 import { GameObject } from "./GameObject";
 
-import { getEngineStore, getEngineState } from "../Engine";
+import { getEngineStore, getEngineState } from "../core/EngineGlobals";
 import {
     setLayerVisible,
     setLayerLocked,
@@ -14,25 +14,20 @@ import {
     deleteGameObject,
 } from "../store/GameObjectSlice";
 import { IRenderer } from "../renderer";
+import { RegistrableEntity } from "../core/RegistrableEntity";
 
-export class Layer implements ILayer {
-    readonly id: string;
-
+export class Layer extends RegistrableEntity implements ILayer {
     private renderer: IRenderer;
     private layerContext: any;
-
-    private gameObjectRenderItemCache = new Map<string, any>();
-
-    private getRenderItemById(gameObjectId: string): any {
-        return this.gameObjectRenderItemCache.get(gameObjectId);
-    }
 
     constructor(
         layerId: string,
         renderer: IRenderer,
         layerContext: any
     ) {
-        this.id = layerId;
+        // Call RegistrableEntity constructor - auto-registers
+        super(layerId);
+
         this.renderer = renderer;
         this.layerContext = layerContext;
     }
@@ -46,8 +41,10 @@ export class Layer implements ILayer {
         const layer = engineState.layers.byId[this.id];
         if (!layer) return [];
 
+        // Get render items from renderer's registry
         return layer.gameObjectIds.map((goId: string) => {
-            return new GameObject(goId, this.renderer, this.layerContext, this.getRenderItemById(goId));
+            const renderItem = (this.renderer as any).getRenderItem?.(goId);
+            return new GameObject(goId, this.renderer, this.layerContext, renderItem);
         });
     }
 
@@ -78,11 +75,7 @@ export class Layer implements ILayer {
             addGameObjectToLayer({ layerId: this.id, gameObjectId })
         );
 
-        // If no render item provided, create an empty one (renderer components can be added later)
-        if (renderItem) {
-            this.gameObjectRenderItemCache.set(gameObjectId, renderItem);
-        }
-
+        // Create GameObject - it will register the render item in Engine's registry
         return new GameObject(
             gameObjectId,
             this.renderer,
@@ -111,7 +104,8 @@ export class Layer implements ILayer {
         const layerState = getEngineState().layers.byId[this.id];
         if (layerState) {
             layerState.gameObjectIds.forEach((goId: string) => {
-                const go = new GameObject(goId, this.renderer, this.layerContext, this.getRenderItemById(goId));
+                const renderItem = (this.renderer as any).getRenderItem?.(goId);
+                const go = new GameObject(goId, this.renderer, this.layerContext, renderItem);
                 go.destroy();
             });
         }
