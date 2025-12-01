@@ -7,6 +7,7 @@ import {
 } from '@ant-design/icons';
 import paper from 'paper';
 import { SDK } from '@huahuo/sdk';
+import { store } from '../../store/store';
 import { PointerTool, CircleTool, RectangleTool, LineTool } from './tools';
 import './CanvasPanel.css';
 
@@ -46,8 +47,8 @@ const CanvasPanel: React.FC = () => {
     scope.setup(canvas);
     paperScopeRef.current = scope;
 
-    // Initialize SDK
-    SDK.initialize(scope);
+    // Initialize SDK with canvas element and selector
+    SDK.initialize(canvas, store, (state) => state.engine);
 
     // Register tools
     SDK.instance.Editor.registerTool(new PointerTool('#1890ff'));

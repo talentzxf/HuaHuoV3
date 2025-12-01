@@ -1,43 +1,28 @@
-import paper from 'paper';
 import { Renderer } from './Renderer';
+import { IRenderer } from '../renderer';
 
 export class CircleRenderer extends Renderer {
   public readonly type = 'CircleRenderer';
   public radius: number;
 
-  constructor(gameObject: any, scope: paper.PaperScope, layer: paper.Layer, config?: any) {
-    super(gameObject, scope, layer);
+  constructor(gameObject: any, renderer: IRenderer, layerContext: any, config?: any) {
+    super(gameObject, renderer, layerContext);
     this.radius = config?.radius || 50;
     this.fillColor = config?.fillColor;
     this.strokeColor = config?.strokeColor || '#1890ff';
     this.strokeWidth = config?.strokeWidth || 2;
   }
 
-  createPaperItem(): paper.Item {
+  createRenderItem(): any {
     const transform = this.gameObject.transform;
-    const circle = new this.scope.Path.Circle({
-      center: new this.scope.Point(transform.position.x, transform.position.y),
+    return this.renderer.createRenderItem(this.layerContext, 'circle', {
+      x: transform.position.x,
+      y: transform.position.y,
       radius: this.radius,
+      fillColor: this.fillColor,
+      strokeColor: this.strokeColor,
+      strokeWidth: this.strokeWidth,
     });
-
-    if (this.fillColor) {
-      circle.fillColor = new this.scope.Color(this.fillColor);
-    }
-    if (this.strokeColor) {
-      circle.strokeColor = new this.scope.Color(this.strokeColor);
-    }
-    if (this.strokeWidth !== undefined) {
-      circle.strokeWidth = this.strokeWidth;
-    }
-
-    return circle;
-  }
-
-  toJSON(): any {
-    return {
-      ...super.toJSON(),
-      radius: this.radius,
-    };
   }
 }
 

@@ -5,7 +5,8 @@ export { SDK } from './core/SDK';
 export { SceneAPI } from './scene/SceneAPI';
 
 // Editor API
-export { EditorAPI, ICanvasTool, ToolRegistry } from './editor/EditorAPI';
+export type { ICanvasTool } from './editor/EditorAPI';
+export { EditorAPI, ToolRegistry } from './editor/EditorAPI';
 
 // Re-export Engine interfaces for convenience
 export type {
@@ -26,6 +27,15 @@ export {
   RectangleRenderer,
   GameObject,
   Layer,
-  Scene
+  Scene,
+  // Export unified engine reducer (recommended)
+  engineReducer,
+  // Also export individual reducers for advanced use
+  sceneReducer,
+  layerReducer,
+  gameObjectReducer,
+  componentReducer
 } from '@huahuo/engine';
+
+export type { EngineState } from '@huahuo/engine';
 

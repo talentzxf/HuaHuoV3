@@ -1,11 +1,9 @@
-import paper from "paper";
 import { ILayer } from "../core/ILayer";
 import { IGameObject } from "../core/IGameObject";
 import { GameObject } from "./GameObject";
 
-import { store } from "../store/store";
+import { getEngineStore, getEngineState } from "../Engine";
 import {
-    renameLayer,
     setLayerVisible,
     setLayerLocked,
     addGameObjectToLayer,
@@ -15,68 +13,64 @@ import {
     createGameObject,
     deleteGameObject,
 } from "../store/GameObjectSlice";
+import { IRenderer } from "../renderer";
 
 export class Layer implements ILayer {
     readonly id: string;
 
-    private scope: paper.PaperScope;
-    private paperLayer: paper.Layer;
+    private renderer: IRenderer;
+    private layerContext: any;
 
-    private gameObjectPaperItemCache = new Map<string, paper.Item>();
+    private gameObjectRenderItemCache = new Map<string, any>();
 
-    private getPaperItemById(gameObjectId: string): paper.Item {
-        if (!this.gameObjectPaperItemCache.has(gameObjectId)) {
-            throw new Error(`GameObject with ID ${gameObjectId} not found in layer ${this.id}`);
-        }
-        return this.gameObjectPaperItemCache.get(gameObjectId)!;
+    private getRenderItemById(gameObjectId: string): any {
+        return this.gameObjectRenderItemCache.get(gameObjectId);
     }
 
     constructor(
         layerId: string,
-        scope: paper.PaperScope,
-        paperLayer: paper.Layer,
+        renderer: IRenderer,
+        layerContext: any
     ) {
         this.id = layerId;
-        this.scope = scope;
-        this.paperLayer = paperLayer;
-
-        this.paperLayer.name = this.name;
+        this.renderer = renderer;
+        this.layerContext = layerContext;
     }
 
     get name(): string {
-        return store.getState().layers.byId[this.id].name;
+        return getEngineState().layers.byId[this.id].name;
     }
 
     get gameObjects(): ReadonlyArray<IGameObject> {
-        const state = store.getState();
-        const layer = state.layers.byId[this.id];
+        const engineState = getEngineState();
+        const layer = engineState.layers.byId[this.id];
         if (!layer) return [];
 
-        return layer.gameObjectIds.map(
-            (goId) =>
-                new GameObject(goId, this.scope, this.paperLayer, this.getPaperItemById(goId))
-        );
+        return layer.gameObjectIds.map((goId: string) => {
+            return new GameObject(goId, this.renderer, this.layerContext, this.getRenderItemById(goId));
+        });
     }
 
     get visible(): boolean {
-        return store.getState().layers.byId[this.id].visible;
+        return getEngineState().layers.byId[this.id].visible;
     }
 
     set visible(v: boolean) {
-        store.dispatch(setLayerVisible({ layerId: this.id, visible: v }));
-        this.paperLayer.visible = v;
+        getEngineStore().dispatch(setLayerVisible({ layerId: this.id, visible: v }));
+        this.renderer.setLayerVisible(this.layerContext, v);
     }
 
     get locked(): boolean {
-        return store.getState().layers.byId[this.id].locked;
+        return getEngineState().layers.byId[this.id].locked;
     }
 
     set locked(v: boolean) {
-        store.dispatch(setLayerLocked({ layerId: this.id, locked: v }));
-        this.paperLayer.locked = v;
+        getEngineStore().dispatch(setLayerLocked({ layerId: this.id, locked: v }));
+        this.renderer.setLayerLocked(this.layerContext, v);
     }
 
-    addGameObject(name: string, item: paper.Item): IGameObject {
+    addGameObject(name: string, renderItem?: any): IGameObject {
+        const store = getEngineStore();
         const action = createGameObject(name, this.id);
         const { id: gameObjectId } = store.dispatch(action).payload;
 
@@ -84,50 +78,49 @@ export class Layer implements ILayer {
             addGameObjectToLayer({ layerId: this.id, gameObjectId })
         );
 
-        this.gameObjectPaperItemCache.set(gameObjectId, item);
+        // If no render item provided, create an empty one (renderer components can be added later)
+        if (renderItem) {
+            this.gameObjectRenderItemCache.set(gameObjectId, renderItem);
+        }
 
-        const gameObject = new GameObject(
+        return new GameObject(
             gameObjectId,
-            this.scope,
-            this.paperLayer,
-            item
+            this.renderer,
+            this.layerContext,
+            renderItem
         );
-
-        return gameObject;
-    }
-
-    removeGameObject(gameObject: IGameObject): void {
-        const go = gameObject as GameObject;
-
-        store.dispatch(
-            removeGameObjectFromLayer({
-                layerId: this.id,
-                gameObjectId: go.id,
-            })
-        );
-
-        store.dispatch(deleteGameObject(go.id));
-
-        go.destroy();
     }
 
     findGameObject(name: string): IGameObject | undefined {
-        return this.gameObjects.find((obj) => obj.name === name);
+        return this.gameObjects.find(go => go.name === name);
+    }
+
+    removeGameObject(gameObject: IGameObject): void {
+        const store = getEngineStore();
+        store.dispatch(
+            removeGameObjectFromLayer({
+                layerId: this.id,
+                gameObjectId: gameObject.id,
+            })
+        );
+        store.dispatch(deleteGameObject(gameObject.id));
+        gameObject.destroy();
     }
 
     destroy(): void {
-        this.gameObjects.forEach((obj) => {
-            const go = obj as GameObject;
-            store.dispatch(
-                removeGameObjectFromLayer({
-                    layerId: this.id,
-                    gameObjectId: go.id,
-                })
-            );
-            store.dispatch(deleteGameObject(go.id));
-            go.destroy();
-        });
+        const layerState = getEngineState().layers.byId[this.id];
+        if (layerState) {
+            layerState.gameObjectIds.forEach((goId: string) => {
+                const go = new GameObject(goId, this.renderer, this.layerContext, this.getRenderItemById(goId));
+                go.destroy();
+            });
+        }
+    }
 
-        this.paperLayer.remove();
+    update(deltaTime: number): void {
+        this.gameObjects.forEach((gameObject) => {
+            gameObject.update(deltaTime);
+        });
     }
 }
+

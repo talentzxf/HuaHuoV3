@@ -4,6 +4,7 @@ import type { TreeDataNode } from 'antd';
 import { FolderOutlined, FileOutlined, AppstoreOutlined } from '@ant-design/icons';
 import { SDK } from '@huahuo/sdk';
 import type { IGameObject } from '@huahuo/sdk';
+import { store } from '../../store/store'; // Use IDE's merged store
 import './HierarchyPanel.css';
 
 const { Title } = Typography;
@@ -52,10 +53,12 @@ const HierarchyPanel: React.FC<HierarchyPanelProps> = ({ onSelectGameObject }) =
   useEffect(() => {
     refreshHierarchy();
 
-    // Refresh every second (for now, later we can use events)
-    const interval = setInterval(refreshHierarchy, 1000);
+    // Subscribe to Redux store changes (IDE's merged store includes engine state)
+    const unsubscribe = store.subscribe(() => {
+      refreshHierarchy();
+    });
 
-    return () => clearInterval(interval);
+    return () => unsubscribe();
   }, []);
 
   const onSelect = (selectedKeys: React.Key[], info: any) => {

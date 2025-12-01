@@ -54,21 +54,7 @@ export class Transform extends Component implements ITransform {
     }
   }
 
-  toJSON(): any {
-    return {
-      ...super.toJSON(),
-      position: { ...this._position },
-      rotation: this._rotation,
-      scale: { ...this._scale },
-    };
-  }
-
-  static fromJSON(data: any, gameObject: IGameObject): Transform {
-    const transform = new Transform(gameObject);
-    transform._position = { ...data.position };
-    transform._rotation = data.rotation;
-    transform._scale = { ...data.scale };
-    return transform;
-  }
+  // TODO: Move transform data to Redux Store
+  // Currently storing locally for simplicity, but should be in store for proper data/behavior separation
 }
 

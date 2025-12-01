@@ -1,13 +1,13 @@
-import paper from 'paper';
 import { Renderer } from './Renderer';
+import { IRenderer } from '../renderer';
 
 export class RectangleRenderer extends Renderer {
   public readonly type = 'RectangleRenderer';
   public width: number;
   public height: number;
 
-  constructor(gameObject: any, scope: paper.PaperScope, layer: paper.Layer, config?: any) {
-    super(gameObject, scope, layer);
+  constructor(gameObject: any, renderer: IRenderer, layerContext: any, config?: any) {
+    super(gameObject, renderer, layerContext);
     this.width = config?.width || 100;
     this.height = config?.height || 100;
     this.fillColor = config?.fillColor;
@@ -15,35 +15,17 @@ export class RectangleRenderer extends Renderer {
     this.strokeWidth = config?.strokeWidth || 2;
   }
 
-  createPaperItem(): paper.Item {
+  createRenderItem(): any {
     const transform = this.gameObject.transform;
-    const rect = new this.scope.Path.Rectangle({
-      point: new this.scope.Point(
-        transform.position.x - this.width / 2,
-        transform.position.y - this.height / 2
-      ),
-      size: new this.scope.Size(this.width, this.height),
-    });
-
-    if (this.fillColor) {
-      rect.fillColor = new this.scope.Color(this.fillColor);
-    }
-    if (this.strokeColor) {
-      rect.strokeColor = new this.scope.Color(this.strokeColor);
-    }
-    if (this.strokeWidth !== undefined) {
-      rect.strokeWidth = this.strokeWidth;
-    }
-
-    return rect;
-  }
-
-  toJSON(): any {
-    return {
-      ...super.toJSON(),
+    return this.renderer.createRenderItem(this.layerContext, 'rectangle', {
+      x: transform.position.x,
+      y: transform.position.y,
       width: this.width,
       height: this.height,
-    };
+      fillColor: this.fillColor,
+      strokeColor: this.strokeColor,
+      strokeWidth: this.strokeWidth,
+    });
   }
 }
 

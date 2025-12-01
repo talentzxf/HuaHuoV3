@@ -15,12 +15,5 @@ export abstract class Component implements IComponent {
   onAdd(): void {}
   onRemove(): void {}
   update(deltaTime: number): void {}
-
-  toJSON(): any {
-    return {
-      type: this.type,
-      enabled: this.enabled,
-    };
-  }
 }
 

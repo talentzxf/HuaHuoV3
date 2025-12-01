@@ -1,4 +1,3 @@
-import paper from 'paper';
 import { Engine } from '@huahuo/engine';
 import { SceneAPI } from '../scene/SceneAPI';
 import { EditorAPI } from '../editor/EditorAPI';
@@ -16,11 +15,13 @@ export class SDK {
 
   /**
    * Initialize the SDK
-   * @param scope - Paper.js scope
+   * @param canvas - HTML Canvas element
+   * @param store - Redux store instance
+   * @param selectEngineState - Selector function to get engine state from store
    */
-  static initialize(scope: paper.PaperScope): void {
+  static initialize(canvas: HTMLCanvasElement, store: any, selectEngineState: (state: any) => any): void {
     if (!SDK._instance) {
-      const engine = new Engine(scope);
+      const engine = new Engine(canvas, store, selectEngineState);
       const editorAPI = new EditorAPI();
       SDK._instance = new SDK(engine, editorAPI);
     }

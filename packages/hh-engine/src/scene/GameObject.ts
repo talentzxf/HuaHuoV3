@@ -1,44 +1,63 @@
-import paper from 'paper';
 import { IGameObject } from '../core/IGameObject';
 import { IComponent, ITransform } from '../core/IComponent';
 import { Transform } from '../components/Transform';
 import { Component } from '../components/Component';
+import { IRenderer } from '../renderer';
+import { getEngineState } from '../Engine';
+import { ComponentRegistry } from '../core/ComponentRegistry';
 
 export class GameObject implements IGameObject {
-  public name: string;
-  public active: boolean = true;
+  public readonly id: string;
   public transform: ITransform;
 
   public components: Component[] = [];
 
-  private scope: paper.PaperScope;
-  private layer: paper.Layer;
-  private componentRegistry: Map<string, any>;
+  private renderer: IRenderer;
+  private layerContext: any;
+  private renderItem: any;
 
   constructor(
-    name: string,
-    scope: paper.PaperScope,
-    layer: paper.Layer,
-    item: paper.Item
+    gameObjectId: string,
+    renderer: IRenderer,
+    layerContext: any,
+    renderItem?: any
   ) {
-    this.name = name;
-    this.scope = scope;
-    this.layer = layer;
-
-    this.componentRegistry = new Map();
+    this.id = gameObjectId;
+    this.renderer = renderer;
+    this.layerContext = layerContext;
+    this.renderItem = renderItem;
 
     // Every GameObject has a Transform component
     this.transform = new Transform(this);
     this.components.push(this.transform as any);
   }
 
+  get name(): string {
+    const engineState = getEngineState();
+    return engineState.gameObjects.byId[this.id]?.name || 'Unknown';
+  }
+
+  set name(value: string) {
+    // TODO: dispatch action to update name in redux
+  }
+
+  get active(): boolean {
+    const engineState = getEngineState();
+    return engineState.gameObjects.byId[this.id]?.active ?? true;
+  }
+
+  set active(value: boolean) {
+    // TODO: dispatch action to update active in redux
+  }
+
   addComponent<T extends IComponent>(componentType: string, config?: any): T {
-    const factory = this.componentRegistry.get(componentType);
+    const registry = ComponentRegistry.getInstance();
+    const factory = registry.getFactory(componentType);
     if (!factory) {
       throw new Error(`Component type "${componentType}" not registered`);
     }
 
-    const component = factory(this, this.scope, this.layer, config);
+    const component = factory(this, this.layerContext, config);
     this.components.push(component);
     component.onAdd();
     return component as T;
@@ -72,14 +91,19 @@ export class GameObject implements IGameObject {
   destroy(): void {
     this.components.forEach(component => component.onRemove());
     this.components = [];
+
+    if (this.renderItem) {
+      this.renderer.removeRenderItem(this.renderItem);
+      this.renderItem = null;
+    }
   }
 
-  toJSON(): any {
-    return {
-      name: this.name,
-      active: this.active,
-      components: this.components.map(c => c.toJSON()),
-    };
+
+  getRenderItem(): any {
+    return this.renderItem;
+  }
+
+  setRenderItem(item: any): void {
+    this.renderItem = item;
   }
 }
-

@@ -1,61 +1,54 @@
-import paper from 'paper';
-import { IRenderer } from '../core/IComponent';
+import { IRendererComponent } from '../core/IComponent';
 import { Component } from './Component';
+import { IRenderer } from '../renderer';
 
-export abstract class Renderer extends Component implements IRenderer {
+export abstract class Renderer extends Component implements IRendererComponent {
   public fillColor?: string;
   public strokeColor?: string;
   public strokeWidth?: number;
 
-  protected paperItem: paper.Item | null = null;
-  protected scope: paper.PaperScope;
-  protected layer: paper.Layer;
+  protected renderItem: any | null = null;
+  protected renderer: IRenderer;
+  protected layerContext: any;
 
-  constructor(gameObject: any, scope: paper.PaperScope, layer: paper.Layer) {
+  constructor(gameObject: any, renderer: IRenderer, layerContext: any) {
     super(gameObject);
-    this.scope = scope;
-    this.layer = layer;
+    this.renderer = renderer;
+    this.layerContext = layerContext;
   }
 
-  abstract createPaperItem(): paper.Item;
+  abstract createRenderItem(): any;
 
   onAdd(): void {
-    this.paperItem = this.createPaperItem();
-    if (this.paperItem) {
-      this.paperItem.addTo(this.layer);
+    this.renderItem = this.createRenderItem();
+    if (this.renderItem) {
       this.onTransformChanged();
     }
   }
 
   onRemove(): void {
-    if (this.paperItem) {
-      this.paperItem.remove();
-      this.paperItem = null;
+    if (this.renderItem) {
+      this.renderer.removeRenderItem(this.renderItem);
+      this.renderItem = null;
     }
   }
 
   onTransformChanged(): void {
-    if (!this.paperItem) return;
+    if (!this.renderItem) return;
 
     const transform = this.gameObject.transform;
-    const scope = this.scope;
-
-    this.paperItem.position = new scope.Point(transform.position.x, transform.position.y);
-    this.paperItem.rotation = transform.rotation;
-    this.paperItem.scaling = new scope.Point(transform.scale.x, transform.scale.y);
+    this.renderer.updateItemTransform(this.renderItem, {
+      position: transform.position,
+      rotation: transform.rotation,
+      scale: transform.scale,
+    });
   }
 
-  getPaperItem(): paper.Item | null {
-    return this.paperItem;
+  getRenderItem(): any | null {
+    return this.renderItem;
   }
 
-  toJSON(): any {
-    return {
-      ...super.toJSON(),
-      fillColor: this.fillColor,
-      strokeColor: this.strokeColor,
-      strokeWidth: this.strokeWidth,
-    };
-  }
+  // TODO: Renderer properties (fillColor, strokeColor, etc.) should be stored in Redux Store
+  // Currently stored locally but should follow data/behavior separation principle
 }
 

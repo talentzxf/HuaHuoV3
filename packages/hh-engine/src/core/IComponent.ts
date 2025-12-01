@@ -3,7 +3,8 @@ export interface IComponent {
   readonly type: string;
   enabled: boolean;
 
-  toJSON(): any;
+  // Note: toJSON removed - serialization should be handled by Redux Store
+  // Components are behavior objects, not data containers
 }
 
 export interface ITransform extends IComponent {
@@ -12,7 +13,7 @@ export interface ITransform extends IComponent {
   scale: { x: number; y: number };
 }
 
-export interface IRenderer extends IComponent {
+export interface IRendererComponent extends IComponent {
   fillColor?: string;
   strokeColor?: string;
   strokeWidth?: number;
