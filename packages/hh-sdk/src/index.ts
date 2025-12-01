@@ -32,8 +32,11 @@ export {
   sceneReducer,
   layerReducer,
   gameObjectReducer,
-  componentReducer
+  componentReducer,
+  // Export engine globals for accessing store
+  getEngineStore,
+  getEngineState
 } from '@huahuo/engine';
 
-export type { EngineState } from '@huahuo/engine';
+export type { EngineState, ComponentSlice, GameObjectSlice } from '@huahuo/engine';
 

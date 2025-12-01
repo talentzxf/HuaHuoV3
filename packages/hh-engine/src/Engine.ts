@@ -83,6 +83,10 @@ export class Engine {
     // This ensures the renderItem is cached in the Layer
     const gameObject = layer.addGameObject(item.name || 'GameObject', item);
 
+    // Store GameObject ID in Paper.js item data for quick reverse lookup
+    item.data = item.data || {};
+    item.data.gameObjectId = gameObject.id;
+
     // Set Transform from Paper.js item
     gameObject.transform.position = { x: item.position.x, y: item.position.y };
     gameObject.transform.rotation = item.rotation || 0;

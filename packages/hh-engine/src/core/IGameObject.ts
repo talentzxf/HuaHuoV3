@@ -14,7 +14,8 @@ export interface IGameObject {
   update(deltaTime: number): void;
   destroy(): void;
 
-  // Note: toJSON removed - serialization should be handled by Redux Store
-  // GameObject is a behavior object, not a data container
+  // Note: Render item is managed by Renderer's internal registry
+  // Use renderer.getRenderItem(gameObjectId) to access it
+  // GameObject doesn't need direct access to its render item
 }
 

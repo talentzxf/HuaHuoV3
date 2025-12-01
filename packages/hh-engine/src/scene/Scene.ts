@@ -1,4 +1,5 @@
 import { getEngineStore, getEngineState } from "../core/EngineGlobals";
+import { instanceRegistry } from "../core/InstanceRegistry";
 import { Layer } from "./Layer";
 import {IScene} from "../core/IScene";
 import { ILayer } from "../core/ILayer";
@@ -41,7 +42,9 @@ export class Scene extends RegistrableEntity implements IScene {
 
         if (!layerId) return undefined;
 
-        return new Layer(layerId, this.renderer, this.getLayerContextById(layerId));
+        return instanceRegistry.getOrCreate<Layer>(layerId, () => {
+            return new Layer(layerId, this.renderer, this.getLayerContextById(layerId));
+        });
     }
 
     destroy(): void {
@@ -52,7 +55,10 @@ export class Scene extends RegistrableEntity implements IScene {
         const store = getEngineStore();
         const sceneId = store.dispatch(createScene(name)).payload.id;
         store.dispatch(setCurrentScene(sceneId));
-        return new Scene(sceneId, renderer, sceneContext);
+
+        return instanceRegistry.getOrCreate<Scene>(sceneId, () => {
+            return new Scene(sceneId, renderer, sceneContext);
+        });
     }
 
     get name(): string {
@@ -63,9 +69,11 @@ export class Scene extends RegistrableEntity implements IScene {
         const engineState = getEngineState();
         const scene = engineState.scenes.byId[this.id];
 
-        return scene.layerIds.map(
-            (layerId: string) => new Layer(layerId, this.renderer, this.getLayerContextById(layerId))
-        );
+        return scene.layerIds.map((layerId: string) => {
+            return instanceRegistry.getOrCreate<Layer>(layerId, () => {
+                return new Layer(layerId, this.renderer, this.getLayerContextById(layerId));
+            });
+        });
     }
 
     addLayer(name: string): Layer {
@@ -77,13 +85,17 @@ export class Scene extends RegistrableEntity implements IScene {
 
         const layerContext = this.renderer.createLayerContext(this.sceneContext);
         this.layerContextCache.set(layerId, layerContext);
-        return new Layer(layerId, this.renderer, layerContext);
+
+        return instanceRegistry.getOrCreate<Layer>(layerId, () => {
+            return new Layer(layerId, this.renderer, layerContext);
+        });
     }
 
     removeLayer(layer: Layer): void {
-        // TODO: Implement layer removal
+        // TODO: Implement layer removal from Redux store
         layer.destroy();
         this.layerContextCache.delete(layer.id);
+        // Layer will be unregistered in its destroy() method
     }
 
     update(deltaTime: number): void {

@@ -4,7 +4,8 @@ import type { TreeDataNode } from 'antd';
 import { FolderOutlined, FileOutlined, AppstoreOutlined } from '@ant-design/icons';
 import { SDK } from '@huahuo/sdk';
 import type { IGameObject } from '@huahuo/sdk';
-import { store } from '../../store/store'; // Use IDE's merged store
+import { store } from '../../store/store';
+import { selectGameObject } from '../../store/features/selection/selectionSlice';
 import './HierarchyPanel.css';
 
 const { Title } = Typography;
@@ -61,7 +62,7 @@ const HierarchyPanel: React.FC<HierarchyPanelProps> = ({ onSelectGameObject }) =
     return () => unsubscribe();
   }, []);
 
-  const onSelect = (selectedKeys: React.Key[], info: any) => {
+  const onSelect = (selectedKeys: React.Key[]) => {
     setSelectedKeys(selectedKeys);
 
     // Parse the selected key to find the GameObject
@@ -72,11 +73,20 @@ const HierarchyPanel: React.FC<HierarchyPanelProps> = ({ onSelectGameObject }) =
         const scene = SDK.instance.Scene.getCurrentScene();
         if (scene && scene.layers[layerIndex]) {
           const gameObject = scene.layers[layerIndex].gameObjects[objIndex];
-          if (gameObject && onSelectGameObject) {
-            onSelectGameObject(gameObject);
+          if (gameObject) {
+            // Dispatch selection action to Redux store
+            store.dispatch(selectGameObject(gameObject.id));
+
+            // Also call the callback if provided (for backwards compatibility)
+            if (onSelectGameObject) {
+              onSelectGameObject(gameObject);
+            }
           }
         }
       }
+    } else {
+      // Clear selection if nothing is selected
+      store.dispatch(selectGameObject(null));
     }
   };
 

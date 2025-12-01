@@ -8,6 +8,10 @@ export { default as layerReducer } from './LayerSlice';
 export { default as gameObjectReducer } from './GameObjectSlice';
 export { default as componentReducer } from './ComponentSlice';
 
+// Export types
+export type { ComponentSlice, ComponentState } from './ComponentSlice';
+export type { GameObjectSlice, GameObjectState } from './GameObjectSlice';
+
 // Export actions
 export * from './SceneSlice';
 export * from './LayerSlice';

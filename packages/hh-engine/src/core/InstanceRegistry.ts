@@ -39,6 +39,29 @@ export class InstanceRegistry<T = any> {
   get<R = T>(id: string): R | undefined {
     return this.registry.get(id) as R | undefined;
   }
+
+  /**
+   * Get or create an instance - ensures singleton pattern
+   * If instance exists, return it; otherwise create and register it
+   * @param id The ID from Redux store
+   * @param factory Factory function to create new instance if not found
+   * @returns The instance (existing or newly created)
+   *
+   * Note: The factory should create an instance that extends RegistrableEntity,
+   * which will auto-register itself in the constructor. Therefore, this method
+   * does NOT manually register the created instance.
+   */
+  getOrCreate<R = T>(id: string, factory: () => R): R {
+    let instance = this.registry.get(id) as R | undefined;
+
+    if (!instance) {
+      // Create the instance - it will auto-register via RegistrableEntity constructor
+      instance = factory();
+    }
+
+    return instance;
+  }
+
   /**
    * Check if an instance is registered
    * @param id The ID from Redux store

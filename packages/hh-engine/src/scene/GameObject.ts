@@ -113,18 +113,10 @@ export class GameObject extends RegistrableEntity implements IGameObject {
       (this.renderer as any).unregisterRenderItem(this.id);
     }
 
+    // Remove render item from renderer
     if (this.renderItem) {
       this.renderer.removeRenderItem(this.renderItem);
       this.renderItem = null;
     }
-  }
-
-
-  getRenderItem(): any {
-    return this.renderItem;
-  }
-
-  setRenderItem(item: any): void {
-    this.renderItem = item;
   }
 }

@@ -1,6 +1,7 @@
 import paper from 'paper';
 import { BaseTool } from './BaseTool';
-import { SDK } from '@huahuo/sdk';
+import { store } from '../../../store/store';
+import { selectGameObject } from '../../../store/features/selection/selectionSlice';
 
 export class PointerTool extends BaseTool {
   name = 'pointer';
@@ -29,7 +30,14 @@ export class PointerTool extends BaseTool {
       });
 
       hitResult.item.selected = true;
-      console.log('Selected shape:', hitResult.item);
+
+      // Get GameObject ID from item.data (stored during creation)
+      const gameObjectId = hitResult.item.data?.gameObjectId;
+      if (gameObjectId) {
+        store.dispatch(selectGameObject(gameObjectId));
+        console.log('Selected GameObject:', gameObjectId);
+      }
+
       this.startPoint = null; // Don't start drag selection
     }
   }
@@ -65,12 +73,22 @@ export class PointerTool extends BaseTool {
       });
 
       // Select items that intersect with selection rectangle
+      let selectedGameObjectId: string | null = null;
+
       drawingLayer.children.forEach((item: any) => {
         if (item.bounds.intersects(selectionBounds)) {
           item.selected = true;
-          console.log('Selected by drag:', item);
+
+          // Get GameObject ID from item.data (only first selected item)
+          if (!selectedGameObjectId && item.data?.gameObjectId) {
+            selectedGameObjectId = item.data.gameObjectId;
+            console.log('Selected GameObject by drag:', selectedGameObjectId);
+          }
         }
       });
+
+      // Dispatch selection (or clear if nothing selected)
+      store.dispatch(selectGameObject(selectedGameObjectId));
 
       // Remove selection rectangle
       this.selectionRect.remove();
@@ -83,10 +101,12 @@ export class PointerTool extends BaseTool {
       drawingLayer.children.forEach((item: any) => {
         item.selected = false;
       });
+
+      // Clear selection in Redux
+      store.dispatch(selectGameObject(null));
     }
 
     this.startPoint = null;
   }
 }
-
 

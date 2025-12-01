@@ -45,6 +45,14 @@
       "rectangle": "矩形",
       "line": "直线"
     }
+  },
+  "propertyPanel": {
+    "inspector": "检查器",
+    "active": "激活",
+    "selectGameObject": "选择一个游戏对象以查看属性",
+    "gameObjectNotFound": "未找到游戏对象",
+    "noProperties": "无属性",
+    "noComponents": "无组件"
   }
 }
 

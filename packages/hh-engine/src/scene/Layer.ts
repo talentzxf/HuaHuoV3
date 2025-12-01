@@ -3,6 +3,7 @@ import { IGameObject } from "../core/IGameObject";
 import { GameObject } from "./GameObject";
 
 import { getEngineStore, getEngineState } from "../core/EngineGlobals";
+import { instanceRegistry } from "../core/InstanceRegistry";
 import {
     setLayerVisible,
     setLayerLocked,
@@ -41,10 +42,11 @@ export class Layer extends RegistrableEntity implements ILayer {
         const layer = engineState.layers.byId[this.id];
         if (!layer) return [];
 
-        // Get render items from renderer's registry
         return layer.gameObjectIds.map((goId: string) => {
-            const renderItem = (this.renderer as any).getRenderItem?.(goId);
-            return new GameObject(goId, this.renderer, this.layerContext, renderItem);
+            return instanceRegistry.getOrCreate<GameObject>(goId, () => {
+                const renderItem = (this.renderer as any).getRenderItem?.(goId);
+                return new GameObject(goId, this.renderer, this.layerContext, renderItem);
+            });
         });
     }
 
@@ -75,13 +77,14 @@ export class Layer extends RegistrableEntity implements ILayer {
             addGameObjectToLayer({ layerId: this.id, gameObjectId })
         );
 
-        // Create GameObject - it will register the render item in Engine's registry
-        return new GameObject(
-            gameObjectId,
-            this.renderer,
-            this.layerContext,
-            renderItem
-        );
+        return instanceRegistry.getOrCreate<GameObject>(gameObjectId, () => {
+            return new GameObject(
+                gameObjectId,
+                this.renderer,
+                this.layerContext,
+                renderItem
+            );
+        });
     }
 
     findGameObject(name: string): IGameObject | undefined {
@@ -104,11 +107,15 @@ export class Layer extends RegistrableEntity implements ILayer {
         const layerState = getEngineState().layers.byId[this.id];
         if (layerState) {
             layerState.gameObjectIds.forEach((goId: string) => {
-                const renderItem = (this.renderer as any).getRenderItem?.(goId);
-                const go = new GameObject(goId, this.renderer, this.layerContext, renderItem);
-                go.destroy();
+                const go = instanceRegistry.get<GameObject>(goId);
+                if (go) {
+                    go.destroy();
+                }
             });
         }
+
+        // Unregister this layer
+        instanceRegistry.unregister(this.id);
     }
 
     update(deltaTime: number): void {

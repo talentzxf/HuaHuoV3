@@ -45,6 +45,14 @@
       "rectangle": "Rectangle",
       "line": "Line"
     }
+  },
+  "propertyPanel": {
+    "inspector": "Inspector",
+    "active": "Active",
+    "selectGameObject": "Select a GameObject to view properties",
+    "gameObjectNotFound": "GameObject not found",
+    "noProperties": "No properties",
+    "noComponents": "No components"
   }
 }
 
