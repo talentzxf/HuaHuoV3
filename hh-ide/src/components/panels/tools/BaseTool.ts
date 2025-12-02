@@ -1,7 +1,7 @@
 import paper from 'paper';
 import { SDK } from '@huahuo/sdk';
 import { store } from '../../../store/store';
-import { selectGameObject } from '../../../store/features/selection/selectionSlice';
+import { selectObject } from '../../../store/features/selection/selectionSlice';
 
 export interface ICanvasTool {
   name: string;
@@ -41,7 +41,7 @@ export abstract class BaseTool implements ICanvasTool {
       console.log('GameObject created:', gameObject);
 
       // Auto-select the newly created GameObject
-      store.dispatch(selectGameObject(gameObject.id));
+      store.dispatch(selectObject({ type: 'gameObject', id: gameObject.id }));
     }
   }
 

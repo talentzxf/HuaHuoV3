@@ -1,0 +1,40 @@
+.layer-property-panel {
+  padding: 12px;
+  height: 100%;
+  overflow: auto;
+  background: #1e1e1e;
+  color: #e8e8e8;
+}
+
+.layer-property-header {
+  padding: 8px 0;
+}
+
+.layer-property-panel .ant-form-item-label > label {
+  color: #e8e8e8;
+  font-size: 12px;
+}
+
+.layer-property-panel .ant-switch {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.layer-property-panel .ant-switch-checked {
+  background-color: #1890ff;
+}
+
+.layer-property-panel .ant-input-number {
+  background: #2d2d2d;
+  border-color: #444;
+  color: #e8e8e8;
+}
+
+.layer-property-panel .ant-input-number:hover,
+.layer-property-panel .ant-input-number:focus {
+  border-color: #1890ff;
+}
+
+.layer-property-panel .ant-input-number-input {
+  color: #e8e8e8;
+}
+

@@ -19,6 +19,7 @@
     "@ant-design/icons": "^6.1.0",
     "@huahuo/hh-common": "workspace:*",
     "@huahuo/sdk": "workspace:*",
+    "@huahuo/timeline": "workspace:*",
     "@reduxjs/toolkit": "^2.8.2",
     "@types/paper": "^0.12.3",
     "@types/react": "^19.1.12",

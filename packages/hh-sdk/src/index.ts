@@ -18,6 +18,7 @@ export type {
   IRenderer
 } from '@huahuo/engine';
 
+// Re-export Engine core classes and utilities
 export {
   Engine,
   ComponentBase,
@@ -27,19 +28,10 @@ export {
   Layer,
   Scene,
   ComponentRegistry,
-  // Export unified engine reducer (recommended)
-  engineReducer,
-  // Also export individual reducers for advanced use
-  sceneReducer,
-  layerReducer,
-  gameObjectReducer,
-  componentReducer,
-  // Export engine globals for accessing store
   getEngineStore,
-  getEngineState,
-  // Export actions for updating components
-  updateComponentProps
+  getEngineState
 } from '@huahuo/engine';
 
-export type { EngineState, ComponentSlice, GameObjectSlice } from '@huahuo/engine';
+// Re-export all store-related items (reducers, actions, types)
+export * from '@huahuo/engine/src/store';
 

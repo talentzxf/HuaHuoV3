@@ -4,10 +4,10 @@ import { Tree, Typography } from 'antd';
 import type { TreeDataNode } from 'antd';
 import { FolderOutlined, FileOutlined, AppstoreOutlined } from '@ant-design/icons';
 import { SDK } from '@huahuo/sdk';
-import type { IGameObject } from '@huahuo/sdk';
+import type { IGameObject, ILayer } from '@huahuo/sdk';
 import type { RootState } from '../../store/store';
 import { store } from '../../store/store';
-import { selectGameObject } from '../../store/features/selection/selectionSlice';
+import { selectObject, clearSelection } from '../../store/features/selection/selectionSlice';
 import './HierarchyPanel.css';
 
 const { Title } = Typography;
@@ -21,16 +21,23 @@ const HierarchyPanel: React.FC<HierarchyPanelProps> = ({ onSelectGameObject }) =
   const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
   const [gameObjectCount, setGameObjectCount] = useState<number>(0);
 
-  // Get selected GameObject ID from Redux store
-  const selectedGameObjectId = useSelector((state: RootState) => state.selection.selectedGameObjectId);
+  // Get selection from Redux store
+  const selection = useSelector((state: RootState) => state.selection);
 
-  // Map GameObject ID to tree key
+  // Map GameObject ID and Layer ID to tree key
   const [gameObjectIdToKey, setGameObjectIdToKey] = useState<Map<string, string>>(new Map());
+  const [layerIdToKey, setLayerIdToKey] = useState<Map<string, string>>(new Map());
 
-  // Calculate selectedKeys from selectedGameObjectId
-  const selectedKeys = selectedGameObjectId && gameObjectIdToKey.has(selectedGameObjectId)
-    ? [gameObjectIdToKey.get(selectedGameObjectId)!]
-    : [];
+  // Calculate selectedKeys from selection state
+  const selectedKeys = React.useMemo(() => {
+    if (selection.selectedType === 'gameObject' && selection.selectedId && gameObjectIdToKey.has(selection.selectedId)) {
+      return [gameObjectIdToKey.get(selection.selectedId)!];
+    }
+    if (selection.selectedType === 'layer' && selection.selectedId && layerIdToKey.has(selection.selectedId)) {
+      return [layerIdToKey.get(selection.selectedId)!];
+    }
+    return [];
+  }, [selection, gameObjectIdToKey, layerIdToKey]);
 
   const refreshHierarchy = () => {
     if (!SDK.isInitialized()) {
@@ -59,33 +66,39 @@ const HierarchyPanel: React.FC<HierarchyPanelProps> = ({ onSelectGameObject }) =
       setGameObjectCount(totalGameObjects);
     }
 
-    // Build GameObject ID to key mapping
+    // Build GameObject ID to key mapping and Layer ID to key mapping
     const idToKeyMap = new Map<string, string>();
+    const layerToKeyMap = new Map<string, string>();
 
     // Build tree data from scene
     const sceneNode: TreeDataNode = {
       title: scene.name,
       key: `scene-${scene.name}`,
       icon: <AppstoreOutlined />,
-      children: scene.layers.map((layer, layerIndex) => ({
-        title: `${layer.name} (${layer.gameObjects.length})`,
-        key: `layer-${layerIndex}`,
-        icon: <FolderOutlined />,
-        children: layer.gameObjects.map((gameObject, objIndex) => {
-          const key = `gameobject-${layerIndex}-${objIndex}`;
-          idToKeyMap.set(gameObject.id, key);
-          return {
-            title: gameObject.name,
-            key: key,
-            icon: <FileOutlined />,
-            isLeaf: true,
-          };
-        }),
-      })),
+      children: scene.layers.map((layer, layerIndex) => {
+        const layerKey = `layer-${layerIndex}`;
+        layerToKeyMap.set(layer.id, layerKey);
+        return {
+          title: `${layer.name} (${layer.gameObjects.length})`,
+          key: layerKey,
+          icon: <FolderOutlined />,
+          children: layer.gameObjects.map((gameObject, objIndex) => {
+            const key = `gameobject-${layerIndex}-${objIndex}`;
+            idToKeyMap.set(gameObject.id, key);
+            return {
+              title: gameObject.name,
+              key: key,
+              icon: <FileOutlined />,
+              isLeaf: true,
+            };
+          }),
+        };
+      }),
     };
 
     setTreeData([sceneNode]);
     setGameObjectIdToKey(idToKeyMap);
+    setLayerIdToKey(layerToKeyMap);
   };
 
   useEffect(() => {
@@ -126,27 +139,36 @@ const HierarchyPanel: React.FC<HierarchyPanelProps> = ({ onSelectGameObject }) =
       setExpandedKeys(allExpandedKeys);
     }
 
-    // Parse the selected key to find the GameObject
+    // Parse the selected key to find the GameObject or Layer
     if (keys.length > 0) {
       const key = keys[0] as string;
+
+      // Handle GameObject selection
       if (key.startsWith('gameobject-')) {
         const [, layerIndex, objIndex] = key.split('-').map(Number);
         if (scene && scene.layers[layerIndex]) {
           const gameObject = scene.layers[layerIndex].gameObjects[objIndex];
           if (gameObject) {
-            // Dispatch selection action to Redux store
-            store.dispatch(selectGameObject(gameObject.id));
+            store.dispatch(selectObject({ type: 'gameObject', id: gameObject.id }));
 
-            // Also call the callback if provided (for backwards compatibility)
             if (onSelectGameObject) {
               onSelectGameObject(gameObject);
             }
           }
         }
       }
+      // Handle Layer selection
+      else if (key.startsWith('layer-')) {
+        const layerIndex = parseInt(key.split('-')[1]);
+        if (scene && scene.layers[layerIndex]) {
+          const layer = scene.layers[layerIndex];
+          store.dispatch(selectObject({ type: 'layer', id: layer.id }));
+          console.log('Selected Layer:', layer.id);
+        }
+      }
     } else {
       // Clear selection if nothing is selected
-      store.dispatch(selectGameObject(null));
+      store.dispatch(clearSelection());
     }
   };
 

@@ -1,26 +1,32 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
+export type SelectionType = 'gameObject' | 'layer' | 'vertex' | 'edge' | null;
+
 interface SelectionState {
-  selectedGameObjectId: string | null;
+  selectedType: SelectionType;
+  selectedId: string | null;
 }
 
 const initialState: SelectionState = {
-  selectedGameObjectId: null,
+  selectedType: null,
+  selectedId: null,
 };
 
 export const selectionSlice = createSlice({
   name: 'selection',
   initialState,
   reducers: {
-    selectGameObject: (state, action: PayloadAction<string | null>) => {
-      state.selectedGameObjectId = action.payload;
+    selectObject: (state, action: PayloadAction<{ type: SelectionType; id: string | null }>) => {
+      state.selectedType = action.payload.type;
+      state.selectedId = action.payload.id;
     },
     clearSelection: (state) => {
-      state.selectedGameObjectId = null;
+      state.selectedType = null;
+      state.selectedId = null;
     },
   },
 });
 
-export const { selectGameObject, clearSelection } = selectionSlice.actions;
+export const { selectObject, clearSelection } = selectionSlice.actions;
 export default selectionSlice.reducer;
 

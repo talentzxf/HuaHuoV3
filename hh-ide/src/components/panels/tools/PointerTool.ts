@@ -2,7 +2,7 @@ import paper from 'paper';
 import { BaseTool } from './BaseTool';
 import { SDK } from '@huahuo/sdk';
 import { store } from '../../../store/store';
-import { selectGameObject } from '../../../store/features/selection/selectionSlice';
+import { selectObject, clearSelection } from '../../../store/features/selection/selectionSlice';
 import { TransformHandlerBase, TransformHandlerMap, shapeTranslateHandler } from './handlers/TransformHandlerMap';
 
 export class PointerTool extends BaseTool {
@@ -40,7 +40,7 @@ export class PointerTool extends BaseTool {
         });
 
         hitResult.item.selected = true;
-        store.dispatch(selectGameObject(gameObjectId));
+        store.dispatch(selectObject({ type: 'gameObject', id: gameObjectId }));
         console.log('Selected GameObject:', gameObjectId);
       }
 
@@ -114,7 +114,7 @@ export class PointerTool extends BaseTool {
       });
 
       // Dispatch selection (or clear if nothing selected)
-      store.dispatch(selectGameObject(selectedGameObjectId));
+      store.dispatch(selectedGameObjectId ? selectObject({ type: 'gameObject', id: selectedGameObjectId }) : clearSelection());
 
       // Remove selection rectangle
       this.selectionRect.remove();
@@ -126,7 +126,7 @@ export class PointerTool extends BaseTool {
       drawingLayer.children.forEach((item: any) => {
         item.selected = false;
       });
-      store.dispatch(selectGameObject(null));
+      store.dispatch(clearSelection());
     }
 
     this.startPoint = null;

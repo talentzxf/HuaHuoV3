@@ -1,6 +1,7 @@
 import { IGameObject } from './IGameObject';
 
 export interface ILayer {
+  readonly id: string;
   readonly name: string;
   readonly gameObjects: ReadonlyArray<IGameObject>;
   visible: boolean;

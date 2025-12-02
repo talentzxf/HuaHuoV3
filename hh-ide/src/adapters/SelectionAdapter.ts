@@ -7,6 +7,7 @@ import { SDK } from '@huahuo/sdk';
  * This is the bridge between IDE layer and Engine layer
  */
 export class SelectionAdapter {
+  private previousSelectedType: string | null = null;
   private previousSelectedId: string | null = null;
   private unsubscribe: (() => void) | null = null;
 
@@ -21,22 +22,29 @@ export class SelectionAdapter {
 
     // Initial state
     const currentState = store.getState();
-    this.previousSelectedId = currentState.selection?.selectedGameObjectId || null;
+    this.previousSelectedType = currentState.selection?.selectedType || null;
+    this.previousSelectedId = currentState.selection?.selectedId || null;
 
     // Subscribe to store changes
     this.unsubscribe = store.subscribe(() => {
       const state = store.getState();
-      const currentSelectedId = state.selection?.selectedGameObjectId || null;
+      const currentSelectedType = state.selection?.selectedType || null;
+      const currentSelectedId = state.selection?.selectedId || null;
 
       // Only update if selection actually changed
-      if (currentSelectedId !== this.previousSelectedId) {
-        console.debug('[SelectionAdapter] Selection changed:', this.previousSelectedId, '->', currentSelectedId);
+      if (currentSelectedId !== this.previousSelectedId || currentSelectedType !== this.previousSelectedType) {
+        console.debug('[SelectionAdapter] Selection changed:',
+          { type: this.previousSelectedType, id: this.previousSelectedId },
+          '->',
+          { type: currentSelectedType, id: currentSelectedId }
+        );
 
-        // Call SDK to update Engine's selection state
-        if (SDK.isInitialized()) {
+        // Call SDK to update Engine's selection state (only for gameObject type)
+        if (SDK.isInitialized() && currentSelectedType === 'gameObject') {
           SDK.instance.selectGameObject(currentSelectedId);
         }
 
+        this.previousSelectedType = currentSelectedType;
         this.previousSelectedId = currentSelectedId;
       }
     });
