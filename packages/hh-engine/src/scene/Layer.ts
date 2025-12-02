@@ -20,6 +20,8 @@ import { RegistrableEntity } from "../core/RegistrableEntity";
 export class Layer extends RegistrableEntity implements ILayer {
     private renderer: IRenderer;
     private layerContext: any;
+    // Track name counters to generate unique names
+    private nameCounters: Map<string, number> = new Map();
 
     constructor(
         layerId: string,
@@ -31,6 +33,33 @@ export class Layer extends RegistrableEntity implements ILayer {
 
         this.renderer = renderer;
         this.layerContext = layerContext;
+    }
+
+    /**
+     * Generate a unique name for GameObject
+     * If name already exists, append a number (e.g., Circle-1, Circle-2)
+     */
+    private generateUniqueName(baseName: string): string {
+        // Extract base name without number suffix
+        const match = baseName.match(/^(.+?)-(\d+)$/);
+        const base = match ? match[1] : baseName;
+
+        // Get current counter for this base name
+        const counter = this.nameCounters.get(base) || 0;
+        const newCounter = counter + 1;
+        this.nameCounters.set(base, newCounter);
+
+        // Generate name with counter
+        const newName = `${base}-${newCounter}`;
+
+        // Check if this name already exists in current gameObjects
+        const exists = this.gameObjects.some(go => go.name === newName);
+        if (exists) {
+            // If it exists, increment and try again
+            return this.generateUniqueName(baseName);
+        }
+
+        return newName;
     }
 
     /**
@@ -79,15 +108,18 @@ export class Layer extends RegistrableEntity implements ILayer {
     }
 
     addGameObject(name: string, renderItem?: any): IGameObject {
+        // Generate unique name to avoid duplicates
+        const uniqueName = this.generateUniqueName(name);
+
         const store = getEngineStore();
-        const action = createGameObject(name, this.id);
+        const action = createGameObject(uniqueName, this.id);
         const { id: gameObjectId } = store.dispatch(action).payload;
 
         store.dispatch(
             addGameObjectToLayer({ layerId: this.id, gameObjectId })
         );
 
-        console.debug('[Layer.addGameObject] Creating GameObject:', gameObjectId, 'with renderItem:', !!renderItem);
+        console.debug('[Layer.addGameObject] Creating GameObject:', gameObjectId, 'name:', uniqueName, 'with renderItem:', !!renderItem);
 
         return instanceRegistry.getOrCreate<GameObject>(gameObjectId, () => {
             return this.createGameObjectInstance(gameObjectId, renderItem);

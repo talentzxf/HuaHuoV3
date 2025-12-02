@@ -8,6 +8,7 @@ import {
 import paper from 'paper';
 import { SDK } from '@huahuo/sdk';
 import { store } from '../../store/store';
+import { getSelectionAdapter } from '../../adapters/SelectionAdapter';
 import { PointerTool, CircleTool, RectangleTool, LineTool } from './tools';
 import './CanvasPanel.css';
 
@@ -49,6 +50,9 @@ const CanvasPanel: React.FC = () => {
 
     // Initialize SDK with canvas element and selector
     SDK.initialize(canvas, store, (state) => state.engine);
+
+    // Start SelectionAdapter to sync IDE selection to Engine
+    getSelectionAdapter().startListening();
 
     // Register tools
     SDK.instance.Editor.registerTool(new PointerTool('#1890ff'));

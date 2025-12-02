@@ -1,6 +1,5 @@
 import paper from 'paper';
 import { BaseTool } from './BaseTool';
-import { SDK } from '@huahuo/sdk';
 
 export class LineTool extends BaseTool {
   name = 'line';
@@ -12,6 +11,7 @@ export class LineTool extends BaseTool {
       to: event.point,
       strokeColor: new scope.Color(this.color),
       strokeWidth: 2,
+      name: this.name,
     });
   }
 
@@ -22,11 +22,7 @@ export class LineTool extends BaseTool {
   }
 
   onMouseUp(event: paper.ToolEvent, scope: paper.PaperScope): void {
-    if (this.currentPath) {
-      console.log('Line created:', this.currentPath);
-    }
+    this.createGameObjectAndSelect();
     this.cleanup();
   }
 }
-
-

@@ -11,6 +11,7 @@ import '@/components/panels/tools';
  * This should be called once at application startup
  */
 export function bootstrap() {
+
   console.log('IDE bootstrap complete');
 }
 

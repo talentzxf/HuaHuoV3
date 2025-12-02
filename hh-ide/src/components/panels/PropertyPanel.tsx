@@ -16,6 +16,7 @@ const PropertyPanel: React.FC<PropertyPanelProps> = () => {
     const selectedGameObjectId = useSelector((state: RootState) => state.selection.selectedGameObjectId);
     const [gameObjectData, setGameObjectData] = useState<any>(null);
     const [components, setComponents] = useState<ComponentSlice[]>([]);
+    const [activeKeys, setActiveKeys] = useState<string[]>([]);
 
     useEffect(() => {
         console.debug('[PropertyPanel] selectedGameObjectId changed:', selectedGameObjectId);
@@ -24,6 +25,7 @@ const PropertyPanel: React.FC<PropertyPanelProps> = () => {
         if (!selectedGameObjectId || !SDK.isInitialized()) {
             setGameObjectData(null);
             setComponents([]);
+            setActiveKeys([]);
             return;
         }
 
@@ -37,6 +39,7 @@ const PropertyPanel: React.FC<PropertyPanelProps> = () => {
             if (!gameObject) {
                 setGameObjectData(null);
                 setComponents([]);
+                setActiveKeys([]);
                 return;
             }
 
@@ -49,6 +52,9 @@ const PropertyPanel: React.FC<PropertyPanelProps> = () => {
 
             console.debug('[PropertyPanel] Components:', gameObjectComponents);
             setComponents(gameObjectComponents);
+
+            // Auto-expand all components when selection changes
+            setActiveKeys(gameObjectComponents.map(c => c.id));
         };
 
         updateData();
@@ -293,7 +299,8 @@ const PropertyPanel: React.FC<PropertyPanelProps> = () => {
             <div className="property-panel-components">
                 {components.length > 0 ? (
                     <Collapse
-                        defaultActiveKey={components.map(c => c.id)}
+                        activeKey={activeKeys}
+                        onChange={(keys) => setActiveKeys(keys as string[])}
                         items={components.map(renderComponent)}
                         ghost
                         size="small"

@@ -41,6 +41,8 @@ export class ReduxAdapter {
             const currEngineState = currentState.engine || currentState;
 
             this.handleStateChange(prevEngineState, currEngineState);
+
+
             this.previousState = currentState;
         });
 
@@ -242,6 +244,7 @@ export class ReduxAdapter {
         
         console.debug('[ReduxAdapter] applyToRenderer completed');
     }
+
 
     getRenderer(): IRenderer {
         return this.renderer;

@@ -7,8 +7,10 @@ export class SDK {
 
   public readonly Scene: SceneAPI;
   public readonly Editor: EditorAPI;
+  private engine: Engine;
 
   private constructor(engine: Engine, editorAPI: EditorAPI) {
+    this.engine = engine;
     this.Scene = new SceneAPI(engine);
     this.Editor = editorAPI;
   }
@@ -42,6 +44,21 @@ export class SDK {
    */
   static isInitialized(): boolean {
     return SDK._instance !== null;
+  }
+
+  /**
+   * Select a GameObject (updates render item selection state)
+   * Call this from IDE when selection changes
+   */
+  selectGameObject(gameObjectId: string | null): void {
+    this.engine.selectGameObject(gameObjectId);
+  }
+
+  /**
+   * Get currently selected GameObject ID
+   */
+  getSelectedGameObjectId(): string | null {
+    return this.engine.getSelectedGameObjectId();
   }
 
   /**

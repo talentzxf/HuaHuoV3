@@ -1,17 +1,8 @@
 import paper from 'paper';
 import { BaseTool } from './BaseTool';
-import { SDK } from '@huahuo/sdk';
 
 export class CircleTool extends BaseTool {
   name = 'circle';
-
-  // Generate random color
-  private getRandomColor(scope: paper.PaperScope): paper.Color {
-    const r = Math.random();
-    const g = Math.random();
-    const b = Math.random();
-    return new scope.Color(r, g, b);
-  }
 
   onMouseDown(event: paper.ToolEvent, scope: paper.PaperScope): void {
     this.startPoint = event.point;
@@ -22,6 +13,7 @@ export class CircleTool extends BaseTool {
       fillColor: fillColor,
       strokeColor: new scope.Color(this.color),
       strokeWidth: 2,
+      name: this.name,
     });
   }
 
@@ -39,22 +31,12 @@ export class CircleTool extends BaseTool {
       fillColor: fillColor,
       strokeColor: new scope.Color(this.color),
       strokeWidth: 2,
+      name: this.name,
     });
   }
 
   onMouseUp(event: paper.ToolEvent, scope: paper.PaperScope): void {
-    if (this.currentPath) {
-      console.log('Circle created:', this.currentPath);
-
-      // Create GameObject from Paper.js item
-      const gameObject = SDK.instance.Scene.createGameObjectFromPaperItem(this.currentPath, 'drawing');
-      if (gameObject) {
-        console.log('GameObject created:', gameObject);
-      }
-
-      // Keep the original path for now (GameObject has its own renderer)
-      // TODO: Later we can remove the original and only use GameObject's renderer
-    }
+    this.createGameObjectAndSelect();
     this.cleanup();
   }
 }

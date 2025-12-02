@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useSelector } from 'react-redux';
 import { Tree, Typography } from 'antd';
 import type { TreeDataNode } from 'antd';
 import { FolderOutlined, FileOutlined, AppstoreOutlined } from '@ant-design/icons';
 import { SDK } from '@huahuo/sdk';
 import type { IGameObject } from '@huahuo/sdk';
+import type { RootState } from '../../store/store';
 import { store } from '../../store/store';
 import { selectGameObject } from '../../store/features/selection/selectionSlice';
 import './HierarchyPanel.css';
@@ -16,7 +18,19 @@ interface HierarchyPanelProps {
 
 const HierarchyPanel: React.FC<HierarchyPanelProps> = ({ onSelectGameObject }) => {
   const [treeData, setTreeData] = useState<TreeDataNode[]>([]);
-  const [selectedKeys, setSelectedKeys] = useState<React.Key[]>([]);
+  const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
+  const [gameObjectCount, setGameObjectCount] = useState<number>(0);
+
+  // Get selected GameObject ID from Redux store
+  const selectedGameObjectId = useSelector((state: RootState) => state.selection.selectedGameObjectId);
+
+  // Map GameObject ID to tree key
+  const [gameObjectIdToKey, setGameObjectIdToKey] = useState<Map<string, string>>(new Map());
+
+  // Calculate selectedKeys from selectedGameObjectId
+  const selectedKeys = selectedGameObjectId && gameObjectIdToKey.has(selectedGameObjectId)
+    ? [gameObjectIdToKey.get(selectedGameObjectId)!]
+    : [];
 
   const refreshHierarchy = () => {
     if (!SDK.isInitialized()) {
@@ -30,6 +44,24 @@ const HierarchyPanel: React.FC<HierarchyPanelProps> = ({ onSelectGameObject }) =
       return;
     }
 
+    // Count total GameObjects
+    const totalGameObjects = scene.layers.reduce((sum, layer) => sum + layer.gameObjects.length, 0);
+
+    // If GameObject count increased, auto-expand the affected layers
+    if (totalGameObjects > gameObjectCount) {
+      const newExpandedKeys: React.Key[] = [`scene-${scene.name}`];
+      scene.layers.forEach((layer, layerIndex) => {
+        if (layer.gameObjects.length > 0) {
+          newExpandedKeys.push(`layer-${layerIndex}`);
+        }
+      });
+      setExpandedKeys(newExpandedKeys);
+      setGameObjectCount(totalGameObjects);
+    }
+
+    // Build GameObject ID to key mapping
+    const idToKeyMap = new Map<string, string>();
+
     // Build tree data from scene
     const sceneNode: TreeDataNode = {
       title: scene.name,
@@ -39,19 +71,40 @@ const HierarchyPanel: React.FC<HierarchyPanelProps> = ({ onSelectGameObject }) =
         title: `${layer.name} (${layer.gameObjects.length})`,
         key: `layer-${layerIndex}`,
         icon: <FolderOutlined />,
-        children: layer.gameObjects.map((gameObject, objIndex) => ({
-          title: gameObject.name,
-          key: `gameobject-${layerIndex}-${objIndex}`,
-          icon: <FileOutlined />,
-          isLeaf: true,
-        })),
+        children: layer.gameObjects.map((gameObject, objIndex) => {
+          const key = `gameobject-${layerIndex}-${objIndex}`;
+          idToKeyMap.set(gameObject.id, key);
+          return {
+            title: gameObject.name,
+            key: key,
+            icon: <FileOutlined />,
+            isLeaf: true,
+          };
+        }),
       })),
     };
 
     setTreeData([sceneNode]);
+    setGameObjectIdToKey(idToKeyMap);
   };
 
   useEffect(() => {
+    // Initial load: expand all nodes
+    if (SDK.isInitialized()) {
+      const scene = SDK.instance.Scene.getCurrentScene();
+      if (scene) {
+        const initialExpandedKeys: React.Key[] = [`scene-${scene.name}`];
+        scene.layers.forEach((layer, layerIndex) => {
+          initialExpandedKeys.push(`layer-${layerIndex}`);
+        });
+        setExpandedKeys(initialExpandedKeys);
+
+        // Set initial count
+        const totalGameObjects = scene.layers.reduce((sum, layer) => sum + layer.gameObjects.length, 0);
+        setGameObjectCount(totalGameObjects);
+      }
+    }
+
     refreshHierarchy();
 
     // Subscribe to Redux store changes (IDE's merged store includes engine state)
@@ -62,15 +115,22 @@ const HierarchyPanel: React.FC<HierarchyPanelProps> = ({ onSelectGameObject }) =
     return () => unsubscribe();
   }, []);
 
-  const onSelect = (selectedKeys: React.Key[]) => {
-    setSelectedKeys(selectedKeys);
+  const onSelect = (keys: React.Key[]) => {
+    // Auto-expand all nodes when clicking
+    const scene = SDK.instance.Scene.getCurrentScene();
+    if (scene) {
+      const allExpandedKeys: React.Key[] = [`scene-${scene.name}`];
+      scene.layers.forEach((layer, layerIndex) => {
+        allExpandedKeys.push(`layer-${layerIndex}`);
+      });
+      setExpandedKeys(allExpandedKeys);
+    }
 
     // Parse the selected key to find the GameObject
-    if (selectedKeys.length > 0) {
-      const key = selectedKeys[0] as string;
+    if (keys.length > 0) {
+      const key = keys[0] as string;
       if (key.startsWith('gameobject-')) {
         const [, layerIndex, objIndex] = key.split('-').map(Number);
-        const scene = SDK.instance.Scene.getCurrentScene();
         if (scene && scene.layers[layerIndex]) {
           const gameObject = scene.layers[layerIndex].gameObjects[objIndex];
           if (gameObject) {
@@ -104,7 +164,8 @@ const HierarchyPanel: React.FC<HierarchyPanelProps> = ({ onSelectGameObject }) =
       <Tree
         className="hierarchy-tree"
         showIcon
-        defaultExpandAll
+        expandedKeys={expandedKeys}
+        onExpand={(keys) => setExpandedKeys(keys)}
         selectedKeys={selectedKeys}
         onSelect={onSelect}
         treeData={treeData}

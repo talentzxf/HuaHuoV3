@@ -1,18 +1,9 @@
 import paper from 'paper';
 import { BaseTool } from './BaseTool';
-import { SDK } from '@huahuo/sdk';
 
 export class RectangleTool extends BaseTool {
   name = 'rectangle';
   private fillColor: paper.Color | null = null;
-
-  // Generate random color
-  private getRandomColor(scope: paper.PaperScope): paper.Color {
-    const r = Math.random();
-    const g = Math.random();
-    const b = Math.random();
-    return new scope.Color(r, g, b);
-  }
 
   onMouseDown(event: paper.ToolEvent, scope: paper.PaperScope): void {
     this.startPoint = event.point;
@@ -23,6 +14,7 @@ export class RectangleTool extends BaseTool {
       fillColor: this.fillColor,
       strokeColor: new scope.Color(this.color),
       strokeWidth: 2,
+      name: this.name,
     });
   }
 
@@ -36,24 +28,14 @@ export class RectangleTool extends BaseTool {
       fillColor: this.fillColor,
       strokeColor: new scope.Color(this.color),
       strokeWidth: 2,
+      name: this.name,
     });
   }
 
   onMouseUp(event: paper.ToolEvent, scope: paper.PaperScope): void {
-    if (this.currentPath) {
-      console.log('Rectangle created:', this.currentPath);
-
-      // Create GameObject from Paper.js item
-      const gameObject = SDK.instance.Scene.createGameObjectFromPaperItem(this.currentPath, 'drawing');
-      if (gameObject) {
-        console.log('GameObject created:', gameObject);
-      }
-
-      // Keep the original path for now (GameObject has its own renderer)
-    }
+    this.createGameObjectAndSelect();
     this.fillColor = null;
     this.cleanup();
   }
 }
-
 

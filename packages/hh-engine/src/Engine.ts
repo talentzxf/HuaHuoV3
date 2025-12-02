@@ -13,6 +13,7 @@ export class Engine {
   private renderer: IRenderer;
   private reduxAdapter: ReduxAdapter;
   private sceneContext: any;
+  private selectedGameObjectId: string | null = null;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -33,6 +34,39 @@ export class Engine {
 
     // Register built-in components
     registerBuiltInComponents();
+  }
+
+  /**
+   * Select a GameObject (updates Paper.js render item selection state)
+   * This should be called by IDE when selection changes
+   */
+  selectGameObject(gameObjectId: string | null): void {
+    // Deselect previous
+    if (this.selectedGameObjectId) {
+      const prevRenderItem = (this.renderer as any).getRenderItem?.(this.selectedGameObjectId);
+      if (prevRenderItem) {
+        prevRenderItem.selected = false;
+      }
+    }
+
+    // Select new
+    this.selectedGameObjectId = gameObjectId;
+    if (gameObjectId) {
+      const currRenderItem = (this.renderer as any).getRenderItem?.(gameObjectId);
+      if (currRenderItem) {
+        currRenderItem.selected = true;
+      }
+    }
+
+    // Trigger render
+    this.renderer.render();
+  }
+
+  /**
+   * Get currently selected GameObject ID
+   */
+  getSelectedGameObjectId(): string | null {
+    return this.selectedGameObjectId;
   }
 
 
