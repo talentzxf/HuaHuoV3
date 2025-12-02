@@ -3,6 +3,7 @@
  * Each component registers itself using the ComponentRegistry
  */
 import { ComponentRegistry } from '../core/ComponentRegistry';
+import { Transform } from './Transform';
 import { Visual } from './Visual';
 
 /**
@@ -11,6 +12,11 @@ import { Visual } from './Visual';
  */
 export function registerBuiltInComponents(): void {
   const registry = ComponentRegistry.getInstance();
+
+  // Register Transform component (every GameObject has one)
+  registry.register('Transform', (gameObject: any, _layerContext: any, config: any) => {
+    return new Transform(gameObject, config);
+  });
 
   // Register Visual component (data component for visual properties)
   registry.register('Visual', (gameObject: any, _layerContext: any, config: any) => {

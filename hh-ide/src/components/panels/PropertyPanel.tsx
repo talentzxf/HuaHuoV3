@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Typography, Collapse, Input, InputNumber, Switch, Divider, Space } from 'antd';
+import { Typography, Collapse, Input, InputNumber, Switch, Space } from 'antd';
 import { useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import type { RootState } from '../../store/store';
@@ -7,7 +7,7 @@ import { SDK, getEngineStore, getEngineState } from '@huahuo/sdk';
 import type { ComponentSlice } from '@huahuo/sdk';
 import './PropertyPanel.css';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 const { Panel } = Collapse;
 
 interface PropertyPanelProps {}
@@ -85,54 +85,54 @@ const PropertyPanel: React.FC<PropertyPanelProps> = () => {
         // Handle different types of properties
         if (typeof propValue === 'boolean') {
             return (
-                <Space>
-                    <Text style={{ color: '#cccccc', minWidth: '100px' }}>{propName}:</Text>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <Text style={{ color: '#ffffff', fontSize: '12px' }}>{propName}</Text>
                     <Switch checked={propValue} onChange={handleChange} size="small" />
-                </Space>
+                </div>
             );
         } else if (typeof propValue === 'number') {
             return (
-                <Space>
-                    <Text style={{ color: '#cccccc', minWidth: '100px' }}>{propName}:</Text>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <Text style={{ color: '#ffffff', fontSize: '12px' }}>{propName}</Text>
                     <InputNumber
                         value={propValue}
                         onChange={handleChange}
                         size="small"
-                        style={{ width: '150px' }}
+                        style={{ width: '100px' }}
                     />
-                </Space>
+                </div>
             );
         } else if (typeof propValue === 'string') {
             return (
-                <Space>
-                    <Text style={{ color: '#cccccc', minWidth: '100px' }}>{propName}:</Text>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <Text style={{ color: '#ffffff', fontSize: '12px' }}>{propName}</Text>
                     <Input
                         value={propValue}
                         onChange={(e) => handleChange(e.target.value)}
                         size="small"
-                        style={{ width: '150px' }}
+                        style={{ width: '140px' }}
                     />
-                </Space>
+                </div>
             );
         } else if (typeof propValue === 'object' && propValue !== null) {
-            // Handle nested objects (like position, scale, etc.)
+            // Handle nested objects (like position, scale, etc.) - all values in one line
             return (
-                <div>
-                    <Text style={{ color: '#cccccc', display: 'block', marginBottom: '4px' }}>{propName}:</Text>
-                    <div style={{ paddingLeft: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <Text style={{ color: '#ffffff', fontSize: '12px' }}>{propName}</Text>
+                    <div style={{ display: 'flex', gap: '4px' }}>
                         {Object.entries(propValue).map(([key, val]) => (
-                            <Space key={key} style={{ marginBottom: '4px' }}>
-                                <Text style={{ color: '#aaaaaa', minWidth: '40px' }}>{key}:</Text>
-                                <InputNumber
-                                    value={val as number}
-                                    onChange={(newVal) => {
-                                        const updatedObj = { ...propValue, [key]: newVal };
-                                        handleChange(updatedObj);
-                                    }}
-                                    size="small"
-                                    style={{ width: '100px' }}
-                                />
-                            </Space>
+                            <InputNumber
+                                key={key}
+                                value={val as number}
+                                onChange={(newVal) => {
+                                    const updatedObj = { ...propValue, [key]: newVal };
+                                    handleChange(updatedObj);
+                                }}
+                                size="small"
+                                precision={2}
+                                step={0.1}
+                                style={{ width: '60px' }}
+                            />
                         ))}
                     </div>
                 </div>
@@ -141,10 +141,10 @@ const PropertyPanel: React.FC<PropertyPanelProps> = () => {
 
         // Default: display as JSON string
         return (
-            <Space>
-                <Text style={{ color: '#cccccc', minWidth: '100px' }}>{propName}:</Text>
-                <Text style={{ color: '#888888' }}>{JSON.stringify(propValue)}</Text>
-            </Space>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <Text style={{ color: '#ffffff', fontSize: '12px' }}>{propName}</Text>
+                <Text style={{ color: '#aaaaaa', fontSize: '11px' }}>{JSON.stringify(propValue)}</Text>
+            </div>
         );
     };
 
@@ -153,7 +153,7 @@ const PropertyPanel: React.FC<PropertyPanelProps> = () => {
             <Panel
                 header={
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Text strong style={{ color: '#e8e8e8' }}>{component.type}</Text>
+                        <Text strong style={{ color: '#ffffff', fontSize: '13px' }}>{component.type}</Text>
                         <Switch
                             checked={component.enabled}
                             onChange={(checked) => {
@@ -172,14 +172,14 @@ const PropertyPanel: React.FC<PropertyPanelProps> = () => {
                 }
                 key={component.id}
             >
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                     {Object.entries(component.props).map(([propName, propValue]) => (
                         <div key={propName}>
                             {renderPropertyField(component.id, propName, propValue)}
                         </div>
                     ))}
                     {Object.keys(component.props).length === 0 && (
-                        <Text style={{ color: '#888888', fontStyle: 'italic' }}>{t('propertyPanel.noProperties')}</Text>
+                        <Text style={{ color: '#999999', fontStyle: 'italic', fontSize: '12px' }}>{t('propertyPanel.noProperties')}</Text>
                     )}
                 </div>
             </Panel>
@@ -205,26 +205,23 @@ const PropertyPanel: React.FC<PropertyPanelProps> = () => {
     return (
         <div className="property-panel">
             <div className="property-panel-header">
-                <Title level={5} style={{ color: '#e8e8e8', margin: '0 0 8px 0' }}>
-                    {t('propertyPanel.inspector')}
-                </Title>
-                <Input
-                    value={gameObjectData.name}
-                    onChange={(e) => {
-                        if (SDK.isInitialized()) {
-                            const store = getEngineStore();
-                            store.dispatch({
-                                type: 'gameObjects/renameGameObject',
-                                payload: { id: selectedGameObjectId, name: e.target.value }
-                            });
-                        }
-                    }}
-                    size="large"
-                    style={{ marginBottom: '8px' }}
-                />
-                <Space>
-                    <Text style={{ color: '#cccccc' }}>{t('propertyPanel.active')}:</Text>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                    <Input
+                        value={gameObjectData.name}
+                        onChange={(e) => {
+                            if (SDK.isInitialized()) {
+                                const store = getEngineStore();
+                                store.dispatch({
+                                    type: 'gameObjects/renameGameObject',
+                                    payload: { id: selectedGameObjectId, name: e.target.value }
+                                });
+                            }
+                        }}
+                        size="small"
+                        style={{ flex: 1 }}
+                    />
                     <Switch
+                        size="small"
                         checked={gameObjectData.active}
                         onChange={(checked) => {
                             if (SDK.isInitialized()) {
@@ -236,22 +233,21 @@ const PropertyPanel: React.FC<PropertyPanelProps> = () => {
                             }
                         }}
                     />
-                </Space>
+                </div>
             </div>
-
-            <Divider style={{ margin: '12px 0', borderColor: '#444' }} />
 
             <div className="property-panel-components">
                 {components.length > 0 ? (
                     <Collapse
                         defaultActiveKey={components.map(c => c.id)}
                         ghost
+                        size="small"
                         style={{ background: 'transparent' }}
                     >
                         {components.map(renderComponent)}
                     </Collapse>
                 ) : (
-                    <Text style={{ color: '#888888', fontStyle: 'italic' }}>{t('propertyPanel.noComponents')}</Text>
+                    <Text style={{ color: '#999999', fontStyle: 'italic', fontSize: '12px' }}>{t('propertyPanel.noComponents')}</Text>
                 )}
             </div>
         </div>
