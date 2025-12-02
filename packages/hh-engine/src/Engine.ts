@@ -95,6 +95,7 @@ export class Engine {
       y: item.scaling?.y || 1
     };
 
+
     // Extract visual properties and add Visual component
     // The item itself (circle, rectangle, or any shape) is the renderItem
     // Shape can be changed later through vertex editing tools

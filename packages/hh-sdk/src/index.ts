@@ -20,12 +20,13 @@ export type {
 
 export {
   Engine,
-  Component,
+  ComponentBase,
   Transform,
   Visual,
   GameObject,
   Layer,
   Scene,
+  ComponentRegistry,
   // Export unified engine reducer (recommended)
   engineReducer,
   // Also export individual reducers for advanced use

@@ -14,18 +14,14 @@ export function registerBuiltInComponents(): void {
   const registry = ComponentRegistry.getInstance();
 
   // Register Transform component (every GameObject has one)
-  registry.register('Transform', (gameObject: any, _layerContext: any, config: any) => {
-    return new Transform(gameObject, config);
-  });
+  registry.register('Transform', Transform);
 
   // Register Visual component (data component for visual properties)
-  registry.register('Visual', (gameObject: any, _layerContext: any, config: any) => {
-    return new Visual(gameObject, config);
-  });
+  registry.register('Visual', Visual);
 
   // Future components can be added here:
-  // registry.register('Physics', ...);
-  // registry.register('Collider', ...);
-  // registry.register('Script', ...);
+  // registry.register('Physics', Physics);
+  // registry.register('Collider', Collider);
+  // registry.register('Script', Script);
 }
 

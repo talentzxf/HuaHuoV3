@@ -1,4 +1,4 @@
-import { Component } from '../components/Component';
+import { ComponentBase } from '../components/ComponentBase';
 
 /**
  * Create a proxy for a Component that automatically syncs properties with Redux Store
@@ -27,7 +27,7 @@ import { Component } from '../components/Component';
  * console.log(visual.fillColor);  // Automatically calls getProps
  * ```
  */
-export function createComponentProxy<T extends Component>(
+export function createComponentProxy<T extends ComponentBase>(
   component: T,
   initialConfig?: Record<string, any>
 ): T {

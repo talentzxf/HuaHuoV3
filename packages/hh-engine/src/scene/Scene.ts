@@ -11,16 +11,6 @@ import { RegistrableEntity } from "../core/RegistrableEntity";
 export class Scene extends RegistrableEntity implements IScene {
     private renderer: IRenderer;
     private sceneContext: any;
-    private layerContextCache = new Map<string, any>();
-
-    getLayerContextById(layerId: string): any {
-        if (!this.layerContextCache.has(layerId)) {
-            const layerContext = this.renderer.createLayerContext(this.sceneContext);
-            this.layerContextCache.set(layerId, layerContext);
-            return layerContext;
-        }
-        return this.layerContextCache.get(layerId)!;
-    }
 
     constructor(sceneId: string, renderer: IRenderer, sceneContext: any) {
         // Call RegistrableEntity constructor - auto-registers
@@ -42,9 +32,8 @@ export class Scene extends RegistrableEntity implements IScene {
 
         if (!layerId) return undefined;
 
-        return instanceRegistry.getOrCreate<Layer>(layerId, () => {
-            return new Layer(layerId, this.renderer, this.getLayerContextById(layerId));
-        });
+        // Only return existing instance, don't create
+        return instanceRegistry.get<Layer>(layerId);
     }
 
     destroy(): void {
@@ -56,7 +45,9 @@ export class Scene extends RegistrableEntity implements IScene {
         const sceneId = store.dispatch(createScene(name)).payload.id;
         store.dispatch(setCurrentScene(sceneId));
 
+        console.debug('[Scene.create] Creating Scene:', sceneId);
         return instanceRegistry.getOrCreate<Scene>(sceneId, () => {
+            console.debug('[Scene.create] Factory: new Scene:', sceneId);
             return new Scene(sceneId, renderer, sceneContext);
         });
     }
@@ -69,11 +60,11 @@ export class Scene extends RegistrableEntity implements IScene {
         const engineState = getEngineState();
         const scene = engineState.scenes.byId[this.id];
 
-        return scene.layerIds.map((layerId: string) => {
-            return instanceRegistry.getOrCreate<Layer>(layerId, () => {
-                return new Layer(layerId, this.renderer, this.getLayerContextById(layerId));
-            });
-        });
+        // Only return existing instances from InstanceRegistry
+        // DO NOT create new instances here - creation only happens in addLayer
+        return scene.layerIds
+            .map((layerId: string) => instanceRegistry.get<Layer>(layerId))
+            .filter((layer): layer is Layer => layer !== undefined);
     }
 
     addLayer(name: string): Layer {
@@ -84,7 +75,6 @@ export class Scene extends RegistrableEntity implements IScene {
         );
 
         const layerContext = this.renderer.createLayerContext(this.sceneContext);
-        this.layerContextCache.set(layerId, layerContext);
 
         return instanceRegistry.getOrCreate<Layer>(layerId, () => {
             return new Layer(layerId, this.renderer, layerContext);
@@ -94,7 +84,6 @@ export class Scene extends RegistrableEntity implements IScene {
     removeLayer(layer: Layer): void {
         // TODO: Implement layer removal from Redux store
         layer.destroy();
-        this.layerContextCache.delete(layer.id);
         // Layer will be unregistered in its destroy() method
     }
 
@@ -107,4 +96,6 @@ export class Scene extends RegistrableEntity implements IScene {
         });
     }
 }
+
+
 

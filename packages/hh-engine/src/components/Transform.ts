@@ -1,18 +1,22 @@
 import { ITransform } from '../core/IComponent';
 import { IGameObject } from '../core/IGameObject';
-import { Component } from './Component';
+import { ComponentBase } from './ComponentBase';
+import { PropertyConfig, Component } from '../core/PropertyConfig';
 
 /**
  * Transform component - stores position, rotation, and scale
  * All data is stored in Redux Store, properties are auto-synced via Proxy
  */
-export class Transform extends Component implements ITransform {
+@Component
+export class Transform extends ComponentBase implements ITransform {
   public readonly type = 'Transform';
 
-  // Declare properties - Proxy will automatically sync with Redux Store
-  // These are initialized in constructor via config, so they're never actually undefined
+  // Declare properties with metadata decorators
   position!: { x: number; y: number };
+
+  @PropertyConfig({ step: 1, min: -360, max: 360, precision: 0 })
   rotation!: number;
+
   scale!: { x: number; y: number };
 
   constructor(gameObject: IGameObject, config?: {
@@ -38,13 +42,24 @@ export class Transform extends Component implements ITransform {
    * This is called by ReduxAdapter when props change
    */
   applyToRenderer(renderer: any, renderItem: any): void {
+    console.debug('[Transform] applyToRenderer called with:', {
+      position: this.position,
+      rotation: this.rotation,
+      scale: this.scale
+    });
+
     if (renderer.updateItemTransform) {
       renderer.updateItemTransform(renderItem, {
         position: this.position,
         rotation: this.rotation,
         scale: this.scale
       });
+      console.debug('[Transform] updateItemTransform completed');
+    } else {
+      console.warn('[Transform] renderer.updateItemTransform not available');
     }
   }
 }
+
+
 

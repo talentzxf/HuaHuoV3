@@ -33,6 +33,17 @@ export class Layer extends RegistrableEntity implements ILayer {
         this.layerContext = layerContext;
     }
 
+    /**
+     * Centralized GameObject factory method
+     * This ensures all GameObjects are created consistently with proper render item registration
+     */
+    private createGameObjectInstance(gameObjectId: string, renderItem?: any): GameObject {
+        console.log('[Layer] createGameObjectInstance:', gameObjectId, 'renderItem:', !!renderItem);
+        const gameObject = new GameObject(gameObjectId, this.renderer, this.layerContext, renderItem);
+        console.log('[Layer] GameObject created:', gameObjectId);
+        return gameObject;
+    }
+
     get name(): string {
         return getEngineState().layers.byId[this.id].name;
     }
@@ -42,12 +53,11 @@ export class Layer extends RegistrableEntity implements ILayer {
         const layer = engineState.layers.byId[this.id];
         if (!layer) return [];
 
-        return layer.gameObjectIds.map((goId: string) => {
-            return instanceRegistry.getOrCreate<GameObject>(goId, () => {
-                const renderItem = (this.renderer as any).getRenderItem?.(goId);
-                return new GameObject(goId, this.renderer, this.layerContext, renderItem);
-            });
-        });
+        // Only return existing instances from InstanceRegistry
+        // DO NOT create new instances here - creation only happens in addGameObject
+        return layer.gameObjectIds
+            .map((goId: string) => instanceRegistry.get<GameObject>(goId))
+            .filter((go): go is GameObject => go !== undefined);
     }
 
     get visible(): boolean {
@@ -77,13 +87,10 @@ export class Layer extends RegistrableEntity implements ILayer {
             addGameObjectToLayer({ layerId: this.id, gameObjectId })
         );
 
+        console.debug('[Layer.addGameObject] Creating GameObject:', gameObjectId, 'with renderItem:', !!renderItem);
+
         return instanceRegistry.getOrCreate<GameObject>(gameObjectId, () => {
-            return new GameObject(
-                gameObjectId,
-                this.renderer,
-                this.layerContext,
-                renderItem
-            );
+            return this.createGameObjectInstance(gameObjectId, renderItem);
         });
     }
 
@@ -124,4 +131,6 @@ export class Layer extends RegistrableEntity implements ILayer {
         });
     }
 }
+
+
 

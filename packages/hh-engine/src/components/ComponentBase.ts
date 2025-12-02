@@ -5,7 +5,7 @@ import { updateComponentProps } from '../store/ComponentSlice';
 import { instanceRegistry } from '../core/InstanceRegistry';
 import { createComponentProxy } from '../core/ComponentProxy';
 
-export abstract class Component implements IComponent {
+export abstract class ComponentBase implements IComponent {
   public enabled: boolean = true;
   public abstract readonly type: string;
 
@@ -85,4 +85,5 @@ export abstract class Component implements IComponent {
     }));
   }
 }
+
 

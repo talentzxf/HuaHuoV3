@@ -1,3 +1,4 @@
+
 // Core interfaces
 export * from './core/IComponent';
 export * from './core/IGameObject';
@@ -9,7 +10,7 @@ export { ComponentRegistry } from './core/ComponentRegistry';
 export * from './renderer';
 
 // Components
-export { Component } from './components/Component';
+export { ComponentBase } from './components/ComponentBase';
 export { Transform } from './components/Transform';
 export { Visual } from './components/Visual';
 export { registerBuiltInComponents } from './components/registerComponents';

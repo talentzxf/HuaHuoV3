@@ -1,7 +1,7 @@
 import { IGameObject } from '../core/IGameObject';
 import { IComponent, ITransform } from '../core/IComponent';
 import { Transform } from '../components/Transform';
-import { Component } from '../components/Component';
+import { ComponentBase } from '../components/ComponentBase';
 import { IRenderer } from '../renderer';
 import { getEngineState, getEngineStore } from '../core/EngineGlobals';
 import { ComponentRegistry } from '../core/ComponentRegistry';
@@ -12,7 +12,7 @@ import { RegistrableEntity } from '../core/RegistrableEntity';
 export class GameObject extends RegistrableEntity implements IGameObject {
   public transform: ITransform;
 
-  public components: Component[] = [];
+  public components: ComponentBase[] = [];
 
   private renderer: IRenderer;
   private layerContext: any;
@@ -33,7 +33,10 @@ export class GameObject extends RegistrableEntity implements IGameObject {
 
     // Register render item in renderer's registry
     if (renderItem && (renderer as any).registerRenderItem) {
+      console.debug('[GameObject] Registering render item for GameObject:', gameObjectId);
       (renderer as any).registerRenderItem(gameObjectId, renderItem);
+    } else if (!renderItem) {
+      console.debug('[GameObject] No render item to register for GameObject:', gameObjectId);
     }
 
     // Every GameObject has a Transform component

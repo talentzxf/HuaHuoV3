@@ -1,5 +1,5 @@
-import paper from "paper";
-import { IRenderer } from "./IRenderer";
+import paper from 'paper';
+import {IRenderer} from './IRenderer';
 import { RenderItemFactory } from "./RenderItemFactory";
 
 /**
@@ -116,13 +116,21 @@ export class PaperRenderer implements IRenderer {
      * Register a render item for a GameObject
      */
     registerRenderItem(gameObjectId: string, item: paper.Item): void {
+        console.debug('[PaperRenderer] registerRenderItem:', gameObjectId, 'item:', item);
+
+        // Set applyMatrix to false to prevent cumulative transformations
+        // This makes scaling, rotation properties absolute instead of cumulative
+        item.applyMatrix = false;
+
         this.renderItemRegistry.set(gameObjectId, item);
+        console.debug('[PaperRenderer] Registry size:', this.renderItemRegistry.size);
     }
 
     /**
      * Unregister a render item for a GameObject
      */
     unregisterRenderItem(gameObjectId: string): void {
+        console.debug('[PaperRenderer] unregisterRenderItem:', gameObjectId);
         this.renderItemRegistry.delete(gameObjectId);
     }
 
@@ -130,7 +138,12 @@ export class PaperRenderer implements IRenderer {
      * Get the render item for a GameObject
      */
     getRenderItem(gameObjectId: string): paper.Item | undefined {
-        return this.renderItemRegistry.get(gameObjectId);
+        const item = this.renderItemRegistry.get(gameObjectId);
+        console.debug('[PaperRenderer] getRenderItem:', gameObjectId, 'found:', !!item, 'registry size:', this.renderItemRegistry.size);
+        if (!item) {
+            console.debug('[PaperRenderer] Registry contents:', Array.from(this.renderItemRegistry.keys()));
+        }
+        return item;
     }
 
     getView(sceneContext: paper.PaperScope): paper.View {
@@ -154,4 +167,6 @@ export class PaperRenderer implements IRenderer {
         return this.scope;
     }
 }
+
+
 
