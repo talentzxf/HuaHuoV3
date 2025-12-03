@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Form, InputNumber, Typography, Divider, Switch, Input } from 'antd';
+import { Form, Typography, Divider, Switch, Input } from 'antd';
 import { getEngineStore } from '@huahuo/engine';
-import { setLayerFrameCount, renameLayer, setLayerVisible } from '@huahuo/sdk';
+import { renameLayer, setLayerVisible, setLayerHasTimeline } from '@huahuo/sdk';
 import './LayerPropertyPanel.css';
 
 const { Text } = Typography;
@@ -50,16 +50,6 @@ const LayerPropertyPanel: React.FC<LayerPropertyPanelProps> = ({ layerId }) => {
     return () => unsubscribe();
   }, [layerId]);
 
-  const handleFrameCountChange = (value: number | null) => {
-    if (!layerId || value === null) return;
-
-    const engineStore = getEngineStore();
-    engineStore.dispatch(setLayerFrameCount({
-      layerId: layerId,
-      frameCount: value
-    }));
-  };
-
   const handleNameChange = (value: string) => {
     if (!layerId) return;
 
@@ -80,6 +70,16 @@ const LayerPropertyPanel: React.FC<LayerPropertyPanelProps> = ({ layerId }) => {
     }));
   };
 
+  const handleHasTimelineChange = (checked: boolean) => {
+    if (!layerId) return;
+
+    const engineStore = getEngineStore();
+    engineStore.dispatch(setLayerHasTimeline({
+      layerId: layerId,
+      hasTimeline: checked
+    }));
+  };
+
   if (!layerId || !layerData) {
     return (
       <div className="layer-property-panel">
@@ -90,43 +90,48 @@ const LayerPropertyPanel: React.FC<LayerPropertyPanelProps> = ({ layerId }) => {
     );
   }
 
+  const rowStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    marginBottom: '8px',
+    gap: '8px',
+  };
+
+  const labelStyle: React.CSSProperties = {
+    width: '80px',
+    flexShrink: 0,
+    color: '#999',
+    fontSize: '12px',
+  };
+
   return (
-    <div className="layer-property-panel">
-      <div className="layer-property-header">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-          <Switch
-            checked={layerData.visible}
-            onChange={handleVisibleChange}
-            size="small"
-          />
-          <Input
-            value={layerData.name}
-            onChange={(e) => handleNameChange(e.target.value)}
-            onKeyDown={(e) => e.stopPropagation()}
-            size="small"
-            style={{ width: '140px' }}
-          />
-        </div>
+    <div className="layer-property-panel" style={{ padding: '12px' }}>
+      {/* 第一行：Layer Name + Active */}
+      <div style={rowStyle}>
+        <Text style={labelStyle}>Layer Name:</Text>
+        <Input
+          value={layerData.name}
+          onChange={(e) => handleNameChange(e.target.value)}
+          onKeyDown={(e) => e.stopPropagation()}
+          size="small"
+          style={{ flex: 1 }}
+        />
+        <Text style={{ ...labelStyle, width: 'auto', marginLeft: '8px' }}>Active:</Text>
+        <Switch
+          checked={layerData.visible}
+          onChange={handleVisibleChange}
+          size="small"
+        />
       </div>
 
-      <Divider style={{ margin: '12px 0', borderColor: '#444' }} />
-
-      <Form layout="vertical" size="small">
-        <Form.Item
-          label={t('layerPropertyPanel.frameCount', 'Frame Count')}
-          style={{ marginBottom: '12px' }}
-          help={t('layerPropertyPanel.frameCountHelp', '0 = No Timeline, >0 = Timeline with frames')}
-        >
-          <InputNumber
-            min={0}
-            max={10000}
-            value={layerData.frameCount}
-            onChange={handleFrameCountChange}
-            onKeyDown={(e) => e.stopPropagation()}
-            style={{ width: '100%' }}
-          />
-        </Form.Item>
-      </Form>
+      <div style={rowStyle}>
+        <Text style={labelStyle}>Use Timeline:</Text>
+        <Switch
+          checked={layerData.hasTimeline}
+          onChange={handleHasTimelineChange}
+          size="small"
+        />
+      </div>
     </div>
   );
 };

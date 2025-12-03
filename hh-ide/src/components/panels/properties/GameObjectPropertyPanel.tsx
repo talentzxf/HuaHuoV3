@@ -176,7 +176,7 @@ const GameObjectPropertyPanel: React.FC<GameObjectPropertyPanelProps> = ({ gameO
 
   if (!gameObjectData) {
     return (
-      <div className="property-panel">
+      <div className="property-panel" style={{ padding: '12px' }}>
         <Text style={{ color: '#999999', fontStyle: 'italic', fontSize: '12px' }}>
           {t('propertyPanel.selectGameObject', 'Select a GameObject to view properties')}
         </Text>
@@ -184,25 +184,41 @@ const GameObjectPropertyPanel: React.FC<GameObjectPropertyPanelProps> = ({ gameO
     );
   }
 
+  const rowStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    marginBottom: '8px',
+    gap: '8px',
+  };
+
+  const labelStyle: React.CSSProperties = {
+    width: '80px',
+    flexShrink: 0,
+    color: '#999',
+    fontSize: '12px',
+  };
+
   return (
-    <div className="property-panel">
-      <div className="property-panel-gameobject">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-          <Switch
-            checked={gameObjectData.active}
-            onChange={(checked) => handlePropertyChange(gameObjectId, 'active', checked)}
-            size="small"
-          />
-          <Input
-            value={gameObjectData.name}
-            onChange={(e) => handlePropertyChange(gameObjectId, 'name', e.target.value)}
-            onKeyDown={(e) => e.stopPropagation()}
-            size="small"
-            style={{ width: '140px' }}
-          />
-        </div>
+    <div className="property-panel" style={{ padding: '12px' }}>
+      {/* GameObject Name + Active */}
+      <div style={rowStyle}>
+        <Text style={labelStyle}>Name:</Text>
+        <Input
+          value={gameObjectData.name}
+          onChange={(e) => handlePropertyChange(gameObjectId, 'name', e.target.value)}
+          onKeyDown={(e) => e.stopPropagation()}
+          size="small"
+          style={{ flex: 1 }}
+        />
+        <Text style={{ ...labelStyle, width: 'auto', marginLeft: '8px' }}>Active:</Text>
+        <Switch
+          checked={gameObjectData.active}
+          onChange={(checked) => handlePropertyChange(gameObjectId, 'active', checked)}
+          size="small"
+        />
       </div>
 
+      {/* Components */}
       <div className="property-panel-components">
         {components.length > 0 ? (
           <Collapse

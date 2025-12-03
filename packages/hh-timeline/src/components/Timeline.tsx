@@ -244,7 +244,7 @@ export const Timeline: React.FC<TimelineProps> = ({
       style={{
         width: '100%',
         height: '100%',
-        overflow: 'auto',
+        overflow: 'auto',      // 允许水平和垂直滚动
         position: 'relative',
       }}
       onScroll={handleScroll}

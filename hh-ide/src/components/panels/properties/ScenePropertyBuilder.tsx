@@ -76,7 +76,7 @@ const ScenePropertyForm: React.FC<{ scene: IScene }> = ({ scene }) => {
   };
 
   const labelStyle: React.CSSProperties = {
-    width: '100px',
+    width: '80px',
     flexShrink: 0,
     color: '#999',
     fontSize: '12px',
@@ -91,13 +91,9 @@ const ScenePropertyForm: React.FC<{ scene: IScene }> = ({ scene }) => {
 
   return (
     <div style={{ padding: '12px' }}>
-      <Typography.Title level={5} style={{ marginTop: 0, marginBottom: '12px', fontSize: '14px' }}>
-        {t('propertyPanel.scene.title')}
-      </Typography.Title>
-
-      {/* Name */}
+      {/* Scene Name */}
       <div style={rowStyle}>
-        <Text style={labelStyle}>{t('propertyPanel.scene.name')}:</Text>
+        <Text style={labelStyle}>Scene Name:</Text>
         <Input
           value={name}
           onChange={handleNameChange}
