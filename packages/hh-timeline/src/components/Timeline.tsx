@@ -39,30 +39,30 @@ export const Timeline: React.FC<TimelineProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const canvasWidth = canvas.width;
-    const canvasHeight = canvas.height;
+    const totalWidth = TRACK_NAME_WIDTH + frameCount * CELL_WIDTH;
+    const totalHeight = HEADER_HEIGHT + tracks.length * TRACK_HEIGHT;
 
     // Clear canvas
     ctx.fillStyle = '#1e1e1e';
-    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+    ctx.fillRect(0, 0, totalWidth, totalHeight);
 
     // Draw frame header
-    drawFrameHeader(ctx, canvasWidth, scrollX);
+    drawFrameHeader(ctx, totalWidth);
 
-    // Draw tracks
+    // Draw all tracks
     tracks.forEach((track, trackIndex) => {
       const trackY = HEADER_HEIGHT + trackIndex * TRACK_HEIGHT;
-      drawTrack(ctx, track, trackIndex, trackY, canvasWidth, scrollX);
+      drawTrack(ctx, track, trackIndex, trackY, totalWidth);
     });
 
     // Draw current frame indicator
-    drawCurrentFrameIndicator(ctx, currentFrame, canvasHeight, scrollX);
-  }, [frameCount, currentFrame, tracks, scrollX]);
+    drawCurrentFrameIndicator(ctx, currentFrame, totalHeight);
+  }, [frameCount, currentFrame, tracks]);
 
   // Draw frame number header
-  const drawFrameHeader = (ctx: CanvasRenderingContext2D, canvasWidth: number, scrollX: number) => {
+  const drawFrameHeader = (ctx: CanvasRenderingContext2D, totalWidth: number) => {
     ctx.fillStyle = '#2a2a2a';
-    ctx.fillRect(0, 0, canvasWidth, HEADER_HEIGHT);
+    ctx.fillRect(0, 0, totalWidth, HEADER_HEIGHT);
 
     ctx.fillStyle = '#252525';
     ctx.fillRect(0, 0, TRACK_NAME_WIDTH, HEADER_HEIGHT);
@@ -72,11 +72,9 @@ export const Timeline: React.FC<TimelineProps> = ({
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    const startFrame = Math.floor(scrollX / CELL_WIDTH);
-    const endFrame = Math.min(frameCount, startFrame + Math.ceil((canvasWidth - TRACK_NAME_WIDTH) / CELL_WIDTH) + 1);
-
-    for (let frame = startFrame; frame < endFrame; frame++) {
-      const x = TRACK_NAME_WIDTH + frame * CELL_WIDTH - scrollX;
+    // Draw all frames
+    for (let frame = 0; frame < frameCount; frame++) {
+      const x = TRACK_NAME_WIDTH + frame * CELL_WIDTH;
 
       if (frame % 5 === 0) {
         ctx.fillStyle = '#fff';
@@ -91,7 +89,7 @@ export const Timeline: React.FC<TimelineProps> = ({
     }
 
     ctx.strokeStyle = '#444';
-    ctx.strokeRect(0, 0, canvasWidth, HEADER_HEIGHT);
+    ctx.strokeRect(0, 0, totalWidth, HEADER_HEIGHT);
   };
 
   // Draw a track
@@ -100,8 +98,7 @@ export const Timeline: React.FC<TimelineProps> = ({
     track: { id: string; name: string; layerId: string },
     trackIndex: number,
     trackY: number,
-    canvasWidth: number,
-    scrollX: number
+    totalWidth: number
   ) => {
     ctx.fillStyle = trackIndex % 2 === 0 ? '#252525' : '#2a2a2a';
     ctx.fillRect(0, trackY, TRACK_NAME_WIDTH, TRACK_HEIGHT);
@@ -113,18 +110,16 @@ export const Timeline: React.FC<TimelineProps> = ({
     ctx.fillText(track.name, 8, trackY + TRACK_HEIGHT / 2);
 
     ctx.fillStyle = trackIndex % 2 === 0 ? '#1a1a1a' : '#1e1e1e';
-    ctx.fillRect(TRACK_NAME_WIDTH, trackY, canvasWidth - TRACK_NAME_WIDTH, TRACK_HEIGHT);
+    ctx.fillRect(TRACK_NAME_WIDTH, trackY, totalWidth - TRACK_NAME_WIDTH, TRACK_HEIGHT);
 
-    const startFrame = Math.floor(scrollX / CELL_WIDTH);
-    const endFrame = Math.min(frameCount, startFrame + Math.ceil((canvasWidth - TRACK_NAME_WIDTH) / CELL_WIDTH) + 1);
-
-    for (let frame = startFrame; frame < endFrame; frame++) {
-      const cellX = TRACK_NAME_WIDTH + frame * CELL_WIDTH - scrollX;
+    // Draw all frames
+    for (let frame = 0; frame < frameCount; frame++) {
+      const cellX = TRACK_NAME_WIDTH + frame * CELL_WIDTH;
       drawCell(ctx, cellX, trackY, frame === currentFrame);
     }
 
     ctx.strokeStyle = '#444';
-    ctx.strokeRect(TRACK_NAME_WIDTH, trackY, canvasWidth - TRACK_NAME_WIDTH, TRACK_HEIGHT);
+    ctx.strokeRect(TRACK_NAME_WIDTH, trackY, totalWidth - TRACK_NAME_WIDTH, TRACK_HEIGHT);
   };
 
   // Draw a single cell
@@ -139,8 +134,8 @@ export const Timeline: React.FC<TimelineProps> = ({
   };
 
   // Draw current frame indicator (red line)
-  const drawCurrentFrameIndicator = (ctx: CanvasRenderingContext2D, frame: number, canvasHeight: number, scrollX: number) => {
-    const x = TRACK_NAME_WIDTH + (frame + 0.5) * CELL_WIDTH - scrollX;
+  const drawCurrentFrameIndicator = (ctx: CanvasRenderingContext2D, frame: number, canvasHeight: number) => {
+    const x = TRACK_NAME_WIDTH + (frame + 0.5) * CELL_WIDTH;
 
     ctx.strokeStyle = '#ff4d4f';
     ctx.lineWidth = 2;
@@ -162,14 +157,15 @@ export const Timeline: React.FC<TimelineProps> = ({
   // Handle canvas click
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    const container = containerRef.current;
+    if (!canvas || !container) return;
 
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const x = e.clientX - rect.left + container.scrollLeft;
+    const y = e.clientY - rect.top + container.scrollTop;
 
     if (y < HEADER_HEIGHT && x > TRACK_NAME_WIDTH) {
-      const frame = Math.floor((x - TRACK_NAME_WIDTH + scrollX) / CELL_WIDTH);
+      const frame = Math.floor((x - TRACK_NAME_WIDTH) / CELL_WIDTH);
       if (frame >= 0 && frame < frameCount) {
         onCurrentFrameChange?.(frame);
       }
@@ -178,7 +174,7 @@ export const Timeline: React.FC<TimelineProps> = ({
 
     if (y > HEADER_HEIGHT && x > TRACK_NAME_WIDTH) {
       const trackIndex = Math.floor((y - HEADER_HEIGHT) / TRACK_HEIGHT);
-      const frame = Math.floor((x - TRACK_NAME_WIDTH + scrollX) / CELL_WIDTH);
+      const frame = Math.floor((x - TRACK_NAME_WIDTH) / CELL_WIDTH);
 
       if (trackIndex >= 0 && trackIndex < tracks.length && frame >= 0 && frame < frameCount) {
         const track = tracks[trackIndex];
@@ -200,15 +196,15 @@ export const Timeline: React.FC<TimelineProps> = ({
     if (!canvas || !container) return;
 
     const updateSize = () => {
-      const containerWidth = container.clientWidth;
-      const containerHeight = container.clientHeight;
+      const totalWidth = TRACK_NAME_WIDTH + frameCount * CELL_WIDTH;
+      const totalHeight = HEADER_HEIGHT + tracks.length * TRACK_HEIGHT;
 
-      canvas.style.width = containerWidth + 'px';
-      canvas.style.height = containerHeight + 'px';
+      canvas.style.width = totalWidth + 'px';
+      canvas.style.height = totalHeight + 'px';
 
       const dpr = window.devicePixelRatio || 1;
-      canvas.width = containerWidth * dpr;
-      canvas.height = containerHeight * dpr;
+      canvas.width = totalWidth * dpr;
+      canvas.height = totalHeight * dpr;
 
       const ctx = canvas.getContext('2d');
       if (ctx) {
@@ -226,16 +222,19 @@ export const Timeline: React.FC<TimelineProps> = ({
     return () => {
       resizeObserver.disconnect();
     };
-  }, [draw]);
+  }, [draw, tracks.length, frameCount]);
 
   // Redraw when dependencies change
   useEffect(() => {
     draw();
   }, [draw]);
 
-  // Calculate total width for scrolling
+  // Calculate total width and height for scrolling
   const totalWidth = TRACK_NAME_WIDTH + frameCount * CELL_WIDTH;
   const totalHeight = HEADER_HEIGHT + tracks.length * TRACK_HEIGHT;
+
+  const MAX_HEIGHT_BEFORE_SCROLL = 200;
+  const needsVerticalScroll = totalHeight > MAX_HEIGHT_BEFORE_SCROLL;
 
   return (
     <div
@@ -243,23 +242,31 @@ export const Timeline: React.FC<TimelineProps> = ({
       className="hh-timeline"
       style={{
         width: '100%',
-        height: '100%',
-        overflow: 'auto',      // 允许水平和垂直滚动
+        height: needsVerticalScroll ? '100%' : `${totalHeight}px`,
+        overflowX: 'auto',
+        overflowY: needsVerticalScroll ? 'auto' : 'hidden',
         position: 'relative',
       }}
       onScroll={handleScroll}
     >
-      <div style={{ width: totalWidth, height: totalHeight, position: 'relative' }}>
+      <div style={{
+        width: totalWidth,
+        minHeight: totalHeight,
+        paddingBottom: '20px',
+        position: 'relative',
+        boxSizing: 'border-box'
+      }}>
         <canvas
           ref={canvasRef}
           className="timeline-canvas"
           onClick={handleCanvasClick}
           style={{
-            display: 'block',
-            position: 'sticky',
-            left: 0,
+            position: 'absolute',
             top: 0,
+            left: 0,
+            pointerEvents: 'auto',
             cursor: 'pointer',
+            display: 'block',
           }}
         />
       </div>
