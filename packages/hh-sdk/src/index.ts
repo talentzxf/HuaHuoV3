@@ -28,6 +28,7 @@ export {
   Layer,
   Scene,
   ComponentRegistry,
+  InstanceRegistry,
   getEngineStore,
   getEngineState
 } from '@huahuo/engine';

@@ -5,7 +5,7 @@ import playbackReducer from './features/playback/playbackSlice';
 import selectionReducer from './features/selection/selectionSlice';
 
 // Import unified engine reducer
-import { engineReducer } from '@huahuo/sdk';
+import { engineReducer } from '@huahuo/engine';
 
 export const store = configureStore({
   reducer: {

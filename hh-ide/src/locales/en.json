@@ -52,7 +52,21 @@
     "selectGameObject": "Select a GameObject to view properties",
     "gameObjectNotFound": "GameObject not found",
     "noProperties": "No properties",
-    "noComponents": "No components"
+    "noComponents": "No components",
+    "scene": {
+      "title": "Scene",
+      "name": "Name",
+      "namePlaceholder": "Scene name",
+      "nameTooltip": "The name of the scene",
+      "duration": "Duration",
+      "durationUnit": "s",
+      "durationTooltip": "Total animation length in seconds",
+      "fps": "FPS",
+      "fpsTooltip": "Frames per second for animation playback",
+      "totalFrames": "Total Frames",
+      "totalFramesTooltip": "Total number of frames (Duration × FPS)",
+      "notFound": "Scene not found"
+    }
   }
 }
 

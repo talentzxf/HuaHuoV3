@@ -6,7 +6,8 @@ interface LayerSlice {
     gameObjectIds: string[];
     visible: boolean;
     locked: boolean;
-    frameCount: number;        // Total number of frames (0 = no timeline, >0 = has timeline)
+    hasTimeline: boolean;      // Whether this layer should be shown in timeline
+    frameCount: number;        // Total number of frames for this layer
 }
 
 export interface LayerState {
@@ -33,7 +34,8 @@ const layerSlice = createSlice({
                     gameObjectIds: [],
                     visible: true,
                     locked: false,
-                    frameCount: 0  // 0 = no timeline
+                    hasTimeline: true,  // Default: show in timeline
+                    frameCount: 120     // Default frame count
                 };
             },
             prepare(name: string) {
@@ -97,6 +99,16 @@ const layerSlice = createSlice({
                 // Ensure frameCount >= 0
                 state.byId[layerId].frameCount = Math.max(0, frameCount);
             }
+        },
+
+        setLayerHasTimeline(
+            state,
+            action: PayloadAction<{ layerId: string; hasTimeline: boolean }>
+        ) {
+            const { layerId, hasTimeline } = action.payload;
+            if (state.byId[layerId]) {
+                state.byId[layerId].hasTimeline = hasTimeline;
+            }
         }
     }
 });
@@ -109,7 +121,8 @@ export const {
     setLayerLocked,
     addGameObjectToLayer,
     removeGameObjectFromLayer,
-    setLayerFrameCount
+    setLayerFrameCount,
+    setLayerHasTimeline
 } = layerSlice.actions;
 
 export default layerSlice.reducer;

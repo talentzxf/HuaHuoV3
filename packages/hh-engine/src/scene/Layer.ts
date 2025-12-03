@@ -3,10 +3,10 @@ import { IGameObject } from "../core/IGameObject";
 import { GameObject } from "./GameObject";
 
 import { getEngineStore, getEngineState } from "../core/EngineGlobals";
-import { instanceRegistry } from "../core/InstanceRegistry";
 import {
     setLayerVisible,
     setLayerLocked,
+    setLayerHasTimeline,
     addGameObjectToLayer,
     removeGameObjectFromLayer,
 } from "../store/LayerSlice";
@@ -16,6 +16,7 @@ import {
 } from "../store/GameObjectSlice";
 import { IRenderer } from "../renderer";
 import { RegistrableEntity } from "../core/RegistrableEntity";
+import {InstanceRegistry} from "../core/InstanceRegistry";
 
 export class Layer extends RegistrableEntity implements ILayer {
     private renderer: IRenderer;
@@ -85,7 +86,7 @@ export class Layer extends RegistrableEntity implements ILayer {
         // Only return existing instances from InstanceRegistry
         // DO NOT create new instances here - creation only happens in addGameObject
         return layer.gameObjectIds
-            .map((goId: string) => instanceRegistry.get<GameObject>(goId))
+            .map((goId: string) => InstanceRegistry.getInstance().get<GameObject>(goId))
             .filter((go): go is GameObject => go !== undefined);
     }
 
@@ -107,6 +108,14 @@ export class Layer extends RegistrableEntity implements ILayer {
         this.renderer.setLayerLocked(this.layerContext, v);
     }
 
+    get hasTimeline(): boolean {
+        return getEngineState().layers.byId[this.id].hasTimeline;
+    }
+
+    set hasTimeline(v: boolean) {
+        getEngineStore().dispatch(setLayerHasTimeline({ layerId: this.id, hasTimeline: v }));
+    }
+
     addGameObject(name: string, renderItem?: any): IGameObject {
         // Generate unique name to avoid duplicates
         const uniqueName = this.generateUniqueName(name);
@@ -121,7 +130,7 @@ export class Layer extends RegistrableEntity implements ILayer {
 
         console.debug('[Layer.addGameObject] Creating GameObject:', gameObjectId, 'name:', uniqueName, 'with renderItem:', !!renderItem);
 
-        return instanceRegistry.getOrCreate<GameObject>(gameObjectId, () => {
+        return InstanceRegistry.getInstance().getOrCreate<GameObject>(gameObjectId, () => {
             return this.createGameObjectInstance(gameObjectId, renderItem);
         });
     }
@@ -146,7 +155,7 @@ export class Layer extends RegistrableEntity implements ILayer {
         const layerState = getEngineState().layers.byId[this.id];
         if (layerState) {
             layerState.gameObjectIds.forEach((goId: string) => {
-                const go = instanceRegistry.get<GameObject>(goId);
+                const go = InstanceRegistry.getInstance().get<GameObject>(goId);
                 if (go) {
                     go.destroy();
                 }
@@ -154,7 +163,7 @@ export class Layer extends RegistrableEntity implements ILayer {
         }
 
         // Unregister this layer
-        instanceRegistry.unregister(this.id);
+        InstanceRegistry.getInstance().unregister(this.id);
     }
 
     update(deltaTime: number): void {

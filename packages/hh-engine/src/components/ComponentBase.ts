@@ -2,8 +2,8 @@ import { IComponent } from '../core/IComponent';
 import { IGameObject } from '../core/IGameObject';
 import { getEngineStore, getEngineState } from '../core/EngineGlobals';
 import { updateComponentProps } from '../store/ComponentSlice';
-import { instanceRegistry } from '../core/InstanceRegistry';
 import { createComponentProxy } from '../core/ComponentProxy';
+import {InstanceRegistry} from "../core/InstanceRegistry";
 
 export abstract class ComponentBase implements IComponent {
   public enabled: boolean = true;
@@ -30,7 +30,7 @@ export abstract class ComponentBase implements IComponent {
       this.componentId = (component as any).id;
       // Register this component instance for ReduxAdapter to call applyToRenderer
       if (this.componentId) {
-        instanceRegistry.register(this.componentId, this);
+          InstanceRegistry.getInstance().register(this.componentId, this);
       }
     }
   }
@@ -38,7 +38,7 @@ export abstract class ComponentBase implements IComponent {
   onRemove(): void {
     // Unregister from instance registry
     if (this.componentId) {
-      instanceRegistry.unregister(this.componentId);
+        InstanceRegistry.getInstance().unregister(this.componentId);
     }
   }
   update(deltaTime: number): void {}

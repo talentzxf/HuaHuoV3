@@ -1,4 +1,4 @@
-import { instanceRegistry } from './InstanceRegistry';
+import {InstanceRegistry} from "./InstanceRegistry";
 
 /**
  * Base class for entities that need to be registered in the InstanceRegistry
@@ -12,7 +12,7 @@ export abstract class RegistrableEntity {
     this.id = id;
 
     // Register this instance immediately upon creation
-    instanceRegistry.register(id, this);
+    InstanceRegistry.getInstance().register(id, this);
   }
 
   /**
@@ -20,6 +20,6 @@ export abstract class RegistrableEntity {
    * Should be called when the entity is destroyed
    */
   protected unregister(): void {
-    instanceRegistry.unregister(this.id);
+      InstanceRegistry.getInstance().unregister(this.id);
   }
 }

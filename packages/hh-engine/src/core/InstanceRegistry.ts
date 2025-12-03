@@ -93,17 +93,14 @@ export class InstanceRegistry<T = any> {
   get size(): number {
     return this.registry.size;
   }
+
+  static instance:InstanceRegistry| null = null;
+  static getInstance() {
+      if(InstanceRegistry.instance == null){
+          InstanceRegistry.instance = new InstanceRegistry();
+      }
+      return InstanceRegistry.instance;
+  }
 }
-/**
- * Global unified instance registry
- * All registrable entities (Component, GameObject, Layer, Scene) are stored here
- *
- * Usage:
- * ```typescript
- * // Type-safe access with generics
- * const gameObject = instanceRegistry.get<GameObject>(id);
- * const component = instanceRegistry.get<CircleRenderer>(id);
- * ```
- */
-export const instanceRegistry = new InstanceRegistry<any>();
+
 

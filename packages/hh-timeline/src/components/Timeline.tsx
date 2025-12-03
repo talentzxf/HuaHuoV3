@@ -1,307 +1,267 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { TimelineTrack, TitleTimelineTrack, DEFAULT_CONFIG } from '../core/TimelineTrack';
-import { TimelineConfig, TimelineTrackData, TimelineEventType } from '../types';
+import React, { useRef, useEffect, useCallback, useState } from 'react';
 import './Timeline.css';
 
 export interface TimelineProps {
-  frameCount?: number;
-  fps?: number;
-  elapsedTime?: number;
-  layers?: Array<{ id: string; name: string; frameCount: number }>;
-  onCellClick?: (layerId: string, cellId: number) => void;
-  onFrameChange?: (frame: number) => void;
-  onTrackSelect?: (layerId: string) => void;
-  config?: Partial<TimelineConfig>;
+  frameCount: number;
+  fps: number;
+  currentFrame?: number;
+  tracks?: Array<{
+    id: string;
+    name: string;
+    layerId: string;
+  }>;
+  onCellClick?: (trackId: string, frameNumber: number) => void;
+  onCurrentFrameChange?: (frame: number) => void;
 }
 
+const CELL_WIDTH = 20;
+const TRACK_HEIGHT = 30;
+const HEADER_HEIGHT = 30;
+const TRACK_NAME_WIDTH = 120;
+
 export const Timeline: React.FC<TimelineProps> = ({
-  frameCount = DEFAULT_CONFIG.defaultFrameCount,
-  fps = DEFAULT_CONFIG.fps,
-  elapsedTime = 0,
-  layers = [],
+  frameCount,
+  fps,
+  currentFrame = 0,
+  tracks = [],
   onCellClick,
-  onFrameChange,
-  onTrackSelect,
-  config: configOverride = {}
+  onCurrentFrameChange,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [scrollX, setScrollX] = useState(0);
 
-  const [tracks, setTracks] = useState<TimelineTrack[]>([]);
-  const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null);
-  const [isSelectingRange, setIsSelectingRange] = useState(false);
-  const [mouseOverTrackSeqId, setMouseOverTrackSeqId] = useState(-1);
+  // Draw the timeline
+  const draw = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
-  const config: TimelineConfig = { ...DEFAULT_CONFIG, ...configOverride, fps };
-
-  // Calculate total height
-  const totalHeight = tracks.reduce((sum, track) => sum + track.getCellHeight(), 0);
-
-  // Initialize tracks when layers change
-  useEffect(() => {
-    if (!canvasRef.current) return;
-
-    const ctx = canvasRef.current.getContext('2d');
+    const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const newTracks: TimelineTrack[] = [];
-    let yOffset = 0;
+    const canvasWidth = canvas.width;
+    const canvasHeight = canvas.height;
 
-    // Add title track
-    const titleTrack = new TitleTimelineTrack(
-      0,
-      frameCount,
-      ctx,
-      yOffset,
-      'Frames',
-      config
-    );
-    newTracks.push(titleTrack);
-    yOffset += titleTrack.getCellHeight();
-
-    // Add layer tracks
-    layers.forEach((layer, index) => {
-      const trackData: TimelineTrackData = {
-        seqId: index + 1,
-        layerId: layer.id,
-        name: layer.name,
-        frameCount: layer.frameCount || frameCount,
-        cells: [],
-        yOffset,
-        height: config.cellHeight,
-        visible: true,
-        locked: false
-      };
-
-      // Initialize cells (one cell per frame for now)
-      for (let i = 0; i < trackData.frameCount; i++) {
-        trackData.cells.push({
-          cellId: i,
-          startFrame: i,
-          endFrame: i,
-          selected: false
-        });
-      }
-
-      const track = new TimelineTrack(trackData, ctx, config);
-      track.setElapsedTime(elapsedTime);
-      newTracks.push(track);
-      yOffset += track.getCellHeight();
-    });
-
-    setTracks(newTracks);
-  }, [layers, frameCount, config]);
-
-  // Update elapsed time
-  useEffect(() => {
-    tracks.forEach(track => track.setElapsedTime(elapsedTime));
-    redrawCanvas();
-  }, [elapsedTime, tracks]);
-
-  // Redraw canvas
-  const redrawCanvas = useCallback(() => {
-    if (!canvasRef.current || !scrollContainerRef.current) return;
-
-    const ctx = canvasRef.current.getContext('2d');
-    if (!ctx) return;
-
-    const scrollLeft = scrollContainerRef.current.scrollLeft;
-    const canvasWidth = canvasRef.current.width;
-    const canvasHeight = canvasRef.current.height;
-
-    // Clear background
+    // Clear canvas
     ctx.fillStyle = '#1e1e1e';
     ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-    // Calculate max track name length
-    let maxTrackNameLength = 0;
-    tracks.forEach(track => {
-      maxTrackNameLength = Math.max(maxTrackNameLength, track.getTitleLength());
+    // Draw frame header
+    drawFrameHeader(ctx, canvasWidth, scrollX);
+
+    // Draw tracks
+    tracks.forEach((track, trackIndex) => {
+      const trackY = HEADER_HEIGHT + trackIndex * TRACK_HEIGHT;
+      drawTrack(ctx, track, trackIndex, trackY, canvasWidth, scrollX);
     });
 
-    const startX = scrollLeft - maxTrackNameLength;
-    const endX = scrollLeft + canvasWidth;
+    // Draw current frame indicator
+    drawCurrentFrameIndicator(ctx, currentFrame, canvasHeight, scrollX);
+  }, [frameCount, currentFrame, tracks, scrollX]);
 
-    // Draw all tracks
-    tracks.forEach(track => {
-      track.drawTrack(startX, endX, frameCount - 1);
-    });
+  // Draw frame number header
+  const drawFrameHeader = (ctx: CanvasRenderingContext2D, canvasWidth: number, scrollX: number) => {
+    ctx.fillStyle = '#2a2a2a';
+    ctx.fillRect(0, 0, canvasWidth, HEADER_HEIGHT);
 
-    // Position canvas relative to scroll
-    canvasRef.current.style.left = `${scrollLeft}px`;
-  }, [tracks, frameCount]);
+    ctx.fillStyle = '#252525';
+    ctx.fillRect(0, 0, TRACK_NAME_WIDTH, HEADER_HEIGHT);
 
+    ctx.fillStyle = '#999';
+    ctx.font = '11px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    const startFrame = Math.floor(scrollX / CELL_WIDTH);
+    const endFrame = Math.min(frameCount, startFrame + Math.ceil((canvasWidth - TRACK_NAME_WIDTH) / CELL_WIDTH) + 1);
+
+    for (let frame = startFrame; frame < endFrame; frame++) {
+      const x = TRACK_NAME_WIDTH + frame * CELL_WIDTH - scrollX;
+
+      if (frame % 5 === 0) {
+        ctx.fillStyle = '#fff';
+        ctx.fillText((frame + 1).toString(), x + CELL_WIDTH / 2, HEADER_HEIGHT / 2);
+      }
+
+      ctx.strokeStyle = '#333';
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, HEADER_HEIGHT);
+      ctx.stroke();
+    }
+
+    ctx.strokeStyle = '#444';
+    ctx.strokeRect(0, 0, canvasWidth, HEADER_HEIGHT);
+  };
+
+  // Draw a track
+  const drawTrack = (
+    ctx: CanvasRenderingContext2D,
+    track: { id: string; name: string; layerId: string },
+    trackIndex: number,
+    trackY: number,
+    canvasWidth: number,
+    scrollX: number
+  ) => {
+    ctx.fillStyle = trackIndex % 2 === 0 ? '#252525' : '#2a2a2a';
+    ctx.fillRect(0, trackY, TRACK_NAME_WIDTH, TRACK_HEIGHT);
+
+    ctx.fillStyle = '#ccc';
+    ctx.font = '12px Arial';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(track.name, 8, trackY + TRACK_HEIGHT / 2);
+
+    ctx.fillStyle = trackIndex % 2 === 0 ? '#1a1a1a' : '#1e1e1e';
+    ctx.fillRect(TRACK_NAME_WIDTH, trackY, canvasWidth - TRACK_NAME_WIDTH, TRACK_HEIGHT);
+
+    const startFrame = Math.floor(scrollX / CELL_WIDTH);
+    const endFrame = Math.min(frameCount, startFrame + Math.ceil((canvasWidth - TRACK_NAME_WIDTH) / CELL_WIDTH) + 1);
+
+    for (let frame = startFrame; frame < endFrame; frame++) {
+      const cellX = TRACK_NAME_WIDTH + frame * CELL_WIDTH - scrollX;
+      drawCell(ctx, cellX, trackY, frame === currentFrame);
+    }
+
+    ctx.strokeStyle = '#444';
+    ctx.strokeRect(TRACK_NAME_WIDTH, trackY, canvasWidth - TRACK_NAME_WIDTH, TRACK_HEIGHT);
+  };
+
+  // Draw a single cell
+  const drawCell = (ctx: CanvasRenderingContext2D, x: number, y: number, isCurrentFrame: boolean) => {
+    if (isCurrentFrame) {
+      ctx.fillStyle = 'rgba(64, 158, 255, 0.2)';
+      ctx.fillRect(x, y, CELL_WIDTH, TRACK_HEIGHT);
+    }
+
+    ctx.strokeStyle = '#333';
+    ctx.strokeRect(x, y, CELL_WIDTH, TRACK_HEIGHT);
+  };
+
+  // Draw current frame indicator (red line)
+  const drawCurrentFrameIndicator = (ctx: CanvasRenderingContext2D, frame: number, canvasHeight: number, scrollX: number) => {
+    const x = TRACK_NAME_WIDTH + (frame + 0.5) * CELL_WIDTH - scrollX;
+
+    ctx.strokeStyle = '#ff4d4f';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x, HEADER_HEIGHT);
+    ctx.lineTo(x, canvasHeight);
+    ctx.stroke();
+    ctx.lineWidth = 1;
+
+    ctx.fillStyle = '#ff4d4f';
+    ctx.beginPath();
+    ctx.moveTo(x, HEADER_HEIGHT);
+    ctx.lineTo(x - 5, HEADER_HEIGHT - 8);
+    ctx.lineTo(x + 5, HEADER_HEIGHT - 8);
+    ctx.closePath();
+    ctx.fill();
+  };
+
+  // Handle canvas click
+  const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    if (y < HEADER_HEIGHT && x > TRACK_NAME_WIDTH) {
+      const frame = Math.floor((x - TRACK_NAME_WIDTH + scrollX) / CELL_WIDTH);
+      if (frame >= 0 && frame < frameCount) {
+        onCurrentFrameChange?.(frame);
+      }
+      return;
+    }
+
+    if (y > HEADER_HEIGHT && x > TRACK_NAME_WIDTH) {
+      const trackIndex = Math.floor((y - HEADER_HEIGHT) / TRACK_HEIGHT);
+      const frame = Math.floor((x - TRACK_NAME_WIDTH + scrollX) / CELL_WIDTH);
+
+      if (trackIndex >= 0 && trackIndex < tracks.length && frame >= 0 && frame < frameCount) {
+        const track = tracks[trackIndex];
+        onCellClick?.(track.id, frame);
+      }
+    }
+  };
 
   // Handle scroll
-  const handleScroll = useCallback(() => {
-    redrawCanvas();
-  }, [redrawCanvas]);
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLDivElement;
+    setScrollX(target.scrollLeft);
+  };
 
-  // Calculate track seq ID from Y position
-  const calculateTrackSeqId = useCallback((offsetY: number): number => {
-    for (const track of tracks) {
-      if (track.hasYOffset(offsetY)) {
-        return track.getSeqId();
-      }
-    }
-    return -1;
-  }, [tracks]);
-
-  // Handle mouse down
-  const handleMouseDown = useCallback((evt: React.MouseEvent<HTMLCanvasElement>) => {
-    if (evt.button === 0 || evt.button === 2) {
-      const trackSeqId = calculateTrackSeqId(evt.nativeEvent.offsetY);
-      if (trackSeqId < 0 || trackSeqId >= tracks.length) return;
-
-      const track = tracks[trackSeqId];
-      const shiftPressed = evt.shiftKey;
-
-      // Clear previous selection if different track
-      if (selectedTrackId && selectedTrackId !== track.getLayerId()) {
-        const prevTrack = tracks.find(t => t.getLayerId() === selectedTrackId);
-        prevTrack?.clearSelection();
-      }
-
-      if (!shiftPressed || !selectedTrackId) {
-        const cellId = track.clickedTrack(evt.nativeEvent.offsetX, evt.button !== 2);
-        if (cellId >= 0) {
-          setSelectedTrackId(track.getLayerId());
-          onTrackSelect?.(track.getLayerId());
-          onCellClick?.(track.getLayerId(), cellId);
-        }
-      } else {
-        if (track.getLayerId() === selectedTrackId) {
-          track.rangeSelect(evt.nativeEvent.offsetX);
-        } else {
-          const cellId = track.clickedTrack(evt.nativeEvent.offsetX, evt.button !== 2);
-          if (cellId >= 0) {
-            setSelectedTrackId(track.getLayerId());
-            onTrackSelect?.(track.getLayerId());
-            onCellClick?.(track.getLayerId(), cellId);
-          }
-        }
-      }
-
-      setIsSelectingRange(true);
-      redrawCanvas();
-    }
-  }, [tracks, selectedTrackId, calculateTrackSeqId, onCellClick, onTrackSelect, redrawCanvas]);
-
-  // Handle mouse move
-  const handleMouseMove = useCallback((evt: React.MouseEvent<HTMLCanvasElement>) => {
-    const trackSeqId = calculateTrackSeqId(evt.nativeEvent.offsetY);
-
-    // Handle mouse enter/leave for tracks
-    if (trackSeqId >= 0 && trackSeqId < tracks.length) {
-      if (mouseOverTrackSeqId !== trackSeqId) {
-        tracks[trackSeqId].onMouseEnter(evt.nativeEvent.offsetX);
-      }
-      tracks[trackSeqId].onMouseMove(evt.nativeEvent.offsetX);
-    }
-
-    if (mouseOverTrackSeqId >= 0 && mouseOverTrackSeqId !== trackSeqId && mouseOverTrackSeqId < tracks.length) {
-      tracks[mouseOverTrackSeqId].onMouseLeave();
-    }
-    setMouseOverTrackSeqId(trackSeqId);
-
-    // Range selection
-    if (evt.buttons === 1 && isSelectingRange) {
-      const selectedTrack = tracks.find(t => t.getLayerId() === selectedTrackId);
-      if (selectedTrack && trackSeqId === selectedTrack.getSeqId()) {
-        selectedTrack.rangeSelect(evt.nativeEvent.offsetX);
-        redrawCanvas();
-      }
-    } else {
-      setIsSelectingRange(false);
-    }
-  }, [tracks, mouseOverTrackSeqId, isSelectingRange, selectedTrackId, calculateTrackSeqId, redrawCanvas]);
-
-  // Handle mouse up
-  const handleMouseUp = useCallback(() => {
-    setIsSelectingRange(false);
-  }, []);
-
-  // Handle mouse enter
-  const handleMouseEnter = useCallback((evt: React.MouseEvent<HTMLCanvasElement>) => {
-    const trackSeqId = calculateTrackSeqId(evt.nativeEvent.offsetY);
-    if (trackSeqId >= 0 && trackSeqId < tracks.length) {
-      tracks[trackSeqId].onMouseEnter(evt.nativeEvent.offsetX);
-    }
-    setMouseOverTrackSeqId(trackSeqId);
-  }, [tracks, calculateTrackSeqId]);
-
-  // Handle mouse leave
-  const handleMouseLeave = useCallback(() => {
-    if (mouseOverTrackSeqId >= 0 && mouseOverTrackSeqId < tracks.length) {
-      tracks[mouseOverTrackSeqId].onMouseLeave();
-    }
-    setMouseOverTrackSeqId(-1);
-  }, [tracks, mouseOverTrackSeqId]);
-
-  // Initialize canvas size once
+  // Setup canvas size
   useEffect(() => {
-    if (!canvasRef.current || !scrollContainerRef.current || !containerRef.current) return;
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
+    if (!canvas || !container) return;
 
-    // Set container size
-    const widthPixel = frameCount * config.cellWidth;
-    const heightPixel = totalHeight;
-    containerRef.current.style.width = `${widthPixel}px`;
-    containerRef.current.style.height = `${heightPixel}px`;
+    const updateSize = () => {
+      const containerWidth = container.clientWidth;
+      const containerHeight = container.clientHeight;
 
-    // Set canvas size
-    canvasRef.current.width = scrollContainerRef.current.clientWidth;
-    canvasRef.current.height = scrollContainerRef.current.clientHeight;
+      canvas.style.width = containerWidth + 'px';
+      canvas.style.height = containerHeight + 'px';
 
-    // Initial draw
-    redrawCanvas();
-  }, [frameCount, config.cellWidth, totalHeight, tracks, redrawCanvas]);
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = containerWidth * dpr;
+      canvas.height = containerHeight * dpr;
 
-  // Public methods for external control
-  useEffect(() => {
-    // Expose methods to parent if needed
-    const timelineAPI = {
-      mergeCells: () => {
-        const selectedTrack = tracks.find(t => t.getLayerId() === selectedTrackId);
-        selectedTrack?.mergeSelectedCells();
-        redrawCanvas();
-      },
-      splitCell: () => {
-        const selectedTrack = tracks.find(t => t.getLayerId() === selectedTrackId);
-        selectedTrack?.splitSelectedCell();
-        redrawCanvas();
-      },
-      selectLayer: (layerId: string) => {
-        const track = tracks.find(t => t.getLayerId() === layerId);
-        if (track) {
-          setSelectedTrackId(layerId);
-          onTrackSelect?.(layerId);
-        }
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.scale(dpr, dpr);
       }
+
+      draw();
     };
 
-    // Could expose via ref if needed
-  }, [tracks, selectedTrackId, redrawCanvas, onTrackSelect]);
+    updateSize();
+
+    const resizeObserver = new ResizeObserver(updateSize);
+    resizeObserver.observe(container);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [draw]);
+
+  // Redraw when dependencies change
+  useEffect(() => {
+    draw();
+  }, [draw]);
+
+  // Calculate total width for scrolling
+  const totalWidth = TRACK_NAME_WIDTH + frameCount * CELL_WIDTH;
+  const totalHeight = HEADER_HEIGHT + tracks.length * TRACK_HEIGHT;
 
   return (
-    <div className="hh-timeline">
-      <div
-        ref={scrollContainerRef}
-        className="timeline-scroll-container"
-        onScroll={handleScroll}
-      >
-        <div ref={containerRef} className="timeline-container">
-          <canvas
-            ref={canvasRef}
-            className="timeline-canvas"
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseEnter={handleMouseEnter}
-            onMouseLeave={handleMouseLeave}
-            onContextMenu={(e) => e.preventDefault()}
-          />
-        </div>
+    <div
+      ref={containerRef}
+      className="hh-timeline"
+      style={{
+        width: '100%',
+        height: '100%',
+        overflow: 'auto',
+        position: 'relative',
+      }}
+      onScroll={handleScroll}
+    >
+      <div style={{ width: totalWidth, height: totalHeight, position: 'relative' }}>
+        <canvas
+          ref={canvasRef}
+          className="timeline-canvas"
+          onClick={handleCanvasClick}
+          style={{
+            display: 'block',
+            position: 'sticky',
+            left: 0,
+            top: 0,
+            cursor: 'pointer',
+          }}
+        />
       </div>
     </div>
   );

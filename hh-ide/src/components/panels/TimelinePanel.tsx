@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Timeline } from '@huahuo/timeline';
-import { getEngineStore } from '@huahuo/sdk';
+import { getEngineStore } from '@huahuo/engine';
 
 /**
  * TimelinePanel - Integrates the Timeline component with the engine

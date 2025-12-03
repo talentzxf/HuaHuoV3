@@ -5,6 +5,7 @@ export * from './core/IGameObject';
 export * from './core/ILayer';
 export * from './core/IScene';
 export { ComponentRegistry } from './core/ComponentRegistry';
+export { InstanceRegistry } from './core/InstanceRegistry';
 
 // Renderer
 export * from './renderer';

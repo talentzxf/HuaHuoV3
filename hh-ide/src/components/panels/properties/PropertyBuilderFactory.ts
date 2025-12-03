@@ -1,6 +1,7 @@
 import { PropertyBuilder } from './PropertyBuilder';
 import { GameObjectPropertyBuilder } from './GameObjectPropertyBuilder';
 import { LayerPropertyBuilder } from './LayerPropertyBuilder';
+import { ScenePropertyBuilder } from './ScenePropertyBuilder';
 
 /**
  * Factory for creating property builders
@@ -14,6 +15,7 @@ export class PropertyBuilderFactory {
     // Register built-in builders
     this.registerBuilder(new GameObjectPropertyBuilder());
     this.registerBuilder(new LayerPropertyBuilder());
+    this.registerBuilder(new ScenePropertyBuilder());
   }
 
   static getInstance(): PropertyBuilderFactory {

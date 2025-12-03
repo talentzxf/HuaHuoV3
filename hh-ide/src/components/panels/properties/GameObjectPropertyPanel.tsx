@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Typography, Collapse, Input, InputNumber, Switch } from 'antd';
 import { useTranslation } from 'react-i18next';
-import { SDK, getEngineStore, getEngineState, ComponentRegistry } from '@huahuo/sdk';
+import { SDK } from '@huahuo/sdk';
+import { getEngineStore, getEngineState, ComponentRegistry } from '@huahuo/engine';
 import type { ComponentSlice } from '@huahuo/sdk';
 
 const { Text } = Typography;

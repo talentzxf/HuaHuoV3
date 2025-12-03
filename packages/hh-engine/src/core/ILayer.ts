@@ -6,6 +6,7 @@ export interface ILayer {
   readonly gameObjects: ReadonlyArray<IGameObject>;
   visible: boolean;
   locked: boolean;
+  hasTimeline: boolean; // Whether this layer should be shown in timeline
 
   addGameObject(name: string): IGameObject;
   removeGameObject(gameObject: IGameObject): void;

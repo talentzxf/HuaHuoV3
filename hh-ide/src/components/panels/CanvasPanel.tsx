@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Space } from 'antd';
 import {
@@ -7,6 +7,8 @@ import {
 } from '@ant-design/icons';
 import paper from 'paper';
 import { SDK } from '@huahuo/sdk';
+import { getEngineStore } from '@huahuo/engine';
+import { Timeline } from '@huahuo/timeline';
 import { store } from '../../store/store';
 import { getSelectionAdapter } from '../../adapters/SelectionAdapter';
 import { PointerTool, CircleTool, RectangleTool, LineTool } from './tools';
@@ -28,6 +30,79 @@ const CanvasPanel: React.FC = () => {
 
   // Paper.js references
   const paperScopeRef = useRef<paper.PaperScope | null>(null);
+
+  // Timeline state - get from Scene
+  const [frameCount, setFrameCount] = useState(120);
+  const [fps, setFps] = useState(30);
+  const [currentFrame, setCurrentFrame] = useState(0);
+  const [tracks, setTracks] = useState<Array<{ id: string; name: string; layerId: string }>>([]);
+  const [timelineHeight, setTimelineHeight] = useState(100); // Dynamic height
+
+  // Load Scene data and calculate frameCount from duration × fps
+  useEffect(() => {
+    let unsubscribe: (() => void) | null = null;
+
+    const updateTimelineData = () => {
+      if (!SDK.isInitialized()) return;
+
+      const scene = SDK.instance.Scene.getCurrentScene();
+      if (!scene) return;
+
+      // Calculate total frames from Scene's duration and fps
+      const totalFrames = Math.ceil(scene.duration * scene.fps);
+      setFrameCount(totalFrames);
+      setFps(scene.fps);
+
+      // Get layers that have timeline (filter by hasTimeline)
+      const trackList = scene.layers
+        .filter((layer) => layer.hasTimeline)
+        .map((layer) => ({
+          id: layer.id,
+          name: layer.name,
+          layerId: layer.id,
+        }));
+      setTracks(trackList);
+
+      // Calculate timeline height: HEADER_HEIGHT + (track count × TRACK_HEIGHT)
+      const HEADER_HEIGHT = 30;
+      const TRACK_HEIGHT = 30;
+      const calculatedHeight = HEADER_HEIGHT + trackList.length * TRACK_HEIGHT;
+      const minHeight = 50; // Minimum height even if no tracks
+      setTimelineHeight(Math.max(minHeight, calculatedHeight));
+    };
+
+    // Update when SDK is ready
+    const checkInterval = setInterval(() => {
+      if (SDK.isInitialized()) {
+        updateTimelineData();
+        clearInterval(checkInterval);
+
+        // Subscribe to engine store changes
+        const engineStore = getEngineStore();
+        unsubscribe = engineStore.subscribe(() => {
+          updateTimelineData();
+        });
+      }
+    }, 100);
+
+    return () => {
+      clearInterval(checkInterval);
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, []);
+
+  // Timeline event handlers
+  const handleCellClick = (trackId: string, frameNumber: number) => {
+    console.log('Cell clicked:', trackId, frameNumber);
+    setCurrentFrame(frameNumber);
+  };
+
+  const handleCurrentFrameChange = (frame: number) => {
+    console.log('Frame changed:', frame);
+    setCurrentFrame(frame);
+  };
 
   // Update current tool ref when tool changes
   useEffect(() => {
@@ -313,80 +388,100 @@ const CanvasPanel: React.FC = () => {
   }, [toolbarPosition]);
 
   return (
-    <div className="canvas-panel">
-      {/* Floating toolbar */}
-      <div
-        ref={toolbarRef}
-        className={`canvas-toolbar ${isDraggingToolbar ? 'dragging' : ''}`}
-        style={toolbarPosition ? {
-          left: `${toolbarPosition.x}px`,
-          top: `${toolbarPosition.y}px`,
-          transform: 'none',
-        } : undefined}
-      >
-        {/* Drag handle */}
-        <div
-          className="canvas-toolbar-handle"
-          onMouseDown={handleToolbarDragStart}
-        >
-          <div className="canvas-toolbar-handle-bar" />
-          <div className="canvas-toolbar-handle-bar" />
-        </div>
-
-        <Space size="small">
-          <Button
-            type={currentTool === 'pointer' ? 'primary' : 'default'}
-            icon={<DragOutlined />}
-            onClick={() => setCurrentTool('pointer')}
-            title={t('canvas.tools.pointer')}
-            className="canvas-tool-button"
-          />
-          <Button
-            type={currentTool === 'circle' ? 'primary' : 'default'}
-            onClick={() => setCurrentTool('circle')}
-            title={t('canvas.tools.circle')}
-            className="canvas-tool-button"
-          >
-            <span style={{ fontSize: '16px', fontWeight: 'normal' }}>○</span>
-          </Button>
-          <Button
-            type={currentTool === 'rectangle' ? 'primary' : 'default'}
-            icon={<BorderOutlined />}
-            onClick={() => setCurrentTool('rectangle')}
-            title={t('canvas.tools.rectangle')}
-            className="canvas-tool-button"
-          />
-          <Button
-            type={currentTool === 'line' ? 'primary' : 'default'}
-            onClick={() => setCurrentTool('line')}
-            title={t('canvas.tools.line')}
-            className="canvas-tool-button"
-          >
-            <span style={{ fontSize: '16px', fontWeight: 'bold' }}>／</span>
-          </Button>
-        </Space>
+    <div className="canvas-panel" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {/* Timeline 区域 - 动态高度根据 track 数量计算 */}
+      <div style={{
+        height: `${timelineHeight}px`,
+        minHeight: '50px',
+        borderBottom: '1px solid #444',
+        overflow: 'hidden'
+      }}>
+        <Timeline
+          frameCount={frameCount}
+          fps={fps}
+          currentFrame={currentFrame}
+          tracks={tracks}
+          onCellClick={handleCellClick}
+          onCurrentFrameChange={handleCurrentFrameChange}
+        />
       </div>
 
-      {/* Canvas */}
-      <canvas
-        ref={canvasRef}
-        className="canvas-drawing-area"
-        style={{ cursor: currentTool === 'pointer' ? 'default' : 'crosshair' }}
-      />
+      {/* Canvas 区域 - 占据剩余空间 */}
+      <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+        {/* Floating toolbar */}
+        <div
+          ref={toolbarRef}
+          className={`canvas-toolbar ${isDraggingToolbar ? 'dragging' : ''}`}
+          style={toolbarPosition ? {
+            left: `${toolbarPosition.x}px`,
+            top: `${toolbarPosition.y}px`,
+            transform: 'none',
+          } : undefined}
+        >
+          {/* Drag handle */}
+          <div
+            className="canvas-toolbar-handle"
+            onMouseDown={handleToolbarDragStart}
+          >
+            <div className="canvas-toolbar-handle-bar" />
+            <div className="canvas-toolbar-handle-bar" />
+          </div>
 
-      {/* Hint message */}
-      {!currentTool && (
-        <div className="canvas-hint">
-          {t('canvas.hint')}
+          <Space size="small">
+            <Button
+              type={currentTool === 'pointer' ? 'primary' : 'default'}
+              icon={<DragOutlined />}
+              onClick={() => setCurrentTool('pointer')}
+              title={t('canvas.tools.pointer')}
+              className="canvas-tool-button"
+            />
+            <Button
+              type={currentTool === 'circle' ? 'primary' : 'default'}
+              onClick={() => setCurrentTool('circle')}
+              title={t('canvas.tools.circle')}
+              className="canvas-tool-button"
+            >
+              <span style={{ fontSize: '16px', fontWeight: 'normal' }}>○</span>
+            </Button>
+            <Button
+              type={currentTool === 'rectangle' ? 'primary' : 'default'}
+              icon={<BorderOutlined />}
+              onClick={() => setCurrentTool('rectangle')}
+              title={t('canvas.tools.rectangle')}
+              className="canvas-tool-button"
+            />
+            <Button
+              type={currentTool === 'line' ? 'primary' : 'default'}
+              onClick={() => setCurrentTool('line')}
+              title={t('canvas.tools.line')}
+              className="canvas-tool-button"
+            >
+              <span style={{ fontSize: '16px', fontWeight: 'bold' }}>／</span>
+            </Button>
+          </Space>
         </div>
-      )}
 
-      {/* Status bar */}
-      {currentTool && (
-        <div className="canvas-status">
-          {t('canvas.status.currentTool')}: {t(`canvas.toolNames.${currentTool}`)}
-        </div>
-      )}
+        {/* Canvas */}
+        <canvas
+          ref={canvasRef}
+          className="canvas-drawing-area"
+          style={{ cursor: currentTool === 'pointer' ? 'default' : 'crosshair' }}
+        />
+
+        {/* Hint message */}
+        {!currentTool && (
+          <div className="canvas-hint">
+            {t('canvas.hint')}
+          </div>
+        )}
+
+        {/* Status bar */}
+        {currentTool && (
+          <div className="canvas-status">
+            {t('canvas.status.currentTool')}: {t(`canvas.toolNames.${currentTool}`)}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

@@ -18,6 +18,7 @@
   "dependencies": {
     "@ant-design/icons": "^6.1.0",
     "@huahuo/hh-common": "workspace:*",
+    "@huahuo/engine": "workspace:*",
     "@huahuo/sdk": "workspace:*",
     "@huahuo/timeline": "workspace:*",
     "@reduxjs/toolkit": "^2.8.2",

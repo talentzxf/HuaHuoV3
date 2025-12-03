@@ -1,5 +1,6 @@
 import { TransformHandlerBase } from './TransformHandlerBase';
-import { getEngineStore, updateComponentProps } from '@huahuo/sdk';
+import { getEngineStore } from '@huahuo/engine';
+import { updateComponentProps } from '@huahuo/sdk';
 
 /**
  * ShapeTranslateHandler

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Form, InputNumber, Typography, Divider, Switch, Input } from 'antd';
-import { getEngineStore } from '@huahuo/sdk';
+import { getEngineStore } from '@huahuo/engine';
 import { setLayerFrameCount, renameLayer, setLayerVisible } from '@huahuo/sdk';
 import './LayerPropertyPanel.css';
 

@@ -1,6 +1,6 @@
 import { Store, Unsubscribe } from "@reduxjs/toolkit";
 import { IRenderer } from "./IRenderer";
-import { instanceRegistry } from "../core/InstanceRegistry";
+import {InstanceRegistry} from "../core/InstanceRegistry";
 
 /**
  * Redux to Renderer Adapter
@@ -221,7 +221,7 @@ export class ReduxAdapter {
         console.debug('[ReduxAdapter] handleComponentPropsChange:', componentId, type, 'props:', JSON.stringify(component.props));
 
         // Get the component instance from registry
-        const componentInstance = instanceRegistry.get(componentId);
+        const componentInstance = InstanceRegistry.getInstance().get(componentId);
         if (!componentInstance) {
             console.warn('[ReduxAdapter] Component instance not found in registry:', componentId);
             return; // Component instance not found (might not be registered yet)

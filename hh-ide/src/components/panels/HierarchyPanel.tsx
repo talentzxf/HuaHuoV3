@@ -24,12 +24,16 @@ const HierarchyPanel: React.FC<HierarchyPanelProps> = ({ onSelectGameObject }) =
   // Get selection from Redux store
   const selection = useSelector((state: RootState) => state.selection);
 
-  // Map GameObject ID and Layer ID to tree key
+  // Map GameObject ID, Layer ID, and Scene ID to tree key
   const [gameObjectIdToKey, setGameObjectIdToKey] = useState<Map<string, string>>(new Map());
   const [layerIdToKey, setLayerIdToKey] = useState<Map<string, string>>(new Map());
+  const [sceneIdToKey, setSceneIdToKey] = useState<Map<string, string>>(new Map());
 
   // Calculate selectedKeys from selection state
   const selectedKeys = React.useMemo(() => {
+    if (selection.selectedType === 'scene' && selection.selectedId && sceneIdToKey.has(selection.selectedId)) {
+      return [sceneIdToKey.get(selection.selectedId)!];
+    }
     if (selection.selectedType === 'gameObject' && selection.selectedId && gameObjectIdToKey.has(selection.selectedId)) {
       return [gameObjectIdToKey.get(selection.selectedId)!];
     }
@@ -37,7 +41,7 @@ const HierarchyPanel: React.FC<HierarchyPanelProps> = ({ onSelectGameObject }) =
       return [layerIdToKey.get(selection.selectedId)!];
     }
     return [];
-  }, [selection, gameObjectIdToKey, layerIdToKey]);
+  }, [selection, gameObjectIdToKey, layerIdToKey, sceneIdToKey]);
 
   const refreshHierarchy = () => {
     if (!SDK.isInitialized()) {
@@ -66,14 +70,18 @@ const HierarchyPanel: React.FC<HierarchyPanelProps> = ({ onSelectGameObject }) =
       setGameObjectCount(totalGameObjects);
     }
 
-    // Build GameObject ID to key mapping and Layer ID to key mapping
+    // Build GameObject ID to key mapping, Layer ID to key mapping, and Scene ID to key mapping
     const idToKeyMap = new Map<string, string>();
     const layerToKeyMap = new Map<string, string>();
+    const sceneToKeyMap = new Map<string, string>();
+
+    const sceneKey = `scene-${scene.name}`;
+    sceneToKeyMap.set(scene.id, sceneKey);
 
     // Build tree data from scene
     const sceneNode: TreeDataNode = {
       title: scene.name,
-      key: `scene-${scene.name}`,
+      key: sceneKey,
       icon: <AppstoreOutlined />,
       children: scene.layers.map((layer, layerIndex) => {
         const layerKey = `layer-${layerIndex}`;
@@ -99,6 +107,7 @@ const HierarchyPanel: React.FC<HierarchyPanelProps> = ({ onSelectGameObject }) =
     setTreeData([sceneNode]);
     setGameObjectIdToKey(idToKeyMap);
     setLayerIdToKey(layerToKeyMap);
+    setSceneIdToKey(sceneToKeyMap);
   };
 
   useEffect(() => {
@@ -139,12 +148,19 @@ const HierarchyPanel: React.FC<HierarchyPanelProps> = ({ onSelectGameObject }) =
       setExpandedKeys(allExpandedKeys);
     }
 
-    // Parse the selected key to find the GameObject or Layer
+    // Parse the selected key to find the GameObject, Layer, or Scene
     if (keys.length > 0) {
       const key = keys[0] as string;
 
+      // Handle Scene selection
+      if (key.startsWith('scene-')) {
+        if (scene) {
+          store.dispatch(selectObject({ type: 'scene', id: scene.id }));
+          console.log('Selected Scene:', scene.id);
+        }
+      }
       // Handle GameObject selection
-      if (key.startsWith('gameobject-')) {
+      else if (key.startsWith('gameobject-')) {
         const [, layerIndex, objIndex] = key.split('-').map(Number);
         if (scene && scene.layers[layerIndex]) {
           const gameObject = scene.layers[layerIndex].gameObjects[objIndex];

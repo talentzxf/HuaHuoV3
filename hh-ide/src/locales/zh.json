@@ -52,7 +52,21 @@
     "selectGameObject": "选择一个游戏对象以查看属性",
     "gameObjectNotFound": "未找到游戏对象",
     "noProperties": "无属性",
-    "noComponents": "无组件"
+    "noComponents": "无组件",
+    "scene": {
+      "title": "场景",
+      "name": "名称",
+      "namePlaceholder": "场景名称",
+      "nameTooltip": "场景的名称",
+      "duration": "时长",
+      "durationUnit": "秒",
+      "durationTooltip": "动画的总时长（秒）",
+      "fps": "帧率",
+      "fpsTooltip": "动画播放的每秒帧数",
+      "totalFrames": "总帧数",
+      "totalFramesTooltip": "总帧数（时长 × 帧率）",
+      "notFound": "未找到场景"
+    }
   }
 }
 
