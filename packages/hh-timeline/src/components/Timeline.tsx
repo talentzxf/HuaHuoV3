@@ -233,28 +233,23 @@ export const Timeline: React.FC<TimelineProps> = ({
   const totalWidth = TRACK_NAME_WIDTH + frameCount * CELL_WIDTH;
   const totalHeight = HEADER_HEIGHT + tracks.length * TRACK_HEIGHT;
 
-  const MAX_HEIGHT_BEFORE_SCROLL = 200;
-  const needsVerticalScroll = totalHeight > MAX_HEIGHT_BEFORE_SCROLL;
-
   return (
     <div
       ref={containerRef}
       className="hh-timeline"
       style={{
         width: '100%',
-        height: needsVerticalScroll ? '100%' : `${totalHeight}px`,
+        height: '100%',
         overflowX: 'auto',
-        overflowY: needsVerticalScroll ? 'auto' : 'hidden',
+        overflowY: 'hidden',
         position: 'relative',
       }}
       onScroll={handleScroll}
     >
       <div style={{
         width: totalWidth,
-        minHeight: totalHeight,
-        paddingBottom: '20px',
+        height: totalHeight,
         position: 'relative',
-        boxSizing: 'border-box'
       }}>
         <canvas
           ref={canvasRef}

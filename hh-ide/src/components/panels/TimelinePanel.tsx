@@ -8,6 +8,7 @@ import { getEngineStore } from '@huahuo/engine';
 const TimelinePanel: React.FC = () => {
   const [layers, setLayers] = useState<Array<{ id: string; name: string; frameCount: number }>>([]);
   const [elapsedTime, setElapsedTime] = useState(0);
+  const [timelineHeight, setTimelineHeight] = useState<number | undefined>(undefined);
 
   // Load layers from engine
   useEffect(() => {
@@ -23,6 +24,21 @@ const TimelinePanel: React.FC = () => {
       }));
 
       setLayers(layerList);
+
+      // Calculate timeline height including scrollbar space
+      const HEADER_HEIGHT = 30;
+      const TRACK_HEIGHT = 30;
+      const SCROLLBAR_HEIGHT = 20;
+      const calculatedHeight = HEADER_HEIGHT + layerList.length * TRACK_HEIGHT + SCROLLBAR_HEIGHT;
+      const minHeight = 50;
+      const MAX_HEIGHT_BEFORE_SCROLL = 200;
+
+      // If content is small, use calculated height; otherwise let it use 100%
+      if (calculatedHeight <= MAX_HEIGHT_BEFORE_SCROLL) {
+        setTimelineHeight(Math.max(minHeight, calculatedHeight));
+      } else {
+        setTimelineHeight(undefined); // Use 100%
+      }
     };
 
     updateLayers();
@@ -55,7 +71,11 @@ const TimelinePanel: React.FC = () => {
   };
 
   return (
-    <div style={{ width: '100%', height: '100%', background: '#1e1e1e' }}>
+    <div style={{
+      width: '100%',
+      height: timelineHeight ? `${timelineHeight}px` : '100%',
+      background: '#1e1e1e'
+    }}>
       <Timeline
         frameCount={120}
         fps={30}

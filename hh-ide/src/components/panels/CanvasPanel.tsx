@@ -63,10 +63,11 @@ const CanvasPanel: React.FC = () => {
         }));
       setTracks(trackList);
 
-      // Calculate timeline height: HEADER_HEIGHT + (track count × TRACK_HEIGHT)
+      // Calculate timeline height: HEADER_HEIGHT + (track count × TRACK_HEIGHT) + SCROLLBAR_HEIGHT
       const HEADER_HEIGHT = 30;
       const TRACK_HEIGHT = 30;
-      const calculatedHeight = HEADER_HEIGHT + trackList.length * TRACK_HEIGHT;
+      const SCROLLBAR_HEIGHT = 20;
+      const calculatedHeight = HEADER_HEIGHT + trackList.length * TRACK_HEIGHT + SCROLLBAR_HEIGHT;
       const minHeight = 50; // Minimum height even if no tracks
       setTimelineHeight(Math.max(minHeight, calculatedHeight));
     };
