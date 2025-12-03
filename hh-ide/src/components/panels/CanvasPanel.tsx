@@ -390,24 +390,26 @@ const CanvasPanel: React.FC = () => {
 
   return (
     <div className="canvas-panel" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {/* Timeline 区域 - 动态高度根据 track 数量计算 */}
-      <div style={{
-        height: `${timelineHeight}px`,
-        minHeight: '50px',
-        borderBottom: '1px solid #444',
-        overflow: 'hidden'
-      }}>
-        <Timeline
-          frameCount={frameCount}
-          fps={fps}
-          currentFrame={currentFrame}
-          tracks={tracks}
-          onCellClick={handleCellClick}
-          onCurrentFrameChange={handleCurrentFrameChange}
-        />
-      </div>
+      {/* Timeline area - only show if there are tracks with timeline */}
+      {tracks.length > 0 && (
+        <div style={{
+          height: `${timelineHeight}px`,
+          minHeight: '50px',
+          borderBottom: '1px solid #444',
+          overflow: 'hidden'
+        }}>
+          <Timeline
+            frameCount={frameCount}
+            fps={fps}
+            currentFrame={currentFrame}
+            tracks={tracks}
+            onCellClick={handleCellClick}
+            onCurrentFrameChange={handleCurrentFrameChange}
+          />
+        </div>
+      )}
 
-      {/* Canvas 区域 - 占据剩余空间 */}
+      {/* Canvas area - takes remaining space */}
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
         {/* Floating toolbar */}
         <div

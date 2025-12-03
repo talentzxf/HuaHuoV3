@@ -25,6 +25,7 @@ const TimelinePanel: React.FC = () => {
 
       setLayers(layerList);
 
+
       // Calculate timeline height including scrollbar space
       const HEADER_HEIGHT = 30;
       const TRACK_HEIGHT = 30;
