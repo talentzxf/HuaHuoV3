@@ -7,7 +7,7 @@ import {
 } from '@ant-design/icons';
 import paper from 'paper';
 import { SDK } from '@huahuo/sdk';
-import { getEngineStore } from '@huahuo/engine';
+import { getEngineStore, addTimelineClip, splitTimelineClip } from '@huahuo/engine';
 import { Timeline } from '@huahuo/timeline';
 import { store } from '../../store/store';
 import { getSelectionAdapter } from '../../adapters/SelectionAdapter';
@@ -56,11 +56,19 @@ const CanvasPanel: React.FC = () => {
       // Get layers that have timeline (filter by hasTimeline)
       const trackList = scene.layers
         .filter((layer) => layer.hasTimeline)
-        .map((layer) => ({
-          id: layer.id,
-          name: layer.name,
-          layerId: layer.id,
-        }));
+        .map((layer) => {
+          // Get clips from engine store
+          const engineStore = getEngineStore();
+          const state = engineStore.getState();
+          const engineState = state.engine || state;
+          const layerData = engineState.layers.byId[layer.id];
+
+          return {
+            id: layer.id,
+            name: layer.name,
+            clips: layerData?.clips || []  // Include clips from engine store
+          };
+        });
       setTracks(trackList);
 
       // Calculate timeline height: HEADER_HEIGHT + (track count × TRACK_HEIGHT) + SCROLLBAR_HEIGHT
@@ -103,6 +111,29 @@ const CanvasPanel: React.FC = () => {
   const handleCurrentFrameChange = (frame: number) => {
     console.log('Frame changed:', frame);
     setCurrentFrame(frame);
+  };
+
+  const handleMergeCells = (trackId: string, startFrame: number, endFrame: number) => {
+    console.log('Merge cells requested:', { trackId, startFrame, endFrame });
+
+    // In CanvasPanel, trackId is actually the layerId from Scene
+    const layerId = trackId;
+    const length = endFrame - startFrame + 1;
+    const engineStore = getEngineStore();
+
+    console.log('Dispatching addTimelineClip:', { layerId, startFrame, length });
+    engineStore.dispatch(addTimelineClip(layerId, startFrame, length));
+  };
+
+  const handleSplitClip = (trackId: string, clipId: string, splitFrame: number) => {
+    console.log('Split clip requested:', { trackId, clipId, splitFrame });
+
+    // In CanvasPanel, trackId is actually the layerId from Scene
+    const layerId = trackId;
+    const engineStore = getEngineStore();
+
+    console.log('Dispatching splitTimelineClip:', { layerId, clipId, splitFrame });
+    engineStore.dispatch(splitTimelineClip(layerId, clipId, splitFrame));
   };
 
   // Update current tool ref when tool changes
@@ -405,6 +436,8 @@ const CanvasPanel: React.FC = () => {
             tracks={tracks}
             onCellClick={handleCellClick}
             onCurrentFrameChange={handleCurrentFrameChange}
+            onMergeCells={handleMergeCells}
+            onSplitClip={handleSplitClip}
           />
         </div>
       )}

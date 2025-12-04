@@ -1,36 +1,57 @@
 import React, { useState, useEffect } from 'react';
 import { Timeline } from '@huahuo/timeline';
 import { getEngineStore } from '@huahuo/engine';
+import { addTimelineClip, splitTimelineClip } from '@huahuo/engine';
 
 /**
  * TimelinePanel - Integrates the Timeline component with the engine
+ * Acts as an adapter layer between Engine and Timeline component
+ * Keeps the Timeline component independent from Engine concepts
  */
 const TimelinePanel: React.FC = () => {
-  const [layers, setLayers] = useState<Array<{ id: string; name: string; frameCount: number }>>([]);
-  const [elapsedTime, setElapsedTime] = useState(0);
+  const [tracks, setTracks] = useState<Array<{
+    id: string;
+    name: string;
+    clips?: Array<{ id: string; startFrame: number; length: number }>;
+  }>>([]);
+  const [currentFrame, setCurrentFrame] = useState(0);
   const [timelineHeight, setTimelineHeight] = useState<number | undefined>(undefined);
 
-  // Load layers from engine
+  // Internal mapping from track ID to layer ID (not exposed to Timeline component)
+  const trackToLayerMap = React.useRef<Map<string, string>>(new Map());
+
+  // Load layers from engine and map to timeline tracks
   useEffect(() => {
-    const updateLayers = () => {
+    const updateTracks = () => {
       const engineStore = getEngineStore();
       const state = engineStore.getState();
       const engineState = state.engine || state;
 
-      const layerList = Object.values(engineState.layers.byId).map((layer: any) => ({
-        id: layer.id,
-        name: layer.name,
-        frameCount: layer.frameCount || 120
-      }));
+      // Clear previous mapping
+      trackToLayerMap.current.clear();
 
-      setLayers(layerList);
+      // Map engine layers to simple track data
+      const trackList = Object.values(engineState.layers.byId)
+        .filter((layer: any) => layer.hasTimeline)
+        .map((layer: any) => {
+          // Store internal mapping for callbacks
+          trackToLayerMap.current.set(layer.id, layer.id);
 
+          // Return clean track data with clips
+          return {
+            id: layer.id,
+            name: layer.name,
+            clips: layer.clips || []  // Include clips from layer
+          };
+        });
+
+      setTracks(trackList);
 
       // Calculate timeline height including scrollbar space
       const HEADER_HEIGHT = 30;
       const TRACK_HEIGHT = 30;
       const SCROLLBAR_HEIGHT = 20;
-      const calculatedHeight = HEADER_HEIGHT + layerList.length * TRACK_HEIGHT + SCROLLBAR_HEIGHT;
+      const calculatedHeight = HEADER_HEIGHT + trackList.length * TRACK_HEIGHT + SCROLLBAR_HEIGHT;
       const minHeight = 50;
       const MAX_HEIGHT_BEFORE_SCROLL = 200;
 
@@ -42,33 +63,60 @@ const TimelinePanel: React.FC = () => {
       }
     };
 
-    updateLayers();
+    updateTracks();
 
     // Subscribe to engine store changes
     const engineStore = getEngineStore();
     const unsubscribe = engineStore.subscribe(() => {
-      updateLayers();
+      updateTracks();
     });
 
     return () => unsubscribe();
   }, []);
 
-  const handleCellClick = (layerId: string, cellId: number) => {
-    console.log('Cell clicked:', layerId, cellId);
-    // Update elapsed time based on cell click
-    const newTime = (cellId + 0.5) / 30; // Assuming 30 FPS
-    setElapsedTime(newTime);
+  const handleCellClick = (trackId: string, frameNumber: number) => {
+    console.log('Cell clicked:', trackId, frameNumber);
+    setCurrentFrame(frameNumber);
+
+    // Use internal mapping to get layer ID if needed for engine operations
+    const layerId = trackToLayerMap.current.get(trackId);
+    if (layerId) {
+      // Dispatch engine actions using layerId
+      // e.g., engineStore.dispatch(someAction({ layerId, frame: frameNumber }));
+    }
   };
 
-  const handleFrameChange = (frame: number) => {
+  const handleCurrentFrameChange = (frame: number) => {
     console.log('Frame changed:', frame);
-    const newTime = frame / 30;
-    setElapsedTime(newTime);
+    setCurrentFrame(frame);
+    // Could sync frame to engine playback state
   };
 
-  const handleTrackSelect = (layerId: string) => {
-    console.log('Track selected:', layerId);
-    // Could dispatch selection action here
+  const handleMergeCells = (trackId: string, startFrame: number, endFrame: number) => {
+    console.log('Merge cells requested:', { trackId, startFrame, endFrame });
+
+    // Use internal mapping to get layer ID
+    const layerId = trackToLayerMap.current.get(trackId);
+    if (layerId) {
+      const length = endFrame - startFrame + 1;
+      const engineStore = getEngineStore();
+
+      console.log('Dispatching addTimelineClip:', { layerId, startFrame, length });
+      engineStore.dispatch(addTimelineClip(layerId, startFrame, length));
+    }
+  };
+
+  const handleSplitClip = (trackId: string, clipId: string, splitFrame: number) => {
+    console.log('Split clip requested:', { trackId, clipId, splitFrame });
+
+    // Use internal mapping to get layer ID
+    const layerId = trackToLayerMap.current.get(trackId);
+    if (layerId) {
+      const engineStore = getEngineStore();
+
+      console.log('Dispatching splitTimelineClip:', { layerId, clipId, splitFrame });
+      engineStore.dispatch(splitTimelineClip(layerId, clipId, splitFrame));
+    }
   };
 
   return (
@@ -80,11 +128,12 @@ const TimelinePanel: React.FC = () => {
       <Timeline
         frameCount={120}
         fps={30}
-        elapsedTime={elapsedTime}
-        layers={layers}
+        currentFrame={currentFrame}
+        tracks={tracks}
         onCellClick={handleCellClick}
-        onFrameChange={handleFrameChange}
-        onTrackSelect={handleTrackSelect}
+        onCurrentFrameChange={handleCurrentFrameChange}
+        onMergeCells={handleMergeCells}
+        onSplitClip={handleSplitClip}
       />
     </div>
   );
