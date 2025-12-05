@@ -7,6 +7,7 @@ import sceneReducer from "./SceneSlice";
 import layerReducer from "./LayerSlice";
 import gameObjectReducer from "./GameObjectSlice";
 import componentReducer from "./ComponentSlice";
+import playbackReducer from "./PlaybackSlice";
 
 // Export the combined reducer for external use
 export const engineReducer = combineReducers({
@@ -14,6 +15,7 @@ export const engineReducer = combineReducers({
   layers: layerReducer,
   gameObjects: gameObjectReducer,
   components: componentReducer,
+  playback: playbackReducer,
 });
 
 export type EngineState = ReturnType<typeof engineReducer>;

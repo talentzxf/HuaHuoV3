@@ -27,7 +27,11 @@ export class PaperRenderer implements IRenderer {
     }
 
     createLayerContext(sceneContext: paper.PaperScope): paper.Layer {
-        return new sceneContext.Layer();
+        const layer = new sceneContext.Layer();
+        // Set applyMatrix to false so transformations stay on the layer
+        // instead of being baked into child items
+        layer.applyMatrix = false;
+        return layer;
     }
 
     setLayerVisible(layerContext: paper.Layer, visible: boolean): void {

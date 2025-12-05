@@ -148,15 +148,23 @@ const layerSlice = createSlice({
                     length: mergedEndFrame - mergedStartFrame + 1
                 };
 
-                layer.clips.push(mergedClip);
+                // Only add clip if length > 1 (single-frame clips should not exist)
+                if (mergedClip.length > 1) {
+                    layer.clips.push(mergedClip);
 
-                console.log(`✓ TimelineClip added successfully:`, {
-                    layerId,
-                    clipId,
-                    startFrame: mergedClip.startFrame,
-                    length: mergedClip.length,
-                    totalClips: layer.clips.length
-                });
+                    console.log(`✓ TimelineClip added successfully:`, {
+                        layerId,
+                        clipId,
+                        startFrame: mergedClip.startFrame,
+                        length: mergedClip.length,
+                        totalClips: layer.clips.length
+                    });
+                } else {
+                    console.log(`ℹ Single-frame clip not created (length = 1):`, {
+                        layerId,
+                        startFrame: mergedClip.startFrame
+                    });
+                }
             },
             prepare(layerId: string, startFrame: number, length: number) {
                 return { payload: { layerId, clipId: nanoid(), startFrame, length } };
@@ -262,27 +270,42 @@ const layerSlice = createSlice({
                     return;
                 }
 
-                // Create two new clips
-                const clip1 = {
-                    id: newClipId1,
-                    startFrame: clip.startFrame,
-                    length: splitFrame - clip.startFrame
-                };
+                // Calculate lengths for two potential clips
+                const length1 = splitFrame - clip.startFrame;
+                const length2 = clipEndFrame - splitFrame + 1;
 
-                const clip2 = {
-                    id: newClipId2,
-                    startFrame: splitFrame,
-                    length: clipEndFrame - splitFrame + 1
-                };
+                // Create clips only if length > 1 (single-frame clips should not exist)
+                const newClips: TimelineClip[] = [];
 
-                // Remove original clip and add two new clips
-                layer.clips.splice(clipIndex, 1, clip1, clip2);
+                if (length1 > 1) {
+                    newClips.push({
+                        id: newClipId1,
+                        startFrame: clip.startFrame,
+                        length: length1
+                    });
+                }
+
+                if (length2 > 1) {
+                    newClips.push({
+                        id: newClipId2,
+                        startFrame: splitFrame,
+                        length: length2
+                    });
+                }
+
+                // Remove original clip
+                layer.clips.splice(clipIndex, 1);
+
+                // Add new clips if any
+                if (newClips.length > 0) {
+                    layer.clips.push(...newClips);
+                }
 
                 console.log(`✓ TimelineClip split successfully:`, {
                     layerId,
                     originalClip: { id: clipId, startFrame: clip.startFrame, length: clip.length },
-                    clip1: { id: clip1.id, startFrame: clip1.startFrame, length: clip1.length },
-                    clip2: { id: clip2.id, startFrame: clip2.startFrame, length: clip2.length },
+                    resultingClips: newClips.map(c => ({ id: c.id, startFrame: c.startFrame, length: c.length })),
+                    singleFrameClipsRemoved: (length1 === 1 ? 1 : 0) + (length2 === 1 ? 1 : 0),
                     totalClips: layer.clips.length
                 });
             },

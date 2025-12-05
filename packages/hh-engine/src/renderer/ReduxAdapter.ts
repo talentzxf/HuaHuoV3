@@ -172,10 +172,31 @@ export class ReduxAdapter {
                     }
                     if (prevGameObject.active !== currGameObject.active) {
                         console.debug(`GameObject active state changed: ${gameObjectId} -> ${currGameObject.active}`);
+                        this.handleGameObjectActiveChange(gameObjectId, currGameObject.active);
                     }
                 }
             }
         });
+    }
+
+    /**
+     * Handle GameObject active state change and update render item visibility
+     */
+    private handleGameObjectActiveChange(gameObjectId: string, active: boolean): void {
+        // Get render item from renderer's registry
+        const renderItem = (this.renderer as any).getRenderItem?.(gameObjectId);
+        if (!renderItem) {
+            console.debug(`[ReduxAdapter] Render item not found for GameObject: ${gameObjectId}`);
+            return;
+        }
+
+        // Update visibility of the render item
+        if (renderItem.visible !== undefined) {
+            renderItem.visible = active;
+            console.debug(`[ReduxAdapter] Updated render item visibility: ${gameObjectId} -> ${active}`);
+        } else {
+            console.warn(`[ReduxAdapter] Render item does not support visibility property: ${gameObjectId}`);
+        }
     }
 
     private handleComponentChanges(previousComponents: any, currentComponents: any): void {

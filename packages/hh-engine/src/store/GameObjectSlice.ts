@@ -5,6 +5,7 @@ export interface GameObjectSlice {
     name: string;
 
     active: boolean;
+    bornFrameId: number;        // Frame when GameObject starts appearing (0 by default)
 
     parent: string | null;      // layerId or another gameObjectId
     children: string[];
@@ -39,9 +40,10 @@ const gameObjectSlice = createSlice({
                     id,
                     name,
                     active: true,
+                    bornFrameId: 0,      // Default: appears from frame 0
                     parent,
                     children: [],
-                    componentIds: []     // 默认无 component，Transform 组件由外层添加
+                    componentIds: []     // Default no component, Transform component added by outer layer
                 };
 
                 // 如果有 parent，则将其加入 parent 的 children 数组
@@ -95,6 +97,16 @@ const gameObjectSlice = createSlice({
             }
         },
 
+        setBornFrameId(
+            state,
+            action: PayloadAction<{ id: string; bornFrameId: number }>
+        ) {
+            const { id, bornFrameId } = action.payload;
+            if (state.byId[id]) {
+                state.byId[id].bornFrameId = bornFrameId;
+            }
+        },
+
         // Change Parent (Move GameObject)
         moveGameObject(
             state,
@@ -145,6 +157,7 @@ export const {
     deleteGameObject,
     renameGameObject,
     setGameObjectActive,
+    setBornFrameId,
     moveGameObject,
     attachComponentToGameObject,
     detachComponentFromGameObject

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Timeline } from '@huahuo/timeline';
 import { getEngineStore } from '@huahuo/engine';
-import { addTimelineClip, splitTimelineClip } from '@huahuo/engine';
+import { addTimelineClip, splitTimelineClip, setCurrentFrame } from '@huahuo/engine';
 
 /**
  * TimelinePanel - Integrates the Timeline component with the engine
@@ -14,7 +14,7 @@ const TimelinePanel: React.FC = () => {
     name: string;
     clips?: Array<{ id: string; startFrame: number; length: number }>;
   }>>([]);
-  const [currentFrame, setCurrentFrame] = useState(0);
+  const [currentFrame, setCurrentFrameState] = useState(0);
   const [timelineHeight, setTimelineHeight] = useState<number | undefined>(undefined);
 
   // Internal mapping from track ID to layer ID (not exposed to Timeline component)
@@ -26,6 +26,9 @@ const TimelinePanel: React.FC = () => {
       const engineStore = getEngineStore();
       const state = engineStore.getState();
       const engineState = state.engine || state;
+
+      // Update current frame from playback state
+      setCurrentFrameState(engineState.playback.currentFrame);
 
       // Clear previous mapping
       trackToLayerMap.current.clear();
@@ -76,20 +79,14 @@ const TimelinePanel: React.FC = () => {
 
   const handleCellClick = (trackId: string, frameNumber: number) => {
     console.log('Cell clicked:', trackId, frameNumber);
-    setCurrentFrame(frameNumber);
-
-    // Use internal mapping to get layer ID if needed for engine operations
-    const layerId = trackToLayerMap.current.get(trackId);
-    if (layerId) {
-      // Dispatch engine actions using layerId
-      // e.g., engineStore.dispatch(someAction({ layerId, frame: frameNumber }));
-    }
+    const engineStore = getEngineStore();
+    engineStore.dispatch(setCurrentFrame(frameNumber));
   };
 
   const handleCurrentFrameChange = (frame: number) => {
     console.log('Frame changed:', frame);
-    setCurrentFrame(frame);
-    // Could sync frame to engine playback state
+    const engineStore = getEngineStore();
+    engineStore.dispatch(setCurrentFrame(frame));
   };
 
   const handleMergeCells = (trackId: string, startFrame: number, endFrame: number) => {

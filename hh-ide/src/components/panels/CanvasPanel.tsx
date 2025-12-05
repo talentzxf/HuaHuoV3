@@ -7,7 +7,7 @@ import {
 } from '@ant-design/icons';
 import paper from 'paper';
 import { SDK } from '@huahuo/sdk';
-import { getEngineStore, addTimelineClip, splitTimelineClip } from '@huahuo/engine';
+import { getEngineStore, addTimelineClip, splitTimelineClip, setCurrentFrame as setEngineFrame, getAnimationPlayer } from '@huahuo/engine';
 import { Timeline } from '@huahuo/timeline';
 import { store } from '../../store/store';
 import { getSelectionAdapter } from '../../adapters/SelectionAdapter';
@@ -35,7 +35,11 @@ const CanvasPanel: React.FC = () => {
   const [frameCount, setFrameCount] = useState(120);
   const [fps, setFps] = useState(30);
   const [currentFrame, setCurrentFrame] = useState(0);
-  const [tracks, setTracks] = useState<Array<{ id: string; name: string; layerId: string }>>([]);
+  const [tracks, setTracks] = useState<Array<{
+    id: string;
+    name: string;
+    clips?: Array<{ id: string; startFrame: number; length: number }>;
+  }>>([]);
   const [timelineHeight, setTimelineHeight] = useState(100); // Dynamic height
 
   // Load Scene data and calculate frameCount from duration × fps
@@ -53,14 +57,17 @@ const CanvasPanel: React.FC = () => {
       setFrameCount(totalFrames);
       setFps(scene.fps);
 
+      // Get current frame from playback state
+      const engineStore = getEngineStore();
+      const state = engineStore.getState();
+      const engineState = state.engine || state;
+      setCurrentFrame(engineState.playback.currentFrame);
+
       // Get layers that have timeline (filter by hasTimeline)
       const trackList = scene.layers
         .filter((layer) => layer.hasTimeline)
         .map((layer) => {
           // Get clips from engine store
-          const engineStore = getEngineStore();
-          const state = engineStore.getState();
-          const engineState = state.engine || state;
           const layerData = engineState.layers.byId[layer.id];
 
           return {
@@ -80,24 +87,29 @@ const CanvasPanel: React.FC = () => {
       setTimelineHeight(Math.max(minHeight, calculatedHeight));
     };
 
-    // Update when SDK is ready
-    const checkInterval = setInterval(() => {
-      if (SDK.isInitialized()) {
-        updateTimelineData();
-        clearInterval(checkInterval);
+    // Execute after SDK is initialized
+    SDK.executeAfterInit(() => {
+      updateTimelineData();
 
-        // Subscribe to engine store changes
-        const engineStore = getEngineStore();
-        unsubscribe = engineStore.subscribe(() => {
-          updateTimelineData();
-        });
-      }
-    }, 100);
+      // Start AnimationPlayer
+      const animationPlayer = getAnimationPlayer();
+      animationPlayer.start();
+
+      // Subscribe to engine store changes
+      const engineStore = getEngineStore();
+      unsubscribe = engineStore.subscribe(() => {
+        updateTimelineData();
+      });
+    });
 
     return () => {
-      clearInterval(checkInterval);
       if (unsubscribe) {
         unsubscribe();
+      }
+      // Stop AnimationPlayer
+      if (SDK.isInitialized()) {
+        const animationPlayer = getAnimationPlayer();
+        animationPlayer.stop();
       }
     };
   }, []);
@@ -105,12 +117,14 @@ const CanvasPanel: React.FC = () => {
   // Timeline event handlers
   const handleCellClick = (trackId: string, frameNumber: number) => {
     console.log('Cell clicked:', trackId, frameNumber);
-    setCurrentFrame(frameNumber);
+    const engineStore = getEngineStore();
+    engineStore.dispatch(setEngineFrame(frameNumber));
   };
 
   const handleCurrentFrameChange = (frame: number) => {
     console.log('Frame changed:', frame);
-    setCurrentFrame(frame);
+    const engineStore = getEngineStore();
+    engineStore.dispatch(setEngineFrame(frame));
   };
 
   const handleMergeCells = (trackId: string, startFrame: number, endFrame: number) => {
@@ -150,13 +164,20 @@ const CanvasPanel: React.FC = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Setup Paper.js - it will automatically read canvas dimensions
-    const scope = new paper.PaperScope();
-    scope.setup(canvas);
+    // Initialize SDK with canvas element and selector
+    // SDK will handle Paper.js scope setup internally
+    SDK.initialize(canvas, store, (state) => state.engine);
+
+    // Get the Paper.js scope from SDK (same scope as engine uses)
+    const scope = SDK.instance.getPaperScope();
+    if (!scope) {
+      console.error('Failed to get Paper.js scope from SDK');
+      return;
+    }
     paperScopeRef.current = scope;
 
-    // Initialize SDK with canvas element and selector
-    SDK.initialize(canvas, store, (state) => state.engine);
+    console.log('[CanvasPanel] Using SDK Paper.js scope:', !!scope);
+    console.log('[CanvasPanel] Paper.js project layers:', scope.project.layers.length);
 
     // Start SelectionAdapter to sync IDE selection to Engine
     getSelectionAdapter().startListening();
@@ -167,27 +188,12 @@ const CanvasPanel: React.FC = () => {
     SDK.instance.Editor.registerTool(new RectangleTool('#1890ff'));
     SDK.instance.Editor.registerTool(new LineTool('#1890ff'));
 
-    // Create Paper.js layers first
-    const paperBackgroundLayer = new scope.Layer();
-    paperBackgroundLayer.name = 'background';
-    paperBackgroundLayer.locked = true;
-
-    const paperDrawingLayer = new scope.Layer();
-    paperDrawingLayer.name = 'drawing';
-    paperDrawingLayer.activate();
-
-    // Create default scene and bind to existing Paper.js layers
-    const scene = SDK.instance.Scene.createScene('DefaultScene');
-    scene.addLayer('background', paperBackgroundLayer);
-    scene.addLayer('drawing', paperDrawingLayer);
-
-    console.log('Scene initialized:', scene);
-
-    // Get internal registry for event handling
-    const registry = SDK.instance.Editor.getToolRegistry();
 
     // Set default tool
     SDK.instance.Editor.setCurrentTool('pointer');
+
+    // Get internal registry for event handling
+    const registry = SDK.instance.Editor.getToolRegistry();
 
     // Tool for drawing and selection
     const tool = new scope.Tool();
@@ -223,99 +229,34 @@ const CanvasPanel: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
 
-    // Define canvas aspect ratio (4:3)
-    const CANVAS_ASPECT_RATIO = 4 / 3;
+    // Define canvas base dimensions (4:3 aspect ratio)
     const BASE_WIDTH = 800;
-    const BASE_HEIGHT = BASE_WIDTH / CANVAS_ASPECT_RATIO; // 600
+    const BASE_HEIGHT = 600;
 
-    // Use the Paper.js layers we created above
-    const backgroundLayer = paperBackgroundLayer;
-    const drawingLayer = paperDrawingLayer;
-    // Lock background layer to prevent selection
-    backgroundLayer.locked = true;
-
-    // Activate drawing layer for user drawings
-    drawingLayer.activate();
-
-    // Create white canvas rectangle (fixed 4:3 aspect ratio)
-    const whiteCanvas = new scope.Path.Rectangle({
-      point: [0, 0],
-      size: [BASE_WIDTH, BASE_HEIGHT],
-      fillColor: new scope.Color('white'),
-      strokeColor: new scope.Color('#cccccc'),
-      strokeWidth: 2,
-    });
-    whiteCanvas.name = 'whiteCanvas';
-    whiteCanvas.locked = true; // Lock white canvas to prevent selection
-    backgroundLayer.addChild(whiteCanvas);
-
-    // Store reference to white canvas for later access
-    let whiteCanvasRect = whiteCanvas;
-
-    // Store previous scale to calculate delta
-    let previousScale = 1;
-    let previousOffset = new scope.Point(0, 0);
-
-    // Resize handler - maintain 4:3 aspect ratio and fit to window
+    // Resize handler - uses SDK to handle all layers uniformly
     const resizeCanvas = () => {
       const container = canvas.parentElement;
-      if (!container || !scope.view) return;
+      if (!container) {
+        console.log('[CanvasPanel.resizeCanvas] No container');
+        return;
+      }
 
       const containerWidth = container.clientWidth;
       const containerHeight = container.clientHeight;
 
-      // Skip resize if container is hidden (width/height = 0)
-      // This happens when FlexLayout hides the tab
-      if (containerWidth === 0 || containerHeight === 0) {
-        console.log('Container hidden, skipping resize');
-        return;
-      }
+      console.log('[CanvasPanel.resizeCanvas] Called with container size:', containerWidth, 'x', containerHeight);
 
-      // Update Paper.js view size
-      scope.view.viewSize = new scope.Size(containerWidth, containerHeight);
-
-      // Calculate scale to fit canvas with 4:3 ratio in container
-      const scaleX = containerWidth / BASE_WIDTH;
-      const scaleY = containerHeight / BASE_HEIGHT;
-      const scale = Math.min(scaleX, scaleY) * 0.9; // 0.9 for some padding
-
-      // Position and scale white canvas to center
-      const scaledWidth = BASE_WIDTH * scale;
-      const scaledHeight = BASE_HEIGHT * scale;
-      const x = (containerWidth - scaledWidth) / 2;
-      const y = (containerHeight - scaledHeight) / 2;
-      const newOffset = new scope.Point(x, y);
-
-      // Reset background layer transformations
-      backgroundLayer.transform(new scope.Matrix());
-
-      // Update white canvas position and size
-      whiteCanvasRect.bounds = new scope.Rectangle(x, y, scaledWidth, scaledHeight);
-
-      // Calculate delta scale and delta offset
-      const deltaScale = scale / previousScale;
-      const deltaOffset = newOffset.subtract(previousOffset);
-
-      // Apply incremental transformation to drawing layer
-      // First, translate to compensate for offset change
-      drawingLayer.translate(deltaOffset);
-
-      // Then scale from the new origin point
-      if (deltaScale !== 1) {
-        drawingLayer.scale(deltaScale, newOffset);
-      }
-
-      // Update previous values
-      previousScale = scale;
-      previousOffset = newOffset;
+      // Use SDK's unified resize method
+      SDK.instance.handleCanvasResize(containerWidth, containerHeight, BASE_WIDTH, BASE_HEIGHT);
     };
 
     // Initial size setup
+    console.log('[CanvasPanel] Performing initial resize');
     resizeCanvas();
 
     // Use ResizeObserver for better resize detection
     const resizeObserver = new ResizeObserver(() => {
-        console.log('resize observer');
+      console.log('[CanvasPanel] ResizeObserver triggered');
       resizeCanvas();
     });
 
@@ -326,11 +267,8 @@ const CanvasPanel: React.FC = () => {
     return () => {
       resizeObserver.disconnect();
       window.removeEventListener('keydown', handleKeyDown);
-      // Clean up paper.js project
-      if (scope.project) {
-          console.log("Clearing Paper.js project");
-        scope.project.clear();
-      }
+      // Note: Don't clear Paper.js project here since it's owned by SDK
+      // The SDK will manage the Paper.js scope lifecycle
     };
   }, []);
 

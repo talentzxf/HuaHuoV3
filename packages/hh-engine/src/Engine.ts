@@ -178,4 +178,91 @@ export class Engine {
   getSceneContext(): any {
     return this.sceneContext;
   }
+
+  /**
+   * Handle canvas resize - updates view size and scales all layers appropriately
+   * @param containerWidth - Container width in pixels
+   * @param containerHeight - Container height in pixels
+   * @param baseWidth - Base canvas width for scaling reference (default: 800)
+   * @param baseHeight - Base canvas height for scaling reference (default: 600)
+   */
+  handleCanvasResize(
+    containerWidth: number,
+    containerHeight: number,
+    baseWidth: number = 800,
+    baseHeight: number = 600
+  ): void {
+    if (!this.sceneContext || !this.currentScene) {
+      console.warn('[Engine.handleCanvasResize] No sceneContext or currentScene');
+      return;
+    }
+
+    const scope = this.sceneContext;
+
+    // Skip resize if container is hidden (width/height = 0)
+    if (containerWidth === 0 || containerHeight === 0) {
+      console.log('[Engine.handleCanvasResize] Container hidden, skipping resize');
+      return;
+    }
+
+    console.log('[Engine.handleCanvasResize] ===== RESIZE START =====');
+    console.log('[Engine.handleCanvasResize] Container size:', containerWidth, 'x', containerHeight);
+    console.log('[Engine.handleCanvasResize] Base size:', baseWidth, 'x', baseHeight);
+
+    // Update Paper.js view size
+    scope.view.viewSize = new scope.Size(containerWidth, containerHeight);
+
+    // Calculate scale to fit canvas in container
+    const scaleX = containerWidth / baseWidth;
+    const scaleY = containerHeight / baseHeight;
+    const scale = Math.min(scaleX, scaleY) * 0.9; // 0.9 for padding
+
+    console.log('[Engine.handleCanvasResize] Scale calculations - scaleX:', scaleX, 'scaleY:', scaleY, 'final scale:', scale);
+
+    // Calculate position to center the canvas
+    const scaledWidth = baseWidth * scale;
+    const scaledHeight = baseHeight * scale;
+    const offsetX = (containerWidth - scaledWidth) / 2;
+    const offsetY = (containerHeight - scaledHeight) / 2;
+
+    console.log('[Engine.handleCanvasResize] Scaled size:', scaledWidth, 'x', scaledHeight);
+    console.log('[Engine.handleCanvasResize] Offset (center position):', offsetX, ',', offsetY);
+
+    // Apply transformation ONLY to background layer
+    // All other layers (drawing layers) should maintain identity transform
+    // so that user drawing coordinates work correctly
+    this.currentScene.layers.forEach((layer, index) => {
+      const layerContext = layer.getLayerContext();
+
+      console.log(`[Engine.handleCanvasResize] Layer ${index} (${layer.name})`);
+      console.log(`  - applyMatrix:`, layerContext.applyMatrix);
+      console.log(`  - matrix before:`, layerContext.matrix.toString());
+      console.log(`  - children count:`, layerContext.children.length);
+
+      // Only transform the background layer
+      // All drawing layers should keep identity transform
+      if (layer.name === 'background') {
+        // First, remove previous resize transformation if exists
+        if (layerContext._resizeTransform) {
+          layerContext.transform(layerContext._resizeTransform.inverted());
+        }
+
+        // Create and apply new transformation matrix
+        const newTransform = new scope.Matrix(scale, 0, 0, scale, offsetX, offsetY);
+        layerContext.transform(newTransform);
+
+        // Store it for next resize (so we can invert it)
+        layerContext._resizeTransform = newTransform;
+
+        console.log(`  - matrix after:`, layerContext.matrix.toString());
+      } else {
+        console.log(`  - Skipping transformation for non-background layer`);
+      }
+    });
+
+    console.log('[Engine.handleCanvasResize] ===== RESIZE END =====');
+
+    // Trigger render
+    this.renderer.render();
+  }
 }

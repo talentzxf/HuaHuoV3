@@ -171,6 +171,14 @@ export class Layer extends RegistrableEntity implements ILayer {
             gameObject.update(deltaTime);
         });
     }
+
+    /**
+     * Get the Paper.js layer context
+     * Used by Engine for operations like resize
+     */
+    getLayerContext(): any {
+        return this.layerContext;
+    }
 }
 
 

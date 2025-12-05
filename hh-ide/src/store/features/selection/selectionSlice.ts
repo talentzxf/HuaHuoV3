@@ -1,6 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
-export type SelectionType = 'gameObject' | 'layer' | 'vertex' | 'edge' | null;
+export type SelectionType = 'gameObject' | 'layer' | 'vertex' | 'edge' | 'scene' | null;
 
 interface SelectionState {
   selectedType: SelectionType;

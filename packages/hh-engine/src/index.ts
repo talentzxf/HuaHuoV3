@@ -24,6 +24,7 @@ export { Scene } from './scene/Scene';
 // Engine
 export { Engine } from './Engine';
 export { getEngineStore, getEngineState } from './core/EngineGlobals';
+export { getAnimationPlayer } from './core/AnimationPlayer';
 
 // Redux Store - DO NOT export store instance, only reducers and types
 export * from './store';

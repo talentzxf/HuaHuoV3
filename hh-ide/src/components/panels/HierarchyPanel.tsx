@@ -112,29 +112,24 @@ const HierarchyPanel: React.FC<HierarchyPanelProps> = ({ onSelectGameObject }) =
 
   useEffect(() => {
     // Wait for SDK and Scene to be ready
-    const checkInterval = setInterval(() => {
-      if (SDK.isInitialized()) {
-        const scene = SDK.instance.Scene.getCurrentScene();
-        if (scene) {
-          // Scene is ready, do initial setup
-          const initialExpandedKeys: React.Key[] = [`scene-${scene.name}`];
-          scene.layers.forEach((layer, layerIndex) => {
-            initialExpandedKeys.push(`layer-${layerIndex}`);
-          });
-          setExpandedKeys(initialExpandedKeys);
+    SDK.executeAfterInit(() => {
+      const scene = SDK.instance.Scene.getCurrentScene();
+      if (scene) {
+        // Scene is ready, do initial setup
+        const initialExpandedKeys: React.Key[] = [`scene-${scene.name}`];
+        scene.layers.forEach((layer, layerIndex) => {
+          initialExpandedKeys.push(`layer-${layerIndex}`);
+        });
+        setExpandedKeys(initialExpandedKeys);
 
-          // Set initial count
-          const totalGameObjects = scene.layers.reduce((sum, layer) => sum + layer.gameObjects.length, 0);
-          setGameObjectCount(totalGameObjects);
+        // Set initial count
+        const totalGameObjects = scene.layers.reduce((sum, layer) => sum + layer.gameObjects.length, 0);
+        setGameObjectCount(totalGameObjects);
 
-          // Initial refresh
-          refreshHierarchy();
-
-          // Clear interval
-          clearInterval(checkInterval);
-        }
+        // Initial refresh
+        refreshHierarchy();
       }
-    }, 100); // Check every 100ms
+    });
 
     // Subscribe to Redux store changes (IDE's merged store includes engine state)
     const unsubscribe = store.subscribe(() => {
@@ -142,7 +137,6 @@ const HierarchyPanel: React.FC<HierarchyPanelProps> = ({ onSelectGameObject }) =
     });
 
     return () => {
-      clearInterval(checkInterval);
       unsubscribe();
     };
   }, []);
