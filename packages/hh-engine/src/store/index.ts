@@ -10,7 +10,7 @@ export { default as componentReducer } from './ComponentSlice';
 export { default as playbackReducer } from './PlaybackSlice';
 
 // Export types
-export type { ComponentSlice, ComponentState } from './ComponentSlice';
+export type { ComponentSlice, ComponentState, PropertyKeyFrame } from './ComponentSlice';
 export type { GameObjectSlice, GameObjectState } from './GameObjectSlice';
 export type { PlaybackState } from './PlaybackSlice';
 export type { KeyFrameInfo, TimelineClip } from './LayerSlice';
@@ -21,6 +21,9 @@ export * from './LayerSlice';
 export * from './GameObjectSlice';
 export * from './ComponentSlice';
 export * from './PlaybackSlice';
+
+// Export utility functions
+export { interpolateComponent } from './ComponentSlice';
 
 // Export composite actions
 export { updateComponentPropsWithKeyFrame } from './actions';

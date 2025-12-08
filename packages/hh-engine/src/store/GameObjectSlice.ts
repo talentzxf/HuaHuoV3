@@ -32,15 +32,16 @@ const gameObjectSlice = createSlice({
                     id: string;
                     name: string;
                     parent: string | null;
+                    bornFrameId: number;
                 }>
             ) {
-                const { id, name, parent } = action.payload;
+                const { id, name, parent, bornFrameId } = action.payload;
 
                 state.byId[id] = {
                     id,
                     name,
                     active: true,
-                    bornFrameId: 0,      // Default: appears from frame 0
+                    bornFrameId,         // Use the provided bornFrameId
                     parent,
                     children: [],
                     componentIds: []     // Default no component, Transform component added by outer layer
@@ -51,12 +52,13 @@ const gameObjectSlice = createSlice({
                     state.byId[parent].children.push(id);
                 }
             },
-            prepare(name: string, parent: string | null = null) {
+            prepare(name: string, parent: string | null = null, bornFrameId: number = 0) {
                 return {
                     payload: {
                         id: nanoid(),
                         name,
-                        parent
+                        parent,
+                        bornFrameId
                     }
                 };
             }

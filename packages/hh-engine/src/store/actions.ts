@@ -1,5 +1,5 @@
 // Composite actions that coordinate multiple reducers
-import { updateComponentProps } from './ComponentSlice';
+import { updateComponentProps, setPropertyKeyFrame } from './ComponentSlice';
 import { addKeyFrame } from './LayerSlice';
 
 /**
@@ -40,6 +40,10 @@ function findLayerForGameObject(gameObjectId: string, engineState: any): string 
 
 /**
  * Update component props and automatically add keyframe at current frame
+ * This will:
+ * 1. Update the component props immediately
+ * 2. Set keyframes for each changed property at the current frame
+ * 3. Add a keyframe marker to the layer's timeline
  */
 export const updateComponentPropsWithKeyFrame = (payload: {
     id: string;
@@ -48,19 +52,30 @@ export const updateComponentPropsWithKeyFrame = (payload: {
     return (dispatch: any, getState: any) => {
         const { id, patch } = payload;
 
-        // Update component props
-        dispatch(updateComponentProps({ id, patch }));
-
-        // Automatically add keyframe
+        // Get current state
         const state = getState();
         const engineState = state.engine || state;
+        const currentFrame = engineState.playback.currentFrame;
 
+        // Update component props immediately
+        dispatch(updateComponentProps({ id, patch }));
+
+        // Set keyframes for each property in the patch
+        for (const propName in patch) {
+            dispatch(setPropertyKeyFrame({
+                componentId: id,
+                propName: propName,
+                frame: currentFrame,
+                value: patch[propName]
+            }));
+        }
+
+        // Add keyframe marker to the layer's timeline
         const component = engineState.components.byId[id];
         if (!component) return;
 
         const layerId = findLayerForGameObject(component.parentId, engineState);
         if (layerId) {
-            const currentFrame = engineState.playback.currentFrame;
             dispatch(addKeyFrame({
                 layerId,
                 frame: currentFrame,
@@ -69,4 +84,7 @@ export const updateComponentPropsWithKeyFrame = (payload: {
         }
     };
 };
+
+
+
 

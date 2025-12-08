@@ -122,7 +122,12 @@ export class Layer extends RegistrableEntity implements ILayer {
         const uniqueName = this.generateUniqueName(name);
 
         const store = getEngineStore();
-        const action = createGameObject(uniqueName, this.id);
+
+        // Get current frame to set as bornFrameId
+        const currentFrame = getEngineState().playback.currentFrame;
+
+        // Create GameObject with current frame as bornFrameId
+        const action = createGameObject(uniqueName, this.id, currentFrame);
         const { id: gameObjectId } = store.dispatch(action).payload;
 
         store.dispatch(
@@ -130,10 +135,9 @@ export class Layer extends RegistrableEntity implements ILayer {
         );
 
         // Add keyframe at current frame when GameObject is added
-        const currentFrame = getEngineState().playback.currentFrame;
         store.dispatch(addKeyFrame({ layerId: this.id, frame: currentFrame, gameObjectId }));
 
-        console.debug('[Layer.addGameObject] Creating GameObject:', gameObjectId, 'name:', uniqueName, 'with renderItem:', !!renderItem);
+        console.debug('[Layer.addGameObject] Creating GameObject:', gameObjectId, 'name:', uniqueName, 'at frame:', currentFrame, 'with renderItem:', !!renderItem);
 
         return InstanceRegistry.getInstance().getOrCreate<GameObject>(gameObjectId, () => {
             return this.createGameObjectInstance(gameObjectId, renderItem);

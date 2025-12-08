@@ -1,6 +1,7 @@
 import { getEngineStore, getEngineState } from '../core/EngineGlobals';
 import { setGameObjectActive } from '../store/GameObjectSlice';
 import { setCurrentFrame } from '../store/PlaybackSlice';
+import { interpolateComponent, updateComponentProps } from '../store/ComponentSlice';
 
 /**
  * AnimationPlayer - Manages animation playback and GameObject visibility
@@ -11,6 +12,7 @@ export class AnimationPlayer {
     private unsubscribe: (() => void) | null = null;
     private rafId: number | null = null;
     private lastFrameTime: number = 0;
+    private lastProcessedFrame: number = -1; // Track the last frame we processed to avoid infinite loops
 
     /**
      * Start listening to store changes and update GameObject visibility
@@ -25,11 +27,18 @@ export class AnimationPlayer {
 
         // Subscribe to store changes
         this.unsubscribe = store.subscribe(() => {
-            this.updateGameObjectVisibility();
+            const state = getEngineState();
+            const currentFrame = state.playback.currentFrame;
+
+            // Only update if frame actually changed (prevent infinite loop)
+            if (currentFrame !== this.lastProcessedFrame) {
+                this.lastProcessedFrame = currentFrame;
+                this.updateGameObjects();
+            }
         });
 
         // Initial update
-        this.updateGameObjectVisibility();
+        this.updateGameObjects();
 
         console.log('AnimationPlayer started');
     }
@@ -99,9 +108,9 @@ export class AnimationPlayer {
     };
 
     /**
-     * Update GameObject visibility based on current frame and clips
+     * Update GameObject visibility and interpolate component properties based on current frame
      */
-    private updateGameObjectVisibility() {
+    private updateGameObjects() {
         const store = getEngineStore();
         const state = getEngineState();
         const currentFrame = state.playback.currentFrame;
@@ -119,8 +128,16 @@ export class AnimationPlayer {
 
                 const bornFrame = gameObject.bornFrameId;
 
+                // GameObject should be invisible before its birth frame
+                if (currentFrame < bornFrame) {
+                    if (gameObject.active !== false) {
+                        store.dispatch(setGameObjectActive({ id: goId, active: false }));
+                    }
+                    return; // Skip interpolation for unborn GameObjects
+                }
+
                 // Find the clip that contains current frame
-                const currentClip = clips.find(clip => {
+                const currentClip = clips.find((clip: any) => {
                     const clipEnd = clip.startFrame + clip.length - 1;
                     return currentFrame >= clip.startFrame && currentFrame <= clipEnd;
                 });
@@ -137,8 +154,43 @@ export class AnimationPlayer {
                 if (gameObject.active !== shouldBeVisible) {
                     store.dispatch(setGameObjectActive({ id: goId, active: shouldBeVisible }));
                 }
+
+                // Interpolate components for active GameObjects
+                if (shouldBeVisible) {
+                    this.interpolateGameObjectComponents(goId, currentFrame);
+                }
             });
         });
+    }
+
+    /**
+     * Interpolate all components of a GameObject
+     */
+    private interpolateGameObjectComponents(gameObjectId: string, currentFrame: number) {
+        const store = getEngineStore();
+        const state = getEngineState();
+        const gameObject = state.gameObjects.byId[gameObjectId];
+
+        if (!gameObject || !gameObject.componentIds) return;
+
+        // Iterate through each component of this GameObject
+        for (const componentId of gameObject.componentIds) {
+            const component = state.components.byId[componentId];
+            if (!component) continue;
+
+            // Check if this component has any keyframes
+            const hasKeyFrames = Object.keys(component.keyFrames).length > 0;
+            if (!hasKeyFrames) continue;
+
+            // Interpolate the component using the utility function
+            const interpolatedProps = interpolateComponent(component, currentFrame);
+
+            // Update the component props
+            store.dispatch(updateComponentProps({
+                id: componentId,
+                patch: interpolatedProps
+            }));
+        }
     }
 
     /**
