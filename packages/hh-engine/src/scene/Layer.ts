@@ -134,14 +134,56 @@ export class Layer extends RegistrableEntity implements ILayer {
             addGameObjectToLayer({ layerId: this.id, gameObjectId })
         );
 
-        // Add keyframe at current frame when GameObject is added
+        // Add keyframe marker at current frame when GameObject is added
         store.dispatch(addKeyFrame({ layerId: this.id, frame: currentFrame, gameObjectId }));
 
         console.debug('[Layer.addGameObject] Creating GameObject:', gameObjectId, 'name:', uniqueName, 'at frame:', currentFrame, 'with renderItem:', !!renderItem);
 
-        return InstanceRegistry.getInstance().getOrCreate<GameObject>(gameObjectId, () => {
+        // Create the GameObject instance (this will also create its components)
+        const gameObject = InstanceRegistry.getInstance().getOrCreate<GameObject>(gameObjectId, () => {
             return this.createGameObjectInstance(gameObjectId, renderItem);
         });
+
+        // Record initial keyframes for all component properties at birth frame
+        this.recordInitialKeyframes(gameObjectId, currentFrame);
+
+        return gameObject;
+    }
+
+    /**
+     * Record keyframes for all properties of all components at the birth frame
+     * This ensures the animation system has correct initial values
+     */
+    private recordInitialKeyframes(gameObjectId: string, frame: number): void {
+        const { setPropertyKeyFrame } = require('../store/ComponentSlice');
+        const state = getEngineState();
+        const gameObject = state.gameObjects.byId[gameObjectId];
+
+        if (!gameObject || !gameObject.componentIds) {
+            return;
+        }
+
+        const store = getEngineStore();
+
+        // Iterate through all components of this GameObject
+        for (const componentId of gameObject.componentIds) {
+            const component = state.components.byId[componentId];
+            if (!component) continue;
+
+            // Record keyframe for each property
+            for (const propName in component.props) {
+                const propValue = component.props[propName];
+
+                store.dispatch(setPropertyKeyFrame({
+                    componentId: componentId,
+                    propName: propName,
+                    frame: frame,
+                    value: propValue
+                }));
+
+                console.debug(`[Layer] Recorded initial keyframe: Component ${component.type}.${propName} =`, propValue, 'at frame', frame);
+            }
+        }
     }
 
     findGameObject(name: string): IGameObject | undefined {
