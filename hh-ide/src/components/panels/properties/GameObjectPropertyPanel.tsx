@@ -1,105 +1,86 @@
 import React, { useState, useEffect, memo, useMemo, useCallback } from 'react';
-import { Typography, Collapse, Input, InputNumber, Switch } from 'antd';
+import { Typography, Collapse, Input, Switch } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { SDK } from '@huahuo/sdk';
-import { getEngineStore, getEngineState, ComponentRegistry } from '@huahuo/engine';
+import { getEngineStore, getEngineState, ComponentRegistry, updateComponentPropsWithKeyFrame } from '@huahuo/engine';
 import type { ComponentSlice } from '@huahuo/sdk';
+import PropertyTypeRegistry from './PropertyTypeRegistry';
+import { registerDefaultPropertyRenderers } from './defaultPropertyRenderers';
 
 const { Text } = Typography;
+
+// Initialize default property renderers on module load
+registerDefaultPropertyRenderers();
 
 interface GameObjectPropertyPanelProps {
   gameObjectId: string;
 }
+
+// Memoized component for rendering a single property field
+const PropertyField = memo<{
+  componentId: string;
+  componentType: string;
+  propName: string;
+  propValue: any;
+  onPropertyChange: (componentId: string, propName: string, value: any) => void;
+}>(({ componentId, componentType, propName, propValue, onPropertyChange }) => {
+  const handleChange = useCallback((value: any) => {
+    onPropertyChange(componentId, propName, value);
+  }, [componentId, propName, onPropertyChange]);
+
+  const registry = ComponentRegistry.getInstance();
+  const propertyMeta = registry.getPropertyMetadata(componentType, propName);
+
+  // Get the appropriate renderer from PropertyTypeRegistry
+  const propertyTypeRegistry = PropertyTypeRegistry.getInstance();
+  const renderer = propertyTypeRegistry.getRenderer(propValue);
+
+  if (!renderer) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+        <Text style={{ color: '#ffffff', fontSize: '12px' }}>{propName}</Text>
+        <Text style={{ color: '#999999', fontSize: '12px', fontStyle: 'italic' }}>
+          Unsupported type
+        </Text>
+      </div>
+    );
+  }
+
+  return renderer({
+    propName,
+    propValue,
+    propertyMeta,
+    onChange: handleChange,
+  });
+}, (prevProps, nextProps) => {
+  // Custom comparison: only re-render if the specific property value changed
+  return (
+    prevProps.componentId === nextProps.componentId &&
+    prevProps.componentType === nextProps.componentType &&
+    prevProps.propName === nextProps.propName &&
+    JSON.stringify(prevProps.propValue) === JSON.stringify(nextProps.propValue) &&
+    prevProps.onPropertyChange === nextProps.onPropertyChange
+  );
+});
+
+PropertyField.displayName = 'PropertyField';
 
 // Memoized component for rendering a single component's properties
 const ComponentPropertiesPanel = memo<{
   component: ComponentSlice;
   onPropertyChange: (componentId: string, propName: string, value: any) => void;
 }>(({ component, onPropertyChange }) => {
-  const renderPropertyField = useCallback((propName: string, propValue: any) => {
-    const handleChange = (value: any) => {
-      onPropertyChange(component.id, propName, value);
-    };
-
-    const registry = ComponentRegistry.getInstance();
-    const propertyMeta = registry.getPropertyMetadata(component.type, propName);
-
-    const step = propertyMeta?.step ?? 0.1;
-    const precision = propertyMeta?.precision ?? 2;
-    const min = propertyMeta?.min;
-    const max = propertyMeta?.max;
-
-    if (typeof propValue === 'boolean') {
-      return (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-          <Text style={{ color: '#ffffff', fontSize: '12px' }}>{propName}</Text>
-          <Switch checked={propValue} onChange={handleChange} size="small" />
-        </div>
-      );
-    } else if (typeof propValue === 'number') {
-      return (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-          <Text style={{ color: '#ffffff', fontSize: '12px' }}>{propName}</Text>
-          <InputNumber
-            value={propValue}
-            onChange={handleChange}
-            onKeyDown={(e) => e.stopPropagation()}
-            size="small"
-            precision={precision}
-            step={step}
-            min={min}
-            max={max}
-            style={{ width: '100px' }}
-          />
-        </div>
-      );
-    } else if (typeof propValue === 'string') {
-      return (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-          <Text style={{ color: '#ffffff', fontSize: '12px' }}>{propName}</Text>
-          <Input
-            value={propValue}
-            onChange={(e) => handleChange(e.target.value)}
-            onKeyDown={(e) => e.stopPropagation()}
-            size="small"
-            style={{ width: '140px' }}
-          />
-        </div>
-      );
-    } else if (typeof propValue === 'object' && propValue !== null) {
-      return (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-          <Text style={{ color: '#ffffff', fontSize: '12px' }}>{propName}</Text>
-          <div style={{ display: 'flex', gap: '4px' }}>
-            {Object.entries(propValue).map(([key, val]) => (
-              <InputNumber
-                key={key}
-                value={val as number}
-                onChange={(newVal) => {
-                  const updatedObj = { ...propValue, [key]: newVal };
-                  handleChange(updatedObj);
-                }}
-                onKeyDown={(e) => e.stopPropagation()}
-                size="small"
-                precision={precision}
-                step={step}
-                style={{ width: '60px' }}
-              />
-            ))}
-          </div>
-        </div>
-      );
-    }
-
-    return null;
-  }, [component.id, component.type, onPropertyChange]);
-
   return (
     <div style={{ padding: '4px 0' }}>
       {Object.entries(component.props).map(([propName, propValue]) => (
-        <div key={propName}>
-          {renderPropertyField(propName, propValue)}
-        </div>
+        <PropertyField
+          key={propName}
+          componentId={component.id}
+          componentType={component.type}
+          propName={propName}
+          propValue={propValue}
+          onPropertyChange={onPropertyChange}
+        />
       ))}
     </div>
   );
@@ -161,29 +142,29 @@ const GameObjectPropertyPanel: React.FC<GameObjectPropertyPanelProps> = memo(({ 
   }, [gameObjectId]);
 
   const handlePropertyChange = useCallback((componentId: string, propName: string, value: any) => {
-    if (SDK.isInitialized()) {
-      const store = getEngineStore();
-      const state = getEngineState();
+    if (!SDK.isInitialized()) return;
 
-      const component = state.components.byId[componentId];
-      if (!component) return;
+    const store = getEngineStore();
+    const engineState = getEngineState();
 
-      const currentPropValue = component.props[propName];
-      let finalValue = value;
+    const component = engineState.components.byId[componentId];
+    if (!component) return;
 
-      if (typeof currentPropValue === 'object' && currentPropValue !== null &&
-          typeof value === 'object' && value !== null) {
-        finalValue = { ...currentPropValue, ...value };
-      }
+    const currentPropValue = component.props[propName];
+    let finalValue = value;
 
-      store.dispatch({
-        type: 'components/updateComponentProps',
-        payload: {
-          id: componentId,
-          patch: { [propName]: finalValue }
-        }
-      });
+    // Merge objects if needed
+    if (typeof currentPropValue === 'object' && currentPropValue !== null &&
+        typeof value === 'object' && value !== null) {
+      finalValue = { ...currentPropValue, ...value };
     }
+
+    // Use updateComponentPropsWithKeyFrame to update both component props AND keyframes
+    // Cast to any because thunk types are not fully compatible
+    (store.dispatch as any)(updateComponentPropsWithKeyFrame({
+      id: componentId,
+      patch: { [propName]: finalValue }
+    }));
   }, []);
 
   // Use useMemo to cache component items - each component is independently memoized
