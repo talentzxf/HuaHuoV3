@@ -1,6 +1,6 @@
 import { TransformHandlerBase } from './TransformHandlerBase';
 import { getEngineStore } from '@huahuo/engine';
-import { updateComponentProps, addKeyFrame } from '@huahuo/sdk';
+import { updateComponentPropsWithKeyFrame } from '@huahuo/sdk';
 import { SDK } from '@huahuo/sdk';
 
 /**
@@ -95,9 +95,6 @@ export class ShapeTranslateHandler extends TransformHandlerBase {
 
     // Update Redux store with final positions (single batch update)
     const engineStore = getEngineStore();
-    const state = engineStore.getState();
-    const engineState = state.engine || state;
-    const currentFrame = engineState.playback.currentFrame;
 
     this.targetGameObjects.forEach(gameObjectId => {
       const initialPos = this.initialPositions.get(gameObjectId);
@@ -110,23 +107,13 @@ export class ShapeTranslateHandler extends TransformHandlerBase {
         y: initialPos.y + finalDeltaY
       };
 
-      // Dispatch final position to Redux (triggers single React update)
-      engineStore.dispatch(updateComponentProps({
+      // Update position and add keyframe automatically
+      (engineStore.dispatch as any)(updateComponentPropsWithKeyFrame({
         id: transformComponentId,
         patch: {
           position: finalPosition
         }
       }));
-
-      // Add keyframe for the GameObject's layer at current frame
-      const gameObject = engineState.gameObjects.byId[gameObjectId];
-      if (gameObject && gameObject.layerId) {
-        engineStore.dispatch(addKeyFrame({
-          layerId: gameObject.layerId,
-          frame: currentFrame,
-          gameObjectId: gameObjectId
-        }));
-      }
     });
 
     // Clean up

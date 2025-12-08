@@ -22,6 +22,9 @@ export * from './GameObjectSlice';
 export * from './ComponentSlice';
 export * from './PlaybackSlice';
 
+// Export composite actions
+export { updateComponentPropsWithKeyFrame } from './actions';
+
 // Note: Host applications should use engineReducer for simplicity
 // Individual reducers are exported for advanced scenarios only
 

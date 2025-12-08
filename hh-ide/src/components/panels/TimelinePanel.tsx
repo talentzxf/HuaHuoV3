@@ -45,8 +45,8 @@ const TimelinePanel: React.FC = () => {
           return {
             id: layer.id,
             name: layer.name,
-            clips: layer.clips || [],
-            keyFrames: layer.keyFrames ? layer.keyFrames.map((kf: any) => kf.frame) : []
+            clips: layer.clips || [],  // Include clips from layer
+            keyFrames: layer.keyFrames ? layer.keyFrames.map((kf: any) => kf.frame) : []  // Extract frame numbers
           };
         });
 
