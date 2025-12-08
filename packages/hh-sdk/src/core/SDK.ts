@@ -1,4 +1,4 @@
-import { Engine } from '@huahuo/engine';
+import { Engine, createProject, addSceneToProject, getEngineStore } from '@huahuo/engine';
 import { SceneAPI } from '../scene/SceneAPI';
 import { EditorAPI } from '../editor/EditorAPI';
 
@@ -52,9 +52,20 @@ export class SDK {
   private createNewProject(): void {
     console.log('[SDK.createNewProject] ===== START =====');
 
+    // Create Project
+    const store = getEngineStore();
+
+    const projectAction = createProject('My Animation Project', 30, 800, 600);
+    store.dispatch(projectAction);
+    console.log('[SDK.createNewProject] Project created');
+
     // Create default scene
     const scene = this.Scene.createScene('DefaultScene');
     console.log('[SDK.createNewProject] Scene created:', scene);
+
+    // Add scene to project
+    store.dispatch(addSceneToProject({ sceneId: scene.id }));
+    console.log('[SDK.createNewProject] Scene added to project');
 
     // Add default layers
     const backgroundLayer = scene.addLayer('background');

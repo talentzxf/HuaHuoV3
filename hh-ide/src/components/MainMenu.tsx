@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   SaveOutlined,
@@ -8,9 +8,11 @@ import {
   RedoOutlined,
   CaretRightOutlined,
   PauseOutlined,
+  SettingOutlined,
 } from '@ant-design/icons';
 import { Button, Tooltip } from 'antd';
 import LanguageSwitcher from './LanguageSwitcher';
+import ProjectSettingsModal from './modals/ProjectSettingsModal';
 import './MainMenu.css';
 
 interface MainMenuProps {
@@ -35,6 +37,7 @@ const MainMenu: React.FC<MainMenuProps> = ({
   isPlaying = false,
 }) => {
   const { t } = useTranslation();
+  const [projectSettingsOpen, setProjectSettingsOpen] = useState(false);
 
   // Add keyboard shortcuts
   useEffect(() => {
@@ -102,6 +105,17 @@ const MainMenu: React.FC<MainMenuProps> = ({
           </Button>
         </Tooltip>
         <div className="main-menu-divider" />
+        <Tooltip title="Project Settings">
+          <Button
+            type="text"
+            icon={<SettingOutlined />}
+            onClick={() => setProjectSettingsOpen(true)}
+            className="main-menu-button"
+          >
+            Project
+          </Button>
+        </Tooltip>
+        <div className="main-menu-divider" />
         <Tooltip title={t('tooltips.undoShortcut')}>
           <Button
             type="text"
@@ -152,6 +166,12 @@ const MainMenu: React.FC<MainMenuProps> = ({
       <div className="main-menu-section main-menu-right">
         <LanguageSwitcher />
       </div>
+
+      {/* Project Settings Modal */}
+      <ProjectSettingsModal
+        open={projectSettingsOpen}
+        onClose={() => setProjectSettingsOpen(false)}
+      />
     </div>
   );
 };

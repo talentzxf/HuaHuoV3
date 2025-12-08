@@ -1,6 +1,7 @@
 // Composite actions that coordinate multiple reducers
 import { updateComponentProps, setPropertyKeyFrame } from './ComponentSlice';
 import { addKeyFrame } from './LayerSlice';
+import { updateProjectTotalFrames } from './ProjectSlice';
 
 /**
  * Find the Layer that contains the given GameObject by traversing up the parent chain
@@ -82,6 +83,56 @@ export const updateComponentPropsWithKeyFrame = (payload: {
                 gameObjectId: component.parentId
             }));
         }
+    };
+};
+
+/**
+ * Calculate and update project total frames based on last keyframe or clip
+ * Automatically extends project duration to include all content
+ */
+export const calculateAndUpdateTotalFrames = () => {
+    return (dispatch: any, getState: any) => {
+        const state = getState();
+        const engineState = state.engine || state;
+
+        let maxFrame = 120; // Default minimum
+
+        // Check all layers for clips and keyframes
+        Object.values(engineState.layers.byId).forEach((layer: any) => {
+            // Check clips
+            if (layer.clips) {
+                layer.clips.forEach((clip: any) => {
+                    const clipEnd = clip.startFrame + clip.length - 1;
+                    maxFrame = Math.max(maxFrame, clipEnd);
+                });
+            }
+
+            // Check keyframes
+            if (layer.keyFrames) {
+                layer.keyFrames.forEach((kf: any) => {
+                    maxFrame = Math.max(maxFrame, kf.frame);
+                });
+            }
+        });
+
+        // Check all components for property keyframes
+        Object.values(engineState.components.byId).forEach((component: any) => {
+            if (component.keyFrames) {
+                Object.values(component.keyFrames).forEach((keyFrames: any) => {
+                    if (Array.isArray(keyFrames)) {
+                        keyFrames.forEach((kf: any) => {
+                            maxFrame = Math.max(maxFrame, kf.frame);
+                        });
+                    }
+                });
+            }
+        });
+
+        // Add some buffer (e.g., 10 frames) and update
+        const totalFrames = maxFrame + 10;
+        dispatch(updateProjectTotalFrames({ totalFrames }));
+
+        console.log(`[Project] Auto-calculated total frames: ${totalFrames} (last content at frame ${maxFrame})`);
     };
 };
 

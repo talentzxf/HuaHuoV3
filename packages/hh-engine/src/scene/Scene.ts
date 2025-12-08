@@ -2,8 +2,9 @@ import { getEngineStore, getEngineState } from "../core/EngineGlobals";
 import { Layer } from "./Layer";
 import {IScene} from "../core/IScene";
 import { ILayer } from "../core/ILayer";
-import {addLayerToScene, createScene, setCurrentScene} from "../store/SceneSlice";
+import {addLayerToScene, createScene} from "../store/SceneSlice";
 import {createLayer} from "../store/LayerSlice";
+import { setProjectCurrentScene } from "../store/ProjectSlice";
 import { IRenderer } from "../renderer";
 import { RegistrableEntity } from "../core/RegistrableEntity";
 import {InstanceRegistry} from "../core/InstanceRegistry";
@@ -71,7 +72,9 @@ export class Scene extends RegistrableEntity implements IScene {
     static create(name: string, renderer: IRenderer, sceneContext: any): Scene {
         const store = getEngineStore();
         const sceneId = store.dispatch(createScene(name)).payload.id;
-        store.dispatch(setCurrentScene(sceneId));
+
+        // Set as current scene in the project
+        store.dispatch(setProjectCurrentScene({ sceneId }));
 
         console.debug('[Scene.create] Creating Scene:', sceneId);
         return InstanceRegistry.getInstance().getOrCreate<Scene>(sceneId, () => {

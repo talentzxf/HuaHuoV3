@@ -10,12 +10,10 @@ interface SceneSlice {
 
 export interface SceneState {
     byId: Record<string, SceneSlice>;
-    currentSceneId: string | null;
 }
 
 const initialState: SceneState = {
-    byId: {},
-    currentSceneId: null
+    byId: {}
 }
 
 const sceneSlice = createSlice({
@@ -26,17 +24,10 @@ const sceneSlice = createSlice({
             reducer(state: SceneState, action: PayloadAction<SceneSlice>) {
                 const {id, name, layerIds, duration, fps} = action.payload;
                 state.byId[id] = {id, name, layerIds, duration, fps};
-
-                if (!state.currentSceneId) {
-                    state.currentSceneId = id;
-                }
             },
             prepare(name: string) {
                 return {payload: {id: nanoid(), name, layerIds: [], duration: 5.0, fps: 30}};
             }
-        },
-        setCurrentScene(state: SceneState, action: PayloadAction<string>) {
-            state.currentSceneId = action.payload;
         },
         setSceneName(
             state: SceneState,
@@ -84,5 +75,5 @@ const sceneSlice = createSlice({
 });
 
 export default sceneSlice.reducer;
-export const {createScene, setCurrentScene, setSceneName, setDuration, setFps, addLayerToScene} = sceneSlice.actions;
+export const {createScene, setSceneName, setDuration, setFps, addLayerToScene} = sceneSlice.actions;
 

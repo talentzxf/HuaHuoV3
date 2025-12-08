@@ -3,6 +3,7 @@
 
 import { combineReducers } from "@reduxjs/toolkit";
 
+import projectReducer from "./ProjectSlice";
 import sceneReducer from "./SceneSlice";
 import layerReducer from "./LayerSlice";
 import gameObjectReducer from "./GameObjectSlice";
@@ -11,6 +12,7 @@ import playbackReducer from "./PlaybackSlice";
 
 // Export the combined reducer for external use
 export const engineReducer = combineReducers({
+  project: projectReducer,
   scenes: sceneReducer,
   layers: layerReducer,
   gameObjects: gameObjectReducer,

@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Timeline } from '@huahuo/timeline';
-import { getEngineStore } from '@huahuo/engine';
+import { getEngineStore, getEngineState } from '@huahuo/engine';
 import { addTimelineClip, splitTimelineClip, setCurrentFrame } from '@huahuo/engine';
+import { useSelector } from 'react-redux';
+import type { RootState } from '../../store/store';
 
 /**
  * TimelinePanel - Integrates the Timeline component with the engine
@@ -17,6 +19,10 @@ const TimelinePanel: React.FC = () => {
   }>>([]);
   const [currentFrame, setCurrentFrameState] = useState(0);
   const [timelineHeight, setTimelineHeight] = useState<number | undefined>(undefined);
+
+  // Get project totalFrames and fps from Redux
+  const totalFrames = useSelector((state: RootState) => state.engine.project.current?.totalFrames || 120);
+  const fps = useSelector((state: RootState) => state.engine.project.current?.fps || 30);
 
   // Internal mapping from track ID to layer ID (not exposed to Timeline component)
   const trackToLayerMap = React.useRef<Map<string, string>>(new Map());
@@ -143,8 +149,8 @@ const TimelinePanel: React.FC = () => {
       background: '#1e1e1e'
     }}>
       <Timeline
-        frameCount={120}
-        fps={30}
+        frameCount={totalFrames}
+        fps={fps}
         currentFrame={currentFrame}
         tracks={tracks}
         onCellClick={handleCellClick}

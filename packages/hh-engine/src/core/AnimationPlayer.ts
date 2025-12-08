@@ -97,9 +97,12 @@ export class AnimationPlayer {
             const store = getEngineStore();
             const nextFrame = state.playback.currentFrame + 1;
 
-            // Loop or stop at end (can be configured)
-            // For now, just loop
-            store.dispatch(setCurrentFrame(nextFrame % 120)); // TODO: get max frames from scene
+            // Get total frames from project
+            const engineState = getEngineState();
+            const totalFrames = engineState.project.current?.totalFrames || 120;
+
+            // Loop or stop at end
+            store.dispatch(setCurrentFrame(nextFrame % totalFrames));
 
             this.lastFrameTime = now;
         }

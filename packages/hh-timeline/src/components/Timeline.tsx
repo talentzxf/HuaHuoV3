@@ -118,6 +118,22 @@ export const Timeline: React.FC<TimelineProps> = ({
       ctx.stroke();
     }
 
+    // Draw project end marker at the last frame
+    const endFrameX = TRACK_NAME_WIDTH + (frameCount - 1) * CELL_WIDTH + CELL_WIDTH;
+    ctx.strokeStyle = '#ff4d4f';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(endFrameX, 0);
+    ctx.lineTo(endFrameX, HEADER_HEIGHT);
+    ctx.stroke();
+    ctx.lineWidth = 1;
+
+    // Draw "END" label
+    ctx.fillStyle = '#ff4d4f';
+    ctx.font = 'bold 10px Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText('END', endFrameX + 2, HEADER_HEIGHT / 2);
+
     ctx.strokeStyle = '#444';
     ctx.strokeRect(0, 0, totalWidth, HEADER_HEIGHT);
   };
