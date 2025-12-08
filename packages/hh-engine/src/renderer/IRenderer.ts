@@ -15,8 +15,10 @@ export interface IRenderer {
 
     /**
      * Create a layer context
+     * @param sceneContext - The scene context
+     * @param name - Optional name for the layer
      */
-    createLayerContext(sceneContext: any): any;
+    createLayerContext(sceneContext: any, name?: string): any;
 
     /**
      * Set layer visibility

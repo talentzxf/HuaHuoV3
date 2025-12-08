@@ -112,7 +112,8 @@ export class Scene extends RegistrableEntity implements IScene {
             addLayerToScene({ sceneId: this.id, layerId })
         );
 
-        const layerContext = this.renderer.createLayerContext(this.sceneContext);
+        // Pass the name to renderer so Paper.js layer also has the name
+        const layerContext = this.renderer.createLayerContext(this.sceneContext, name);
 
         return InstanceRegistry.getInstance().getOrCreate<Layer>(layerId, () => {
             return new Layer(layerId, this.renderer, layerContext);

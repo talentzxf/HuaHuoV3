@@ -13,6 +13,7 @@ export { default as playbackReducer } from './PlaybackSlice';
 export type { ComponentSlice, ComponentState } from './ComponentSlice';
 export type { GameObjectSlice, GameObjectState } from './GameObjectSlice';
 export type { PlaybackState } from './PlaybackSlice';
+export type { KeyFrameInfo, TimelineClip } from './LayerSlice';
 
 // Export actions
 export * from './SceneSlice';

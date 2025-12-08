@@ -15,33 +15,53 @@ export class PointerTool extends BaseTool {
     // Store start point
     this.startPoint = event.point.clone();
 
-    // Selection mode - only test hits on the drawing layer
-    const drawingLayer = scope.project.layers.find((layer: any) => layer.name === 'drawing');
-    if (!drawingLayer) return;
+    // Use the currently active layer for hit testing
+    const activeLayer = scope.project.activeLayer;
+    if (!activeLayer) {
+      console.warn('[PointerTool] No active layer');
+      return;
+    }
 
-    const hitResult = drawingLayer.hitTest(event.point, {
+    console.log('[PointerTool] Mouse down at:', event.point.toString());
+    console.log('[PointerTool] Active layer:', activeLayer.name || 'unnamed');
+    console.log('[PointerTool] Active layer children count:', activeLayer.children.length);
+
+    const hitResult = activeLayer.hitTest(event.point, {
       segments: true,
       stroke: true,
       fill: true,
       tolerance: 5
     });
 
+    console.log('[PointerTool] HitTest result:', hitResult ? 'HIT' : 'MISS');
+
     // If clicked on an item, select it and prepare for transform
     if (hitResult && hitResult.item) {
+      console.log('[PointerTool] Hit item:', hitResult.item.name, 'has gameObjectId:', !!hitResult.item.data?.gameObjectId);
+
+      // Skip locked items
+      if (hitResult.item.locked) {
+        console.log('[PointerTool] Item is locked, skipping');
+        return;
+      }
+
       // Get GameObject ID from item.data
       const gameObjectId = hitResult.item.data?.gameObjectId;
-      if (!gameObjectId) return;
+      if (!gameObjectId) {
+        console.warn('[PointerTool] Item has no gameObjectId');
+        return;
+      }
 
       // If not already selected, select it
       if (!hitResult.item.selected) {
-        // Deselect all items
-        drawingLayer.children.forEach((item: any) => {
+        // Deselect all items in active layer
+        activeLayer.children.forEach((item: any) => {
           item.selected = false;
         });
 
         hitResult.item.selected = true;
         store.dispatch(selectObject({ type: 'gameObject', id: gameObjectId }));
-        console.log('Selected GameObject:', gameObjectId);
+        console.log('[PointerTool] Selected GameObject:', gameObjectId);
       }
 
       // Set up transform handler based on hit type
@@ -78,37 +98,45 @@ export class PointerTool extends BaseTool {
   }
 
   onMouseUp(event: paper.ToolEvent, scope: paper.PaperScope): void {
-    const drawingLayer = scope.project.layers.find((layer: any) => layer.name === 'drawing');
-    if (!drawingLayer) return;
+    // Use the currently active layer
+    const activeLayer = scope.project.activeLayer;
+    if (!activeLayer) {
+      console.warn('[PointerTool] No active layer in onMouseUp');
+      return;
+    }
 
     // If was transforming, end the transformation
     if (this.transformHandler) {
       this.transformHandler.endMove();
       this.transformHandler = null;
+      this.startPoint = null;
       return;
     }
 
-    // Handle selection rectangle
-    if (this.startPoint && this.selectionRect) {
+    // Handle selection rectangle (drag selection)
+    if (this.selectionRect) {
       // Perform selection based on rectangle bounds
       const selectionBounds = this.selectionRect.bounds;
 
       // Deselect all first
-      drawingLayer.children.forEach((item: any) => {
+      activeLayer.children.forEach((item: any) => {
         item.selected = false;
       });
 
       // Select items that intersect with selection rectangle
       let selectedGameObjectId: string | null = null;
 
-      drawingLayer.children.forEach((item: any) => {
+      activeLayer.children.forEach((item: any) => {
+        // Skip locked items (like whiteCanvas)
+        if (item.locked) return;
+
         if (item.bounds.intersects(selectionBounds)) {
           item.selected = true;
 
           // Get GameObject ID from item.data (only first selected item)
           if (!selectedGameObjectId && item.data?.gameObjectId) {
             selectedGameObjectId = item.data.gameObjectId;
-            console.log('Selected GameObject by drag:', selectedGameObjectId);
+            console.log('[PointerTool] Selected GameObject by drag:', selectedGameObjectId);
           }
         }
       });
@@ -116,19 +144,19 @@ export class PointerTool extends BaseTool {
       // Dispatch selection (or clear if nothing selected)
       store.dispatch(selectedGameObjectId ? selectObject({ type: 'gameObject', id: selectedGameObjectId }) : clearSelection());
 
-      // Remove selection rectangle
+      // IMPORTANT: Always remove selection rectangle after use
       this.selectionRect.remove();
       this.selectionRect = null;
-    } else if (!this.startPoint) {
-      // Single click without drag (already handled in onMouseDown)
-    } else {
-      // Single click on empty space - deselect all
-      drawingLayer.children.forEach((item: any) => {
+    } else if (this.startPoint) {
+      // Single click on empty space (no selection rect was created because no drag)
+      // Deselect all
+      activeLayer.children.forEach((item: any) => {
         item.selected = false;
       });
       store.dispatch(clearSelection());
     }
 
+    // Always reset startPoint
     this.startPoint = null;
   }
 

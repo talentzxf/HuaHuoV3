@@ -13,6 +13,7 @@ const TimelinePanel: React.FC = () => {
     id: string;
     name: string;
     clips?: Array<{ id: string; startFrame: number; length: number }>;
+    keyFrames?: number[];
   }>>([]);
   const [currentFrame, setCurrentFrameState] = useState(0);
   const [timelineHeight, setTimelineHeight] = useState<number | undefined>(undefined);
@@ -44,7 +45,8 @@ const TimelinePanel: React.FC = () => {
           return {
             id: layer.id,
             name: layer.name,
-            clips: layer.clips || []  // Include clips from layer
+            clips: layer.clips || [],
+            keyFrames: layer.keyFrames ? layer.keyFrames.map((kf: any) => kf.frame) : []
           };
         });
 

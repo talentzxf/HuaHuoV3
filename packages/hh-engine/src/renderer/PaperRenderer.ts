@@ -26,11 +26,11 @@ export class PaperRenderer implements IRenderer {
         return this.scope;
     }
 
-    createLayerContext(sceneContext: paper.PaperScope): paper.Layer {
+    createLayerContext(sceneContext: paper.PaperScope, name?: string): paper.Layer {
         const layer = new sceneContext.Layer();
-        // Set applyMatrix to false so transformations stay on the layer
-        // instead of being baked into child items
-        layer.applyMatrix = false;
+        if (name) {
+            layer.name = name;
+        }
         return layer;
     }
 

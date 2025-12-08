@@ -9,6 +9,7 @@ import {
     setLayerHasTimeline,
     addGameObjectToLayer,
     removeGameObjectFromLayer,
+    addKeyFrame,
 } from "../store/LayerSlice";
 import {
     createGameObject,
@@ -128,6 +129,10 @@ export class Layer extends RegistrableEntity implements ILayer {
             addGameObjectToLayer({ layerId: this.id, gameObjectId })
         );
 
+        // Add keyframe at current frame when GameObject is added
+        const currentFrame = getEngineState().playback.currentFrame;
+        store.dispatch(addKeyFrame({ layerId: this.id, frame: currentFrame, gameObjectId }));
+
         console.debug('[Layer.addGameObject] Creating GameObject:', gameObjectId, 'name:', uniqueName, 'with renderItem:', !!renderItem);
 
         return InstanceRegistry.getInstance().getOrCreate<GameObject>(gameObjectId, () => {
@@ -141,6 +146,8 @@ export class Layer extends RegistrableEntity implements ILayer {
 
     removeGameObject(gameObject: IGameObject): void {
         const store = getEngineStore();
+
+        // removeGameObjectFromLayer now auto-cleans keyframes
         store.dispatch(
             removeGameObjectFromLayer({
                 layerId: this.id,

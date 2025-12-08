@@ -1,21 +1,24 @@
 import { TransformHandlerBase } from './TransformHandlerBase';
 import { getEngineStore } from '@huahuo/engine';
-import { updateComponentProps } from '@huahuo/sdk';
+import { updateComponentProps, addKeyFrame } from '@huahuo/sdk';
+import { SDK } from '@huahuo/sdk';
 
 /**
  * ShapeTranslateHandler
  * Handles translation (position) transformation of GameObjects
+ * Performance: Updates Paper.js every frame, only syncs to Redux when drag ends
  */
 export class ShapeTranslateHandler extends TransformHandlerBase {
   private initialPositions: Map<string, { x: number; y: number }> = new Map();
   private transformComponentIds: Map<string, string> = new Map(); // Cache component IDs
-  private pendingUpdates: Map<string, { x: number; y: number }> = new Map();
-  private rafId: number | null = null;
+  private renderItems: Map<string, any> = new Map(); // Cache Paper.js render items
+  private currentPosition: { x: number; y: number } | null = null; // Track current position during drag
 
   protected onBeginMove(position: { x: number; y: number }): void {
     // Store initial positions of all target GameObjects
     this.initialPositions.clear();
     this.transformComponentIds.clear();
+    this.renderItems.clear();
 
     const engineStore = getEngineStore();
     const state = engineStore.getState();
@@ -36,6 +39,15 @@ export class ShapeTranslateHandler extends TransformHandlerBase {
           });
           // Cache the transform component ID
           this.transformComponentIds.set(gameObjectId, transformComponentId);
+
+          // Cache the Paper.js render item for direct manipulation
+          const renderer = SDK.instance.getRenderer();
+          if (renderer && renderer.getRenderItem) {
+            const renderItem = renderer.getRenderItem(gameObjectId);
+            if (renderItem) {
+              this.renderItems.set(gameObjectId, renderItem);
+            }
+          }
         }
       }
     });
@@ -46,69 +58,82 @@ export class ShapeTranslateHandler extends TransformHandlerBase {
   protected onDragging(position: { x: number; y: number }): void {
     if (!this.startPosition) return;
 
+    // Track current position for final update
+    this.currentPosition = position;
+
     // Calculate delta from start position
     const deltaX = position.x - this.startPosition.x;
     const deltaY = position.y - this.startPosition.y;
 
-    // Update pending positions (no Redux dispatch yet)
+    // Directly update Paper.js render items every frame (smooth 60fps rendering)
+    // NO Redux updates during drag to maximize performance
     this.targetGameObjects.forEach(gameObjectId => {
       const initialPos = this.initialPositions.get(gameObjectId);
-      if (!initialPos) return;
+      const renderItem = this.renderItems.get(gameObjectId);
+
+      if (!initialPos || !renderItem) return;
 
       const newPosition = {
         x: initialPos.x + deltaX,
         y: initialPos.y + deltaY
       };
 
-      this.pendingUpdates.set(gameObjectId, newPosition);
+      // Directly update Paper.js item position (no Redux, no React re-render)
+      renderItem.position.x = newPosition.x;
+      renderItem.position.y = newPosition.y;
     });
-
-    // Batch update using requestAnimationFrame
-    if (this.rafId === null) {
-      this.rafId = requestAnimationFrame(() => {
-        this.flushUpdates();
-        this.rafId = null;
-      });
-    }
-  }
-
-  private flushUpdates(): void {
-    if (this.pendingUpdates.size === 0) return;
-
-    const engineStore = getEngineStore();
-
-    // Batch all updates
-    this.pendingUpdates.forEach((newPosition, gameObjectId) => {
-      const transformComponentId = this.transformComponentIds.get(gameObjectId);
-      if (transformComponentId) {
-        engineStore.dispatch(updateComponentProps({
-          id: transformComponentId,
-          patch: {
-            position: newPosition
-          }
-        }));
-      }
-    });
-
-    this.pendingUpdates.clear();
   }
 
   protected onEndMove(): void {
     console.debug('[ShapeTranslateHandler] End move');
 
-    // Cancel any pending RAF
-    if (this.rafId !== null) {
-      cancelAnimationFrame(this.rafId);
-      this.rafId = null;
-    }
+    if (!this.startPosition) return;
 
-    // Flush any remaining updates
-    this.flushUpdates();
+    // Calculate final delta
+    const finalDeltaX = (this.currentPosition?.x || 0) - this.startPosition.x;
+    const finalDeltaY = (this.currentPosition?.y || 0) - this.startPosition.y;
 
-    // Clear caches
+    // Update Redux store with final positions (single batch update)
+    const engineStore = getEngineStore();
+    const state = engineStore.getState();
+    const engineState = state.engine || state;
+    const currentFrame = engineState.playback.currentFrame;
+
+    this.targetGameObjects.forEach(gameObjectId => {
+      const initialPos = this.initialPositions.get(gameObjectId);
+      const transformComponentId = this.transformComponentIds.get(gameObjectId);
+
+      if (!initialPos || !transformComponentId) return;
+
+      const finalPosition = {
+        x: initialPos.x + finalDeltaX,
+        y: initialPos.y + finalDeltaY
+      };
+
+      // Dispatch final position to Redux (triggers single React update)
+      engineStore.dispatch(updateComponentProps({
+        id: transformComponentId,
+        patch: {
+          position: finalPosition
+        }
+      }));
+
+      // Add keyframe for the GameObject's layer at current frame
+      const gameObject = engineState.gameObjects.byId[gameObjectId];
+      if (gameObject && gameObject.layerId) {
+        engineStore.dispatch(addKeyFrame({
+          layerId: gameObject.layerId,
+          frame: currentFrame,
+          gameObjectId: gameObjectId
+        }));
+      }
+    });
+
+    // Clean up
     this.initialPositions.clear();
     this.transformComponentIds.clear();
-    this.pendingUpdates.clear();
+    this.renderItems.clear();
+    this.currentPosition = null;
   }
 }
 

@@ -6,6 +6,11 @@ export interface TimelineClip {
     length: number;
 }
 
+export interface KeyFrameInfo {
+    frame: number;
+    gameObjectIds: string[];  // GameObjects that have keyframes at this frame
+}
+
 interface LayerSlice {
     id: string;
     name: string;
@@ -14,6 +19,7 @@ interface LayerSlice {
     locked: boolean;
     hasTimeline: boolean;      // Whether this layer should be shown in timeline
     clips: TimelineClip[];     // Animation clips on timeline
+    keyFrames: KeyFrameInfo[]; // Keyframe info with associated GameObjects
 }
 
 export interface LayerState {
@@ -41,7 +47,8 @@ const layerSlice = createSlice({
                     visible: true,
                     locked: false,
                     hasTimeline: true,  // Default: show in timeline
-                    clips: []           // Initialize empty clips array
+                    clips: [],           // Initialize empty clips array
+                    keyFrames: []        // Initialize empty keyframes array
                 };
             },
             prepare(name: string) {
@@ -94,6 +101,13 @@ const layerSlice = createSlice({
             const { layerId, gameObjectId } = action.payload;
             const layer = state.byId[layerId];
             layer.gameObjectIds = layer.gameObjectIds.filter(id => id !== gameObjectId);
+
+            // Auto cleanup keyframes for removed GameObject
+            layer.keyFrames.forEach(kf => {
+                kf.gameObjectIds = kf.gameObjectIds.filter(id => id !== gameObjectId);
+            });
+            // Remove empty keyframes
+            layer.keyFrames = layer.keyFrames.filter(kf => kf.gameObjectIds.length > 0);
         },
 
         setLayerHasTimeline(
@@ -320,6 +334,116 @@ const layerSlice = createSlice({
                     }
                 };
             }
+        },
+
+        addKeyFrame(
+            state,
+            action: PayloadAction<{ layerId: string; frame: number; gameObjectId: string }>
+        ) {
+            const { layerId, frame, gameObjectId } = action.payload;
+            const layer = state.byId[layerId];
+            if (!layer) return;
+
+            // Find existing keyframe at this frame
+            const existingKeyFrame = layer.keyFrames.find(kf => kf.frame === frame);
+
+            if (existingKeyFrame) {
+                // Add gameObjectId if not already present
+                if (!existingKeyFrame.gameObjectIds.includes(gameObjectId)) {
+                    existingKeyFrame.gameObjectIds.push(gameObjectId);
+                }
+            } else {
+                // Create new keyframe
+                layer.keyFrames.push({
+                    frame,
+                    gameObjectIds: [gameObjectId]
+                });
+                // Keep sorted by frame
+                layer.keyFrames.sort((a, b) => a.frame - b.frame);
+            }
+        },
+
+        removeKeyFrame(
+            state,
+            action: PayloadAction<{ layerId: string; frame: number }>
+        ) {
+            const { layerId, frame } = action.payload;
+            const layer = state.byId[layerId];
+            if (!layer) return;
+
+            layer.keyFrames = layer.keyFrames.filter(kf => kf.frame !== frame);
+        },
+
+        // Remove a specific GameObject from a keyframe
+        removeGameObjectFromKeyFrame(
+            state,
+            action: PayloadAction<{ layerId: string; frame: number; gameObjectId: string }>
+        ) {
+            const { layerId, frame, gameObjectId } = action.payload;
+            const layer = state.byId[layerId];
+            if (!layer) return;
+
+            const keyFrame = layer.keyFrames.find(kf => kf.frame === frame);
+            if (keyFrame) {
+                keyFrame.gameObjectIds = keyFrame.gameObjectIds.filter(id => id !== gameObjectId);
+
+                // Remove keyframe if no more GameObjects associated with it
+                if (keyFrame.gameObjectIds.length === 0) {
+                    layer.keyFrames = layer.keyFrames.filter(kf => kf.frame !== frame);
+                }
+            }
+        },
+
+        // Clean up keyframes for a specific GameObject across all frames
+        cleanupGameObjectKeyFrames(
+            state,
+            action: PayloadAction<{ layerId: string; gameObjectId: string }>
+        ) {
+            const { layerId, gameObjectId } = action.payload;
+            const layer = state.byId[layerId];
+            if (!layer) return;
+
+            // Remove GameObject from all keyframes
+            layer.keyFrames.forEach(kf => {
+                kf.gameObjectIds = kf.gameObjectIds.filter(id => id !== gameObjectId);
+            });
+
+            // Remove empty keyframes
+            layer.keyFrames = layer.keyFrames.filter(kf => kf.gameObjectIds.length > 0);
+        },
+
+        // Move a GameObject's keyframe from one frame to another
+        moveGameObjectKeyFrame(
+            state,
+            action: PayloadAction<{ layerId: string; gameObjectId: string; fromFrame: number; toFrame: number }>
+        ) {
+            const { layerId, gameObjectId, fromFrame, toFrame } = action.payload;
+            const layer = state.byId[layerId];
+            if (!layer) return;
+
+            // Remove from old frame
+            const oldKeyFrame = layer.keyFrames.find(kf => kf.frame === fromFrame);
+            if (oldKeyFrame) {
+                oldKeyFrame.gameObjectIds = oldKeyFrame.gameObjectIds.filter(id => id !== gameObjectId);
+                // Remove keyframe if empty
+                if (oldKeyFrame.gameObjectIds.length === 0) {
+                    layer.keyFrames = layer.keyFrames.filter(kf => kf.frame !== fromFrame);
+                }
+            }
+
+            // Add to new frame
+            const newKeyFrame = layer.keyFrames.find(kf => kf.frame === toFrame);
+            if (newKeyFrame) {
+                if (!newKeyFrame.gameObjectIds.includes(gameObjectId)) {
+                    newKeyFrame.gameObjectIds.push(gameObjectId);
+                }
+            } else {
+                layer.keyFrames.push({
+                    frame: toFrame,
+                    gameObjectIds: [gameObjectId]
+                });
+                layer.keyFrames.sort((a, b) => a.frame - b.frame);
+            }
         }
     }
 });
@@ -337,7 +461,12 @@ export const {
     removeTimelineClip,
     updateTimelineClip,
     moveTimelineClip,
-    splitTimelineClip
+    splitTimelineClip,
+    addKeyFrame,
+    removeKeyFrame,
+    removeGameObjectFromKeyFrame,
+    cleanupGameObjectKeyFrames,
+    moveGameObjectKeyFrame
 } = layerSlice.actions;
 
 export default layerSlice.reducer;

@@ -39,6 +39,7 @@ const CanvasPanel: React.FC = () => {
     id: string;
     name: string;
     clips?: Array<{ id: string; startFrame: number; length: number }>;
+    keyFrames?: number[];
   }>>([]);
   const [timelineHeight, setTimelineHeight] = useState(100); // Dynamic height
 
@@ -73,7 +74,8 @@ const CanvasPanel: React.FC = () => {
           return {
             id: layer.id,
             name: layer.name,
-            clips: layerData?.clips || []  // Include clips from engine store
+            clips: layerData?.clips || [],  // Include clips from engine store
+            keyFrames: layerData?.keyFrames ? layerData.keyFrames.map((kf: any) => kf.frame) : []  // Extract frame numbers from KeyFrameInfo[]
           };
         });
       setTracks(trackList);

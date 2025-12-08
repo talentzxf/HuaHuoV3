@@ -126,22 +126,54 @@ export class ReduxAdapter {
             console.debug(`Layer removed: ${layerId}`);
         });
 
-        // Check for layer property changes (visibility, locked state, etc.)
+        // Check for layer property changes (visibility, locked state, name, etc.)
         currentLayerIds.forEach((layerId: string) => {
             if (previousLayerIds.includes(layerId)) {
                 const prevLayer = previousLayers.byId[layerId];
                 const currLayer = currentLayers.byId[layerId];
 
                 if (prevLayer && currLayer) {
+                    // Handle name change
+                    if (prevLayer.name !== currLayer.name) {
+                        console.debug(`Layer name changed: ${layerId} ${prevLayer.name} -> ${currLayer.name}`);
+                        this.handleLayerNameChange(layerId, currLayer.name);
+                    }
+
+                    // Handle visibility change
                     if (prevLayer.visible !== currLayer.visible) {
                         console.debug(`Layer visibility changed: ${layerId} -> ${currLayer.visible}`);
                     }
+
+                    // Handle locked state change
                     if (prevLayer.locked !== currLayer.locked) {
                         console.debug(`Layer locked state changed: ${layerId} -> ${currLayer.locked}`);
                     }
                 }
             }
         });
+    }
+
+    /**
+     * Handle layer name change and update Paper.js layer name
+     */
+    private handleLayerNameChange(layerId: string, newName: string): void {
+        // Get the Layer instance from registry
+        const layerInstance = InstanceRegistry.getInstance().get(layerId);
+        if (!layerInstance) {
+            console.warn(`[ReduxAdapter] Layer instance not found: ${layerId}`);
+            return;
+        }
+
+        // Get the Paper.js layer context
+        const layerContext = (layerInstance as any).getLayerContext?.();
+        if (!layerContext) {
+            console.warn(`[ReduxAdapter] Layer context not found for layer: ${layerId}`);
+            return;
+        }
+
+        // Update the Paper.js layer name
+        layerContext.name = newName;
+        console.debug(`[ReduxAdapter] Updated Paper.js layer name: ${layerId} -> ${newName}`);
     }
 
     private handleGameObjectChanges(previousGameObjects: any, currentGameObjects: any): void {

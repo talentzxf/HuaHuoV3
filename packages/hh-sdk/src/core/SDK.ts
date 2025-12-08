@@ -203,6 +203,14 @@ export class SDK {
   }
 
   /**
+   * Get the renderer (for tools to access render items)
+   * @internal
+   */
+  getRenderer(): any {
+    return this.engine.getRenderer();
+  }
+
+  /**
    * Get the engine instance (for internal SDK use only)
    */
   private getEngine(): Engine {

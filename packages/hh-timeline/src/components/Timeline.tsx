@@ -15,6 +15,7 @@ export interface TimelineProps {
     id: string;
     name: string;
     clips?: TimelineClip[];
+    keyFrames?: number[];
   }>;
   onCellClick?: (trackId: string, frameNumber: number) => void;
   onCurrentFrameChange?: (frame: number) => void;
@@ -124,7 +125,7 @@ export const Timeline: React.FC<TimelineProps> = ({
   // Draw a track
   const drawTrack = (
     ctx: CanvasRenderingContext2D,
-    track: { id: string; name: string; clips?: TimelineClip[] },
+    track: { id: string; name: string; clips?: TimelineClip[]; keyFrames?: number[] },
     trackIndex: number,
     trackY: number,
     totalWidth: number
@@ -204,6 +205,33 @@ export const Timeline: React.FC<TimelineProps> = ({
           ctx.fillText(String(clip.startFrame), clipX + 4, trackY + TRACK_HEIGHT - 5);
           ctx.textAlign = 'right';
           ctx.fillText(String(clipEndFrame), clipX + clipWidth - 4, trackY + TRACK_HEIGHT - 5);
+        }
+      });
+    }
+
+    // Draw keyframe markers on top
+    if (track.keyFrames && track.keyFrames.length > 0) {
+      track.keyFrames.forEach(frame => {
+        if (frame >= 0 && frame < frameCount) {
+          const markerX = TRACK_NAME_WIDTH + frame * CELL_WIDTH;
+          const markerCenterX = markerX + CELL_WIDTH / 2;
+          const markerY = trackY + TRACK_HEIGHT - 4;
+
+          // Draw diamond shape for keyframe marker
+          ctx.fillStyle = '#ffa940';
+          ctx.strokeStyle = '#fa8c16';
+          ctx.lineWidth = 1.5;
+
+          ctx.beginPath();
+          ctx.moveTo(markerCenterX, markerY - 5);        // Top
+          ctx.lineTo(markerCenterX + 4, markerY);        // Right
+          ctx.lineTo(markerCenterX, markerY + 5);        // Bottom
+          ctx.lineTo(markerCenterX - 4, markerY);        // Left
+          ctx.closePath();
+
+          ctx.fill();
+          ctx.stroke();
+          ctx.lineWidth = 1;
         }
       });
     }
