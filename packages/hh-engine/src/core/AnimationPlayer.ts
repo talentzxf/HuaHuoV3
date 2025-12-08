@@ -111,17 +111,27 @@ export class AnimationPlayer {
             if (!layer.hasTimeline) return;
 
             const clips = layer.clips || [];
-            const isInClip = this.isFrameInClips(clips, currentFrame);
 
             // For each GameObject in this layer
             layer.gameObjectIds?.forEach((goId: string) => {
                 const gameObject = state.gameObjects.byId[goId];
                 if (!gameObject) return;
 
-                // Show GameObject if:
-                // 1. Current frame is inside a clip
-                // 2. Frame >= bornFrameId
-                const shouldBeVisible = isInClip && currentFrame >= gameObject.bornFrameId;
+                const bornFrame = gameObject.bornFrameId;
+
+                // Find the clip that contains current frame
+                const currentClip = clips.find(clip => {
+                    const clipEnd = clip.startFrame + clip.length - 1;
+                    return currentFrame >= clip.startFrame && currentFrame <= clipEnd;
+                });
+
+                // Show if: birth frame is in current clip OR birth frame equals current frame
+                let shouldBeVisible = false;
+                if (currentClip) {
+                    const clipEnd = currentClip.startFrame + currentClip.length - 1;
+                    shouldBeVisible = bornFrame >= currentClip.startFrame && bornFrame <= clipEnd;
+                }
+                shouldBeVisible = shouldBeVisible || bornFrame === currentFrame;
 
                 // Update visibility if it changed
                 if (gameObject.active !== shouldBeVisible) {

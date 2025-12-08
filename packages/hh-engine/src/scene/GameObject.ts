@@ -40,12 +40,21 @@ export class GameObject extends RegistrableEntity implements IGameObject {
     }
 
     // Every GameObject has a Transform component
-    // Use addComponent to create it (reusing the same logic)
-    this.transform = this.addComponent<ITransform>('Transform', {
+    // Initialize with renderItem's transform if available
+    const initialTransform = renderItem ? {
+      position: { x: renderItem.position?.x || 0, y: renderItem.position?.y || 0 },
+      rotation: renderItem.rotation || 0,
+      scale: {
+        x: renderItem.scaling?.x || 1,
+        y: renderItem.scaling?.y || 1
+      }
+    } : {
       position: { x: 0, y: 0 },
       rotation: 0,
       scale: { x: 1, y: 1 }
-    });
+    };
+
+    this.transform = this.addComponent<ITransform>('Transform', initialTransform);
   }
 
   get name(): string {

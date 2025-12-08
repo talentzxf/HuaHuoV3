@@ -42,7 +42,6 @@ export class ReduxAdapter {
 
             this.handleStateChange(prevEngineState, currEngineState);
 
-
             this.previousState = currentState;
         });
 
@@ -111,8 +110,8 @@ export class ReduxAdapter {
     }
 
     private handleLayerChanges(previousLayers: any, currentLayers: any): void {
-        const previousLayerIds = previousLayers.allIds || [];
-        const currentLayerIds = currentLayers.allIds || [];
+        const previousLayerIds = Object.keys(previousLayers.byId || {});
+        const currentLayerIds = Object.keys(currentLayers.byId || {});
 
         // Check for new layers
         const newLayerIds = currentLayerIds.filter((id: string) => !previousLayerIds.includes(id));
@@ -126,28 +125,18 @@ export class ReduxAdapter {
             console.debug(`Layer removed: ${layerId}`);
         });
 
-        // Check for layer property changes (visibility, locked state, name, etc.)
+        // Check for layer property changes (only if needed for rendering)
         currentLayerIds.forEach((layerId: string) => {
             if (previousLayerIds.includes(layerId)) {
                 const prevLayer = previousLayers.byId[layerId];
                 const currLayer = currentLayers.byId[layerId];
 
                 if (prevLayer && currLayer) {
-                    // Handle name change
+                    // Only handle name change as it affects Paper.js layer
                     if (prevLayer.name !== currLayer.name) {
-                        console.debug(`Layer name changed: ${layerId} ${prevLayer.name} -> ${currLayer.name}`);
                         this.handleLayerNameChange(layerId, currLayer.name);
                     }
-
-                    // Handle visibility change
-                    if (prevLayer.visible !== currLayer.visible) {
-                        console.debug(`Layer visibility changed: ${layerId} -> ${currLayer.visible}`);
-                    }
-
-                    // Handle locked state change
-                    if (prevLayer.locked !== currLayer.locked) {
-                        console.debug(`Layer locked state changed: ${layerId} -> ${currLayer.locked}`);
-                    }
+                    // Skip visibility/locked checks - they don't affect Paper.js rendering
                 }
             }
         });
@@ -177,8 +166,8 @@ export class ReduxAdapter {
     }
 
     private handleGameObjectChanges(previousGameObjects: any, currentGameObjects: any): void {
-        const previousGameObjectIds = previousGameObjects.allIds || [];
-        const currentGameObjectIds = currentGameObjects.allIds || [];
+        const previousGameObjectIds = Object.keys(previousGameObjects.byId || {});
+        const currentGameObjectIds = Object.keys(currentGameObjects.byId || {});
 
         // Check for new GameObjects
         const newGameObjectIds = currentGameObjectIds.filter((id: string) => !previousGameObjectIds.includes(id));
@@ -192,20 +181,18 @@ export class ReduxAdapter {
             console.debug(`GameObject removed: ${gameObjectId}`);
         });
 
-        // Check for GameObject property changes
+        // Check for GameObject property changes (only active state affects rendering)
         currentGameObjectIds.forEach((gameObjectId: string) => {
             if (previousGameObjectIds.includes(gameObjectId)) {
                 const prevGameObject = previousGameObjects.byId[gameObjectId];
                 const currGameObject = currentGameObjects.byId[gameObjectId];
 
                 if (prevGameObject && currGameObject) {
-                    if (prevGameObject.name !== currGameObject.name) {
-                        console.debug(`GameObject name changed: ${gameObjectId} -> ${currGameObject.name}`);
-                    }
+                    // Only check active state as it affects visibility
                     if (prevGameObject.active !== currGameObject.active) {
-                        console.debug(`GameObject active state changed: ${gameObjectId} -> ${currGameObject.active}`);
                         this.handleGameObjectActiveChange(gameObjectId, currGameObject.active);
                     }
+                    // Skip name check - it doesn't affect rendering
                 }
             }
         });
@@ -215,19 +202,17 @@ export class ReduxAdapter {
      * Handle GameObject active state change and update render item visibility
      */
     private handleGameObjectActiveChange(gameObjectId: string, active: boolean): void {
-        // Get render item from renderer's registry
         const renderItem = (this.renderer as any).getRenderItem?.(gameObjectId);
-        if (!renderItem) {
-            console.debug(`[ReduxAdapter] Render item not found for GameObject: ${gameObjectId}`);
-            return;
+        if (!renderItem) return;
+
+        // Clear selection first if becoming inactive
+        if (!active && renderItem.selected) {
+            renderItem.selected = false;
         }
 
         // Update visibility of the render item
         if (renderItem.visible !== undefined) {
             renderItem.visible = active;
-            console.debug(`[ReduxAdapter] Updated render item visibility: ${gameObjectId} -> ${active}`);
-        } else {
-            console.warn(`[ReduxAdapter] Render item does not support visibility property: ${gameObjectId}`);
         }
     }
 
@@ -242,25 +227,13 @@ export class ReduxAdapter {
 
             if (!prevComponent) {
                 // New component added
-                console.debug(`[ReduxAdapter] Component added: ${componentId} (${currComponent.type})`);
                 return;
             }
 
-            // Check if props changed
-            const prevPropsStr = JSON.stringify(prevComponent.props);
-            const currPropsStr = JSON.stringify(currComponent.props);
-            if (prevPropsStr !== currPropsStr) {
-                console.debug(`[ReduxAdapter] Component props changed: ${componentId} (${currComponent.type})`);
-                console.debug(`[ReduxAdapter] Previous props:`, prevPropsStr);
-                console.debug(`[ReduxAdapter] Current props:`, currPropsStr);
+            // If props reference changed, update rendering
+            // Redux Toolkit's Immer will create new object reference when props change
+            if (prevComponent.props !== currComponent.props) {
                 this.handleComponentPropsChange(currComponent);
-            }
-        });
-
-        // Check for removed components
-        Object.keys(prevById).forEach((componentId: string) => {
-            if (!currById[componentId]) {
-                console.debug(`[ReduxAdapter] Component removed: ${componentId}`);
             }
         });
     }
@@ -269,33 +242,22 @@ export class ReduxAdapter {
      * Handle component props change and update rendering
      */
     private handleComponentPropsChange(component: any): void {
-        const { id: componentId, parentId, type } = component;
-
-        console.debug('[ReduxAdapter] handleComponentPropsChange:', componentId, type, 'props:', JSON.stringify(component.props));
+        const { id: componentId, parentId } = component;
 
         // Get the component instance from registry
         const componentInstance = InstanceRegistry.getInstance().get(componentId);
         if (!componentInstance) {
-            console.warn('[ReduxAdapter] Component instance not found in registry:', componentId);
             return; // Component instance not found (might not be registered yet)
         }
-
-        console.debug('[ReduxAdapter] Found component instance:', componentInstance);
 
         // Get render item from renderer's registry
         const renderItem = (this.renderer as any).getRenderItem?.(parentId);
         if (!renderItem) {
-            console.warn('[ReduxAdapter] Render item not found for GameObject:', parentId);
             return; // GameObject doesn't have a render item yet
         }
 
-        console.debug('[ReduxAdapter] Found render item, calling applyToRenderer...');
-
         // Let the component handle its own rendering update
-        // Each component knows how to apply its data to the renderer
         componentInstance.applyToRenderer(this.renderer, renderItem);
-        
-        console.debug('[ReduxAdapter] applyToRenderer completed');
     }
 
 

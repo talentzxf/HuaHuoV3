@@ -114,21 +114,14 @@ export class Engine {
     }
 
     // Create GameObject with the Paper.js item as renderItem
-    // This ensures the renderItem is cached in the Layer
+    // GameObject constructor will initialize Transform from renderItem
     const gameObject = layer.addGameObject(item.name || 'GameObject', item);
 
     // Store GameObject ID in Paper.js item data for quick reverse lookup
     item.data = item.data || {};
     item.data.gameObjectId = gameObject.id;
 
-    // Set Transform from Paper.js item
-    gameObject.transform.position = { x: item.position.x, y: item.position.y };
-    gameObject.transform.rotation = item.rotation || 0;
-    gameObject.transform.scale = {
-      x: item.scaling?.x || 1,
-      y: item.scaling?.y || 1
-    };
-
+    // Note: Transform is already initialized from renderItem in GameObject constructor
 
     // Extract visual properties and add Visual component
     // The item itself (circle, rectangle, or any shape) is the renderItem

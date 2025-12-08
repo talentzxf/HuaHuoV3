@@ -23,8 +23,9 @@ const TimelinePanel: React.FC = () => {
 
   // Load layers from engine and map to timeline tracks
   useEffect(() => {
+    const engineStore = getEngineStore();
+
     const updateTracks = () => {
-      const engineStore = getEngineStore();
       const state = engineStore.getState();
       const engineState = state.engine || state;
 
@@ -45,8 +46,8 @@ const TimelinePanel: React.FC = () => {
           return {
             id: layer.id,
             name: layer.name,
-            clips: layer.clips || [],  // Include clips from layer
-            keyFrames: layer.keyFrames ? layer.keyFrames.map((kf: any) => kf.frame) : []  // Extract frame numbers
+            clips: layer.clips || [],
+            keyFrames: layer.keyFrames ? layer.keyFrames.map((kf: any) => kf.frame) : []
           };
         });
 
@@ -70,10 +71,27 @@ const TimelinePanel: React.FC = () => {
 
     updateTracks();
 
-    // Subscribe to engine store changes
-    const engineStore = getEngineStore();
+    // Selector: only subscribe to layers and playback changes
+    let previousLayers: any;
+    let previousCurrentFrame: number;
+
+    const selector = (state: any) => {
+      const engineState = state.engine || state;
+      return {
+        layers: engineState.layers,
+        currentFrame: engineState.playback.currentFrame
+      };
+    };
+
     const unsubscribe = engineStore.subscribe(() => {
-      updateTracks();
+      const selected = selector(engineStore.getState());
+
+      // Only update if selected state changed
+      if (selected.layers !== previousLayers || selected.currentFrame !== previousCurrentFrame) {
+        previousLayers = selected.layers;
+        previousCurrentFrame = selected.currentFrame;
+        updateTracks();
+      }
     });
 
     return () => unsubscribe();

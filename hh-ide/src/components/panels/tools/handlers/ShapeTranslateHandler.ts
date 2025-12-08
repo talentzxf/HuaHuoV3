@@ -20,6 +20,9 @@ export class ShapeTranslateHandler extends TransformHandlerBase {
     this.transformComponentIds.clear();
     this.renderItems.clear();
 
+    // Initialize currentPosition to handle click without drag
+    this.currentPosition = position;
+
     const engineStore = getEngineStore();
     const state = engineStore.getState();
     const engineState = state.engine || state;
@@ -51,8 +54,6 @@ export class ShapeTranslateHandler extends TransformHandlerBase {
         }
       }
     });
-
-    console.debug('[ShapeTranslateHandler] Begin move, stored', this.initialPositions.size, 'initial positions');
   }
 
   protected onDragging(position: { x: number; y: number }): void {
@@ -78,14 +79,26 @@ export class ShapeTranslateHandler extends TransformHandlerBase {
         y: initialPos.y + deltaY
       };
 
-      // Directly update Paper.js item position (no Redux, no React re-render)
-      renderItem.position.x = newPosition.x;
-      renderItem.position.y = newPosition.y;
+      // // Directly update Paper.js item position (no Redux, no React re-render)
+      // renderItem.position.x = newPosition.x;
+      // renderItem.position.y = newPosition.y;
+
+
+        const transformComponentId = this.transformComponentIds.get(gameObjectId);
+        if(transformComponentId) {
+            const engineStore = getEngineStore();
+            // Update position and add keyframe automatically
+            (engineStore.dispatch as any)(updateComponentPropsWithKeyFrame({
+                id: transformComponentId,
+                patch: {
+                    position: newPosition
+                }
+            }));
+        }
     });
   }
 
   protected onEndMove(): void {
-    console.debug('[ShapeTranslateHandler] End move');
 
     if (!this.startPosition) return;
 
@@ -99,8 +112,9 @@ export class ShapeTranslateHandler extends TransformHandlerBase {
     this.targetGameObjects.forEach(gameObjectId => {
       const initialPos = this.initialPositions.get(gameObjectId);
       const transformComponentId = this.transformComponentIds.get(gameObjectId);
+      const renderItem = this.renderItems.get(gameObjectId);
 
-      if (!initialPos || !transformComponentId) return;
+      if (!initialPos || !transformComponentId || !renderItem) return;
 
       const finalPosition = {
         x: initialPos.x + finalDeltaX,

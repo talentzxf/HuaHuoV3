@@ -17,8 +17,8 @@
   "license": "ISC",
   "dependencies": {
     "@ant-design/icons": "^6.1.0",
-    "@huahuo/hh-common": "workspace:*",
     "@huahuo/engine": "workspace:*",
+    "@huahuo/hh-common": "workspace:*",
     "@huahuo/sdk": "workspace:*",
     "@huahuo/timeline": "workspace:*",
     "@reduxjs/toolkit": "^2.8.2",
@@ -36,6 +36,7 @@
     "react-redux": "^9.2.0",
     "redux": "^5.0.1",
     "reflect-metadata": "^0.2.2",
+    "reselect": "^5.1.1",
     "typescript": "^5.9.2"
   },
   "devDependencies": {
@@ -46,6 +47,7 @@
     "babel-loader": "^10.0.0",
     "css-loader": "^7.1.2",
     "html-webpack-plugin": "^5.6.4",
+    "scheduler": "^0.27.0",
     "style-loader": "^4.0.0",
     "ts-loader": "^9.5.4",
     "webpack": "^5.101.3",

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, memo, useMemo, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Typography, Collapse, Input, InputNumber, Switch } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { SDK } from '@huahuo/sdk';
@@ -11,18 +11,84 @@ interface GameObjectPropertyPanelProps {
   gameObjectId: string;
 }
 
-// Memoized component for rendering a single component's properties
-const ComponentPropertiesPanel = memo<{
-  component: ComponentSlice;
-  onPropertyChange: (componentId: string, propName: string, value: any) => void;
-}>(({ component, onPropertyChange }) => {
-  const renderPropertyField = useCallback((propName: string, propValue: any) => {
+const GameObjectPropertyPanel: React.FC<GameObjectPropertyPanelProps> = ({ gameObjectId }) => {
+  const { t } = useTranslation();
+  const [gameObjectData, setGameObjectData] = useState<any>(null);
+  const [components, setComponents] = useState<ComponentSlice[]>([]);
+  const [activeKeys, setActiveKeys] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!gameObjectId || !SDK.isInitialized()) {
+      setGameObjectData(null);
+      setComponents([]);
+      setActiveKeys([]);
+      return;
+    }
+
+    const updateData = () => {
+      const state = getEngineState();
+      const gameObject = state.gameObjects.byId[gameObjectId];
+
+      if (!gameObject) {
+        setGameObjectData(null);
+        setComponents([]);
+        setActiveKeys([]);
+        return;
+      }
+
+      setGameObjectData(gameObject);
+
+      const gameObjectComponents = gameObject.componentIds
+        .map((compId: string) => state.components.byId[compId])
+        .filter(Boolean);
+
+      setComponents(gameObjectComponents);
+      setActiveKeys(gameObjectComponents.map(c => c.id));
+    };
+
+    updateData();
+
+    const store = getEngineStore();
+    const unsubscribe = store.subscribe(() => {
+      updateData();
+    });
+
+    return () => unsubscribe();
+  }, [gameObjectId]);
+
+  const handlePropertyChange = (componentId: string, propName: string, value: any) => {
+    if (SDK.isInitialized()) {
+      const store = getEngineStore();
+      const state = getEngineState();
+
+      const component = state.components.byId[componentId];
+      if (!component) return;
+
+      const currentPropValue = component.props[propName];
+      let finalValue = value;
+
+      if (typeof currentPropValue === 'object' && currentPropValue !== null &&
+          typeof value === 'object' && value !== null) {
+        finalValue = { ...currentPropValue, ...value };
+      }
+
+      store.dispatch({
+        type: 'components/updateComponentProps',
+        payload: {
+          id: componentId,
+          patch: { [propName]: finalValue }
+        }
+      });
+    }
+  };
+
+  const renderPropertyField = (componentId: string, componentType: string, propName: string, propValue: any) => {
     const handleChange = (value: any) => {
-      onPropertyChange(component.id, propName, value);
+      handlePropertyChange(componentId, propName, value);
     };
 
     const registry = ComponentRegistry.getInstance();
-    const propertyMeta = registry.getPropertyMetadata(component.type, propName);
+    const propertyMeta = registry.getPropertyMetadata(componentType, propName);
 
     const step = propertyMeta?.step ?? 0.1;
     const precision = propertyMeta?.precision ?? 2;
@@ -92,113 +158,21 @@ const ComponentPropertiesPanel = memo<{
     }
 
     return null;
-  }, [component.id, component.type, onPropertyChange]);
+  };
 
-  return (
-    <div style={{ padding: '4px 0' }}>
-      {Object.entries(component.props).map(([propName, propValue]) => (
-        <div key={propName}>
-          {renderPropertyField(propName, propValue)}
-        </div>
-      ))}
-    </div>
-  );
-}, (prevProps, nextProps) => {
-  // Custom comparison: only re-render if component data actually changed
-  return (
-    prevProps.component.id === nextProps.component.id &&
-    prevProps.component.type === nextProps.component.type &&
-    JSON.stringify(prevProps.component.props) === JSON.stringify(nextProps.component.props) &&
-    prevProps.onPropertyChange === nextProps.onPropertyChange
-  );
-});
-
-ComponentPropertiesPanel.displayName = 'ComponentPropertiesPanel';
-
-const GameObjectPropertyPanel: React.FC<GameObjectPropertyPanelProps> = memo(({ gameObjectId }) => {
-  const { t } = useTranslation();
-  const [gameObjectData, setGameObjectData] = useState<any>(null);
-  const [components, setComponents] = useState<ComponentSlice[]>([]);
-  const [activeKeys, setActiveKeys] = useState<string[]>([]);
-
-  useEffect(() => {
-    if (!gameObjectId || !SDK.isInitialized()) {
-      setGameObjectData(null);
-      setComponents([]);
-      setActiveKeys([]);
-      return;
-    }
-
-    const updateData = () => {
-      const state = getEngineState();
-      const gameObject = state.gameObjects.byId[gameObjectId];
-
-      if (!gameObject) {
-        setGameObjectData(null);
-        setComponents([]);
-        setActiveKeys([]);
-        return;
-      }
-
-      setGameObjectData(gameObject);
-
-      const gameObjectComponents = gameObject.componentIds
-        .map((compId: string) => state.components.byId[compId])
-        .filter(Boolean);
-
-      setComponents(gameObjectComponents);
-      setActiveKeys(gameObjectComponents.map(c => c.id));
-    };
-
-    updateData();
-
-    const store = getEngineStore();
-    const unsubscribe = store.subscribe(() => {
-      updateData();
-    });
-
-    return () => unsubscribe();
-  }, [gameObjectId]);
-
-  const handlePropertyChange = useCallback((componentId: string, propName: string, value: any) => {
-    if (SDK.isInitialized()) {
-      const store = getEngineStore();
-      const state = getEngineState();
-
-      const component = state.components.byId[componentId];
-      if (!component) return;
-
-      const currentPropValue = component.props[propName];
-      let finalValue = value;
-
-      if (typeof currentPropValue === 'object' && currentPropValue !== null &&
-          typeof value === 'object' && value !== null) {
-        finalValue = { ...currentPropValue, ...value };
-      }
-
-      store.dispatch({
-        type: 'components/updateComponentProps',
-        payload: {
-          id: componentId,
-          patch: { [propName]: finalValue }
-        }
-      });
-    }
-  }, []);
-
-  // Use useMemo to cache component items - each component is independently memoized
-  const componentItems = useMemo(() => {
-    return components.map((component: ComponentSlice) => ({
-      key: component.id,
-      label: component.type,
-      children: (
-        <ComponentPropertiesPanel
-          component={component}
-          onPropertyChange={handlePropertyChange}
-        />
-      ),
-    }));
-  }, [components, handlePropertyChange]);
+  const renderComponent = (component: ComponentSlice) => ({
+    key: component.id,
+    label: component.type,
+    children: (
+      <div style={{ padding: '4px 0' }}>
+        {Object.entries(component.props).map(([propName, propValue]) => (
+          <div key={propName}>
+            {renderPropertyField(component.id, component.type, propName, propValue)}
+          </div>
+        ))}
+      </div>
+    ),
+  });
 
   if (!gameObjectData) {
     return (
@@ -250,7 +224,7 @@ const GameObjectPropertyPanel: React.FC<GameObjectPropertyPanelProps> = memo(({ 
           <Collapse
             activeKey={activeKeys}
             onChange={(keys) => setActiveKeys(keys as string[])}
-            items={componentItems}
+            items={components.map(renderComponent)}
             ghost
             size="small"
             style={{ background: 'transparent' }}
@@ -264,6 +238,10 @@ const GameObjectPropertyPanel: React.FC<GameObjectPropertyPanelProps> = memo(({ 
     </div>
   );
 });
+
+GameObjectPropertyPanel.displayName = 'GameObjectPropertyPanel';
+
+export default GameObjectPropertyPanel;
 
 export default GameObjectPropertyPanel;
 

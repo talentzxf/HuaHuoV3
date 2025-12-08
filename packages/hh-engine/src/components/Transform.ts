@@ -42,21 +42,12 @@ export class Transform extends ComponentBase implements ITransform {
    * This is called by ReduxAdapter when props change
    */
   applyToRenderer(renderer: any, renderItem: any): void {
-    console.debug('[Transform] applyToRenderer called with:', {
-      position: this.position,
-      rotation: this.rotation,
-      scale: this.scale
-    });
-
     if (renderer.updateItemTransform) {
       renderer.updateItemTransform(renderItem, {
         position: this.position,
         rotation: this.rotation,
         scale: this.scale
       });
-      console.debug('[Transform] updateItemTransform completed');
-    } else {
-      console.warn('[Transform] renderer.updateItemTransform not available');
     }
   }
 }
