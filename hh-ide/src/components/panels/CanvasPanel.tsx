@@ -1,15 +1,18 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Space } from 'antd';
+import { useSelector } from 'react-redux';
+import { Button, Space, Dropdown } from 'antd';
+import type { MenuProps } from 'antd';
 import {
   BorderOutlined,
   DragOutlined,
 } from '@ant-design/icons';
 import paper from 'paper';
 import { SDK } from '@huahuo/sdk';
-import { getEngineStore, addTimelineClip, splitTimelineClip, setCurrentFrame as setEngineFrame, getAnimationPlayer } from '@huahuo/engine';
+import { getEngineStore, addTimelineClip, splitTimelineClip, setCurrentFrame as setEngineFrame, getAnimationPlayer, setAnimationEndFrame } from '@huahuo/engine';
 import { Timeline } from '@huahuo/timeline';
 import { store } from '../../store/store';
+import type { RootState } from '../../store/store';
 import { getSelectionAdapter } from '../../adapters/SelectionAdapter';
 import { PointerTool, CircleTool, RectangleTool, LineTool } from './tools';
 import './CanvasPanel.css';
@@ -31,9 +34,12 @@ const CanvasPanel: React.FC = () => {
   // Paper.js references
   const paperScopeRef = useRef<paper.PaperScope | null>(null);
 
-  // Timeline state - get from Scene
-  const [frameCount, setFrameCount] = useState(120);
-  const [fps, setFps] = useState(30);
+  // Get project totalFrames and fps from Redux
+  const totalFrames = useSelector((state: RootState) => state.engine.project.current?.totalFrames || 120);
+  const fps = useSelector((state: RootState) => state.engine.project.current?.fps || 30);
+  const animationEndFrame = useSelector((state: RootState) => state.engine.project.current?.animationEndFrame ?? null);
+
+  // Timeline state
   const [currentFrame, setCurrentFrame] = useState(0);
   const [tracks, setTracks] = useState<Array<{
     id: string;
@@ -43,7 +49,15 @@ const CanvasPanel: React.FC = () => {
   }>>([]);
   const [timelineHeight, setTimelineHeight] = useState(100); // Dynamic height
 
-  // Load Scene data and calculate frameCount from duration × fps
+  // Context menu state
+  const [contextMenu, setContextMenu] = useState<{
+    visible: boolean;
+    x: number;
+    y: number;
+    frameNumber: number;
+  } | null>(null);
+
+  // Load Scene data
   useEffect(() => {
     let unsubscribe: (() => void) | null = null;
 
@@ -53,10 +67,6 @@ const CanvasPanel: React.FC = () => {
       const scene = SDK.instance.Scene.getCurrentScene();
       if (!scene) return;
 
-      // Calculate total frames from Scene's duration and fps
-      const totalFrames = Math.ceil(scene.duration * scene.fps);
-      setFrameCount(totalFrames);
-      setFps(scene.fps);
 
       // Get current frame from playback state
       const engineStore = getEngineStore();
@@ -151,6 +161,38 @@ const CanvasPanel: React.FC = () => {
     console.log('Dispatching splitTimelineClip:', { layerId, clipId, splitFrame });
     engineStore.dispatch(splitTimelineClip(layerId, clipId, splitFrame));
   };
+
+  const handleCellRightClick = (trackId: string, frameNumber: number, x: number, y: number) => {
+    console.log('Cell right-clicked:', { trackId, frameNumber, x, y });
+
+    // Show context menu
+    setContextMenu({
+      visible: true,
+      x,
+      y,
+      frameNumber
+    });
+  };
+
+  const handleSetProjectEnd = () => {
+    if (!contextMenu) return;
+
+    const engineStore = getEngineStore();
+
+    engineStore.dispatch(setAnimationEndFrame({ frame: contextMenu.frameNumber }));
+    console.log(`Set animation end to frame ${contextMenu.frameNumber}`);
+
+    setContextMenu(null);
+  };
+
+  // Context menu items
+  const contextMenuItems: MenuProps['items'] = [
+    {
+      key: 'set-animation-end',
+      label: `Set Animation End (Frame ${contextMenu?.frameNumber ?? 0})`,
+      onClick: handleSetProjectEnd,
+    },
+  ];
 
   // Update current tool ref when tool changes
   useEffect(() => {
@@ -369,17 +411,41 @@ const CanvasPanel: React.FC = () => {
           borderBottom: '1px solid #444',
           overflow: 'hidden'
         }}>
-          <Timeline
-            frameCount={frameCount}
-            fps={fps}
-            currentFrame={currentFrame}
-            tracks={tracks}
-            onCellClick={handleCellClick}
-            onCurrentFrameChange={handleCurrentFrameChange}
-            onMergeCells={handleMergeCells}
-            onSplitClip={handleSplitClip}
-          />
+              <Timeline
+                frameCount={totalFrames}
+                fps={fps}
+                currentFrame={currentFrame}
+                animationEndFrame={animationEndFrame}
+                tracks={tracks}
+                onCellClick={handleCellClick}
+                onCurrentFrameChange={handleCurrentFrameChange}
+                onMergeCells={handleMergeCells}
+                onSplitClip={handleSplitClip}
+                onCellRightClick={handleCellRightClick}
+              />
         </div>
+      )}
+
+      {/* Context menu for Timeline */}
+      {contextMenu && (
+        <Dropdown
+          menu={{ items: contextMenuItems }}
+          open={contextMenu.visible}
+          onOpenChange={(visible) => {
+            if (!visible) setContextMenu(null);
+          }}
+        >
+          <div
+            style={{
+              position: 'fixed',
+              left: contextMenu.x,
+              top: contextMenu.y,
+              width: 1,
+              height: 1,
+              pointerEvents: 'none',
+            }}
+          />
+        </Dropdown>
       )}
 
       {/* Canvas area - takes remaining space */}

@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Dropdown } from 'antd';
+import type { MenuProps } from 'antd';
 import { Timeline } from '@huahuo/timeline';
-import { getEngineStore, getEngineState } from '@huahuo/engine';
+import { getEngineStore, getEngineState, setAnimationEndFrame } from '@huahuo/engine';
 import { addTimelineClip, splitTimelineClip, setCurrentFrame } from '@huahuo/engine';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../store/store';
@@ -23,9 +25,18 @@ const TimelinePanel: React.FC = () => {
   // Get project totalFrames and fps from Redux
   const totalFrames = useSelector((state: RootState) => state.engine.project.current?.totalFrames || 120);
   const fps = useSelector((state: RootState) => state.engine.project.current?.fps || 30);
+  const animationEndFrame = useSelector((state: RootState) => state.engine.project.current?.animationEndFrame ?? null);
 
-  // Internal mapping from track ID to layer ID (not exposed to Timeline component)
-  const trackToLayerMap = React.useRef<Map<string, string>>(new Map());
+  // Context menu state
+  const [contextMenu, setContextMenu] = useState<{
+    visible: boolean;
+    x: number;
+    y: number;
+    frameNumber: number;
+  } | null>(null);
+
+  // Internal mapping: Timeline trackId (generated UUID) -> Engine layerId
+  const trackToLayerMap = useRef<Map<string, string>>(new Map());
 
   // Load layers from engine and map to timeline tracks
   useEffect(() => {
@@ -142,6 +153,38 @@ const TimelinePanel: React.FC = () => {
     }
   };
 
+  const handleCellRightClick = (trackId: string, frameNumber: number, x: number, y: number) => {
+    console.log('Cell right-clicked:', { trackId, frameNumber, x, y });
+
+    // Show context menu
+    setContextMenu({
+      visible: true,
+      x,
+      y,
+      frameNumber
+    });
+  };
+
+  const handleSetProjectEnd = () => {
+    if (!contextMenu) return;
+
+    const engineStore = getEngineStore();
+
+    engineStore.dispatch(setAnimationEndFrame({ frame: contextMenu.frameNumber }));
+    console.log(`Set animation end to frame ${contextMenu.frameNumber}`);
+
+    setContextMenu(null);
+  };
+
+  // Context menu items
+  const contextMenuItems: MenuProps['items'] = [
+    {
+      key: 'set-animation-end',
+      label: `Set Animation End (Frame ${contextMenu?.frameNumber ?? 0})`,
+      onClick: handleSetProjectEnd,
+    },
+  ];
+
   return (
     <div style={{
       width: '100%',
@@ -152,12 +195,36 @@ const TimelinePanel: React.FC = () => {
         frameCount={totalFrames}
         fps={fps}
         currentFrame={currentFrame}
+        animationEndFrame={animationEndFrame}
         tracks={tracks}
         onCellClick={handleCellClick}
         onCurrentFrameChange={handleCurrentFrameChange}
         onMergeCells={handleMergeCells}
         onSplitClip={handleSplitClip}
+        onCellRightClick={handleCellRightClick}
       />
+
+      {/* Context menu for Timeline */}
+      {contextMenu && (
+        <Dropdown
+          menu={{ items: contextMenuItems }}
+          open={contextMenu.visible}
+          onOpenChange={(visible) => {
+            if (!visible) setContextMenu(null);
+          }}
+        >
+          <div
+            style={{
+              position: 'fixed',
+              left: contextMenu.x,
+              top: contextMenu.y,
+              width: 1,
+              height: 1,
+              pointerEvents: 'none',
+            }}
+          />
+        </Dropdown>
+      )}
     </div>
   );
 };

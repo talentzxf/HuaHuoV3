@@ -29,7 +29,13 @@ export * from './PlaybackSlice';
 export { interpolateComponent } from './ComponentSlice';
 
 // Export composite actions
-export { updateComponentPropsWithKeyFrame, calculateAndUpdateTotalFrames } from './actions';
+export {
+    updateComponentPropsWithKeyFrame,
+    setSceneDurationAndExpandProject,
+    setSceneFpsAndExpandProject,
+    playAnimation,
+    pauseAnimation
+} from './actions';
 
 // Note: Host applications should use engineReducer for simplicity
 // Individual reducers are exported for advanced scenarios only

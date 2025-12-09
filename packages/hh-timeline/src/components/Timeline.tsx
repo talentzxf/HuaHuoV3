@@ -11,6 +11,7 @@ export interface TimelineProps {
   frameCount: number;
   fps: number;
   currentFrame?: number;
+  animationEndFrame?: number | null;  // Where animation ends (just a marker), null = no marker
   tracks?: Array<{
     id: string;
     name: string;
@@ -21,6 +22,7 @@ export interface TimelineProps {
   onCurrentFrameChange?: (frame: number) => void;
   onMergeCells?: (trackId: string, startFrame: number, endFrame: number) => void;
   onSplitClip?: (trackId: string, clipId: string, splitFrame: number) => void;
+  onCellRightClick?: (trackId: string, frameNumber: number, x: number, y: number) => void;
 }
 
 interface CellSelection {
@@ -38,11 +40,13 @@ export const Timeline: React.FC<TimelineProps> = ({
   frameCount,
   fps,
   currentFrame = 0,
+  animationEndFrame = null,
   tracks = [],
   onCellClick,
   onCurrentFrameChange,
   onMergeCells,
   onSplitClip,
+  onCellRightClick,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -97,6 +101,8 @@ export const Timeline: React.FC<TimelineProps> = ({
     ctx.fillStyle = '#252525';
     ctx.fillRect(0, 0, TRACK_NAME_WIDTH, HEADER_HEIGHT);
 
+    const animEndFrame = animationEndFrame ?? -1;
+
     ctx.fillStyle = '#999';
     ctx.font = '11px Arial';
     ctx.textAlign = 'center';
@@ -106,9 +112,26 @@ export const Timeline: React.FC<TimelineProps> = ({
     for (let frame = 0; frame < frameCount; frame++) {
       const x = TRACK_NAME_WIDTH + frame * CELL_WIDTH;
 
+      // Draw frame number
       if (frame % 5 === 0) {
-        ctx.fillStyle = '#fff';
-        ctx.fillText((frame + 1).toString(), x + CELL_WIDTH / 2, HEADER_HEIGHT / 2);
+        // Check if this frame number would be overlapped by animation end marker label
+        // The marker label is drawn to the RIGHT of the marker line
+        // Check only 1-2 frames to the right
+        const markerIsNearby = animEndFrame >= 0 &&
+                               frame > animEndFrame &&
+                               frame <= animEndFrame + 2;
+
+        if (markerIsNearby) {
+          // Move frame number to bottom to avoid marker label
+          ctx.fillStyle = '#999';
+          ctx.font = '9px Arial';
+          ctx.fillText((frame + 1).toString(), x + CELL_WIDTH / 2, HEADER_HEIGHT - 4);
+          ctx.font = '11px Arial'; // Reset font
+        } else {
+          // Normal frame number in center
+          ctx.fillStyle = '#fff';
+          ctx.fillText((frame + 1).toString(), x + CELL_WIDTH / 2, HEADER_HEIGHT / 2);
+        }
       }
 
       ctx.strokeStyle = '#333';
@@ -118,21 +141,85 @@ export const Timeline: React.FC<TimelineProps> = ({
       ctx.stroke();
     }
 
-    // Draw project end marker at the last frame
-    const endFrameX = TRACK_NAME_WIDTH + (frameCount - 1) * CELL_WIDTH + CELL_WIDTH;
-    ctx.strokeStyle = '#ff4d4f';
-    ctx.lineWidth = 3;
+    // Draw project end marker (gray, thin) at the last frame
+    const projectEndX = TRACK_NAME_WIDTH + (frameCount - 1) * CELL_WIDTH + CELL_WIDTH;
+    ctx.strokeStyle = '#666';
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(endFrameX, 0);
-    ctx.lineTo(endFrameX, HEADER_HEIGHT);
+    ctx.moveTo(projectEndX, 0);
+    ctx.lineTo(projectEndX, HEADER_HEIGHT);
     ctx.stroke();
     ctx.lineWidth = 1;
 
-    // Draw "END" label
-    ctx.fillStyle = '#ff4d4f';
-    ctx.font = 'bold 10px Arial';
+    // Draw "PROJECT END" label with background
+    const projectLabelX = projectEndX + 3;
+    const projectLabelY1 = HEADER_HEIGHT / 2 - 6;
+    const projectLabelY2 = HEADER_HEIGHT / 2 + 4;
+
+    // Background
+    ctx.fillStyle = 'rgba(42, 42, 42, 0.9)';
+    ctx.fillRect(projectLabelX - 1, projectLabelY1 - 1, 42, 13);
+
+    // Text
+    ctx.fillStyle = '#666';
+    ctx.font = '9px Arial';
     ctx.textAlign = 'left';
-    ctx.fillText('END', endFrameX + 2, HEADER_HEIGHT / 2);
+    ctx.fillText('PROJECT', projectLabelX, projectLabelY1 + 5);
+    ctx.fillText('END', projectLabelX, projectLabelY2 + 5);
+
+    // Draw animation end marker (red, thick) if set
+    if (animationEndFrame !== null && animationEndFrame >= 0 && animationEndFrame < frameCount) {
+      const animEndX = TRACK_NAME_WIDTH + animationEndFrame * CELL_WIDTH + CELL_WIDTH;
+      ctx.strokeStyle = '#ff4d4f';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(animEndX, 0);
+      ctx.lineTo(animEndX, HEADER_HEIGHT);
+      ctx.stroke();
+      ctx.lineWidth = 1;
+
+      // Check if label will overlap with frame numbers to the right (1-2 frames)
+      // Find the next frame number (multiple of 5) within 1-2 frames
+      let hasOverlap = false;
+      for (let f = animationEndFrame + 1; f <= animationEndFrame + 2 && f < frameCount; f++) {
+        if (f % 5 === 0) {
+          hasOverlap = true;
+          break;
+        }
+      }
+
+      // Draw "END" label with background
+      // Label is drawn to the RIGHT of the marker line
+      const animLabelX = animEndX + 2;
+
+      if (hasOverlap) {
+        // Smaller size when overlapping
+        const animLabelY = HEADER_HEIGHT / 2;
+
+        // Smaller background
+        ctx.fillStyle = 'rgba(42, 42, 42, 0.95)';
+        ctx.fillRect(animLabelX - 1, animLabelY - 6, 16, 10);
+
+        // Smaller text
+        ctx.fillStyle = '#ff4d4f';
+        ctx.font = 'bold 7px Arial';
+        ctx.textAlign = 'left';
+        ctx.fillText('END', animLabelX, animLabelY);
+      } else {
+        // Normal size
+        const animLabelY = HEADER_HEIGHT / 2;
+
+        // Normal background
+        ctx.fillStyle = 'rgba(42, 42, 42, 0.95)';
+        ctx.fillRect(animLabelX - 1, animLabelY - 7, 22, 12);
+
+        // Normal text
+        ctx.fillStyle = '#ff4d4f';
+        ctx.font = 'bold 9px Arial';
+        ctx.textAlign = 'left';
+        ctx.fillText('END', animLabelX, animLabelY);
+      }
+    }
 
     ctx.strokeStyle = '#444';
     ctx.strokeRect(0, 0, totalWidth, HEADER_HEIGHT);
@@ -415,6 +502,11 @@ export const Timeline: React.FC<TimelineProps> = ({
 
     const cell = getCellFromPosition(x, y);
     if (!cell) return;
+
+    // Call the callback with absolute screen position for context menu
+    if (onCellRightClick) {
+      onCellRightClick(cell.trackId, cell.frame, e.clientX, e.clientY);
+    }
 
     // Check if right-clicked inside a clip
     const clip = findClipAtFrame(cell.trackId, cell.frame);

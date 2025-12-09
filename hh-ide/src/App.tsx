@@ -1,19 +1,33 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useAppDispatch, useAppSelector } from './store/hooks';
-import { setPlaying } from './store/features/playback/playbackSlice';
+import { playAnimation, pauseAnimation, getEngineStore, getEngineState } from '@huahuo/engine';
+import { SDK } from '@huahuo/sdk';
 import FlexLayoutWrapper from './components/FlexLayoutWrapper';
 import MainMenu from './components/MainMenu';
 import { message } from 'antd';
 
 const App: React.FC = () => {
   const { t } = useTranslation();
-  const dispatch = useAppDispatch();
-  const isPlaying = useAppSelector((state) => state.playback.isPlaying);
+
+  // Get isPlaying from Engine state instead of IDE state
+  const [isPlaying, setIsPlaying] = useState(false);
 
   useEffect(() => {
     console.info('🎉 HuaHuo IDE loaded successfully!');
-    console.log('Console logs will appear in the Logs panel at the bottom.');
+
+    // Wait for SDK initialization before subscribing to Engine store
+    SDK.executeAfterInit(() => {
+      // Subscribe to Engine playback state changes
+      const engineStore = getEngineStore();
+      const unsubscribe = engineStore.subscribe(() => {
+        const engineState = getEngineState();
+        setIsPlaying(engineState.playback.isPlaying);
+      });
+
+      // Get initial state
+      const initialState = getEngineState();
+      setIsPlaying(initialState.playback.isPlaying);
+    });
   }, []);
 
   const handleSave = () => {
@@ -42,15 +56,16 @@ const App: React.FC = () => {
   };
 
   const handlePlay = () => {
-    dispatch(setPlaying(true));
+    const engineStore = getEngineStore();
+    (engineStore.dispatch as any)(playAnimation());
     message.success(t('messages.playing'));
-    // TODO: Implement play logic
   };
 
   const handlePause = () => {
-    dispatch(setPlaying(false));
+    const engineStore = getEngineStore();
+    (engineStore.dispatch as any)(pauseAnimation());
+
     message.warning(t('messages.paused'));
-    // TODO: Implement pause logic
   };
 
   return (

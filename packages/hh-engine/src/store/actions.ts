@@ -2,6 +2,9 @@
 import { updateComponentProps, setPropertyKeyFrame } from './ComponentSlice';
 import { addKeyFrame } from './LayerSlice';
 import { updateProjectTotalFrames } from './ProjectSlice';
+import { setDuration as setSceneDuration, setFps as setSceneFps } from './SceneSlice';
+import { play as playAction, pause as pauseAction } from './PlaybackSlice';
+import { getAnimationPlayer } from '../core/AnimationPlayer';
 
 /**
  * Find the Layer that contains the given GameObject by traversing up the parent chain
@@ -87,54 +90,93 @@ export const updateComponentPropsWithKeyFrame = (payload: {
 };
 
 /**
- * Calculate and update project total frames based on last keyframe or clip
- * Automatically extends project duration to include all content
+ * Set Scene duration and auto-expand Project totalFrames if needed
+ * Only expands, never shrinks (to preserve content that might be beyond the scene duration)
  */
-export const calculateAndUpdateTotalFrames = () => {
+export const setSceneDurationAndExpandProject = (sceneId: string, duration: number) => {
     return (dispatch: any, getState: any) => {
         const state = getState();
         const engineState = state.engine || state;
 
-        let maxFrame = 120; // Default minimum
+        // Get scene
+        const scene = engineState.scenes.byId[sceneId];
+        if (!scene) {
+            console.warn('[setSceneDurationAndExpandProject] Scene not found:', sceneId);
+            return;
+        }
 
-        // Check all layers for clips and keyframes
-        Object.values(engineState.layers.byId).forEach((layer: any) => {
-            // Check clips
-            if (layer.clips) {
-                layer.clips.forEach((clip: any) => {
-                    const clipEnd = clip.startFrame + clip.length - 1;
-                    maxFrame = Math.max(maxFrame, clipEnd);
-                });
-            }
+        // Calculate required frames for this Scene
+        const requiredFrames = Math.ceil(duration * scene.fps);
 
-            // Check keyframes
-            if (layer.keyFrames) {
-                layer.keyFrames.forEach((kf: any) => {
-                    maxFrame = Math.max(maxFrame, kf.frame);
-                });
-            }
-        });
+        // Update Scene duration
+        dispatch(setSceneDuration({ sceneId, duration }));
 
-        // Check all components for property keyframes
-        Object.values(engineState.components.byId).forEach((component: any) => {
-            if (component.keyFrames) {
-                Object.values(component.keyFrames).forEach((keyFrames: any) => {
-                    if (Array.isArray(keyFrames)) {
-                        keyFrames.forEach((kf: any) => {
-                            maxFrame = Math.max(maxFrame, kf.frame);
-                        });
-                    }
-                });
-            }
-        });
-
-        // Add some buffer (e.g., 10 frames) and update
-        const totalFrames = maxFrame + 10;
-        dispatch(updateProjectTotalFrames({ totalFrames }));
-
-        console.log(`[Project] Auto-calculated total frames: ${totalFrames} (last content at frame ${maxFrame})`);
+        // Check if we need to expand Project totalFrames
+        const project = engineState.project.current;
+        if (project && requiredFrames > project.totalFrames) {
+            console.log(`[setSceneDurationAndExpandProject] Expanding Project totalFrames: ${project.totalFrames} → ${requiredFrames}`);
+            dispatch(updateProjectTotalFrames({ totalFrames: requiredFrames }));
+        } else if (project) {
+            console.log(`[setSceneDurationAndExpandProject] No expansion needed. Scene needs ${requiredFrames} frames, Project has ${project.totalFrames}`);
+        }
     };
 };
+
+/**
+ * Set Scene fps and auto-expand Project totalFrames if needed
+ * Only expands, never shrinks
+ */
+export const setSceneFpsAndExpandProject = (sceneId: string, fps: number) => {
+    return (dispatch: any, getState: any) => {
+        const state = getState();
+        const engineState = state.engine || state;
+
+        // Get scene
+        const scene = engineState.scenes.byId[sceneId];
+        if (!scene) {
+            console.warn('[setSceneFpsAndExpandProject] Scene not found:', sceneId);
+            return;
+        }
+
+        // Calculate required frames for this Scene
+        const requiredFrames = Math.ceil(scene.duration * fps);
+
+        // Update Scene fps
+        dispatch(setSceneFps({ sceneId, fps }));
+
+        // Check if we need to expand Project totalFrames
+        const project = engineState.project.current;
+        if (project && requiredFrames > project.totalFrames) {
+            console.log(`[setSceneFpsAndExpandProject] Expanding Project totalFrames: ${project.totalFrames} → ${requiredFrames}`);
+            dispatch(updateProjectTotalFrames({ totalFrames: requiredFrames }));
+        } else if (project) {
+            console.log(`[setSceneFpsAndExpandProject] No expansion needed. Scene needs ${requiredFrames} frames, Project has ${project.totalFrames}`);
+        }
+    };
+};
+
+/**
+ * Play animation
+ * Updates playback state and starts AnimationPlayer
+ */
+export const playAnimation = () => {
+    return (dispatch: any) => {
+        dispatch(playAction());
+        const player = getAnimationPlayer();
+        player.play();
+    };
+};
+
+/**
+ * Pause animation
+ * Updates playback state (AnimationPlayer will stop automatically based on isPlaying flag)
+ */
+export const pauseAnimation = () => {
+    return (dispatch: any) => {
+        dispatch(pauseAction());
+    };
+};
+
 
 
 

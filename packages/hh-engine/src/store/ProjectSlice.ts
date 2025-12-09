@@ -5,7 +5,8 @@ export interface ProjectSlice {
     name: string;
     sceneIds: string[];        // List of scene IDs in this project
     currentSceneId: string | null;  // Currently active scene
-    totalFrames: number;       // Total frames in the project
+    totalFrames: number;       // Total frames in the timeline (canvas size)
+    animationEndFrame: number | null;  // Where animation ends (just a marker, null = no marker)
     fps: number;               // Frames per second
     canvasWidth: number;       // Canvas width
     canvasHeight: number;      // Canvas height
@@ -45,6 +46,7 @@ const projectSlice = createSlice({
                     sceneIds: [],
                     currentSceneId: null,
                     totalFrames: 120,  // Default: 120 frames (4 seconds at 30fps)
+                    animationEndFrame: null,  // No animation end marker by default
                     fps,
                     canvasWidth,
                     canvasHeight,
@@ -152,15 +154,14 @@ const projectSlice = createSlice({
             }
         },
 
-        /**
-         * Auto-calculate total frames based on the last keyframe or clip in all layers
-         */
-        autoCalculateTotalFrames(state) {
-            if (!state.current) return;
-
-            // This will be called with the full engine state
-            // The calculation happens in a thunk action
-            state.current.modified = Date.now();
+        setAnimationEndFrame(
+            state,
+            action: PayloadAction<{ frame: number | null }>
+        ) {
+            if (state.current) {
+                state.current.animationEndFrame = action.payload.frame;
+                state.current.modified = Date.now();
+            }
         }
     }
 });
@@ -174,7 +175,7 @@ export const {
     updateProjectTotalFrames,
     updateProjectFps,
     updateProjectCanvasSize,
-    autoCalculateTotalFrames
+    setAnimationEndFrame
 } = projectSlice.actions;
 
 export default projectSlice.reducer;

@@ -64,16 +64,8 @@ export class AnimationPlayer {
      * Play animation (auto-advance frames)
      */
     play() {
-        const store = getEngineStore();
-        const state = getEngineState();
-
-        if (state.playback.isPlaying) {
-            console.warn('Already playing');
-            return;
-        }
-
-        // Note: play/pause actions should be dispatched from outside
-        // This just handles the frame advancement
+        // Don't check isPlaying here - the dispatch happens before this is called
+        // The animate loop will check isPlaying to continue or stop
         this.lastFrameTime = performance.now();
         this.animate();
     }
@@ -95,14 +87,29 @@ export class AnimationPlayer {
 
         if (elapsed >= frameDuration) {
             const store = getEngineStore();
-            const nextFrame = state.playback.currentFrame + 1;
-
-            // Get total frames from project
             const engineState = getEngineState();
-            const totalFrames = engineState.project.current?.totalFrames || 120;
+            const currentFrame = state.playback.currentFrame;
 
-            // Loop or stop at end
-            store.dispatch(setCurrentFrame(nextFrame % totalFrames));
+            // Determine the end frame: use animationEndFrame if set, otherwise use totalFrames
+            const project = engineState.project.current;
+            const totalFrames = project?.totalFrames || 120;
+            const animationEndFrame = project?.animationEndFrame;
+
+            // End frame is where animation should loop back
+            let endFrame = totalFrames - 1;
+            if (animationEndFrame !== null && animationEndFrame !== undefined && animationEndFrame >= 0) {
+                endFrame = animationEndFrame;
+            }
+
+            // Calculate next frame
+            let nextFrame = currentFrame + 1;
+
+            // Loop back to start if we reached the end
+            if (nextFrame > endFrame) {
+                nextFrame = 0;
+            }
+
+            store.dispatch(setCurrentFrame(nextFrame));
 
             this.lastFrameTime = now;
         }

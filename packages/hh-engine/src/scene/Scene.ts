@@ -5,6 +5,7 @@ import { ILayer } from "../core/ILayer";
 import {addLayerToScene, createScene} from "../store/SceneSlice";
 import {createLayer} from "../store/LayerSlice";
 import { setProjectCurrentScene } from "../store/ProjectSlice";
+import { setSceneDurationAndExpandProject, setSceneFpsAndExpandProject } from "../store/actions";
 import { IRenderer } from "../renderer";
 import { RegistrableEntity } from "../core/RegistrableEntity";
 import {InstanceRegistry} from "../core/InstanceRegistry";
@@ -29,10 +30,8 @@ export class Scene extends RegistrableEntity implements IScene {
 
     set duration(value: number) {
         const store = getEngineStore();
-        store.dispatch({
-            type: 'scenes/setDuration',
-            payload: { sceneId: this.id, duration: value }
-        });
+        // Use composite action that auto-expands Project totalFrames if needed
+        (store.dispatch as any)(setSceneDurationAndExpandProject(this.id, value));
     }
 
     get fps(): number {
@@ -43,10 +42,8 @@ export class Scene extends RegistrableEntity implements IScene {
 
     set fps(value: number) {
         const store = getEngineStore();
-        store.dispatch({
-            type: 'scenes/setFps',
-            payload: { sceneId: this.id, fps: value }
-        });
+        // Use composite action that auto-expands Project totalFrames if needed
+        (store.dispatch as any)(setSceneFpsAndExpandProject(this.id, value));
     }
 
     getLayerByName(name: string): ILayer | undefined {
