@@ -6,6 +6,9 @@ export * from './core/ILayer';
 export * from './core/IScene';
 export { ComponentRegistry } from './core/ComponentRegistry';
 export { InstanceRegistry } from './core/InstanceRegistry';
+export * from './core/EasingTypes';
+export { default as ComponentPropertyRendererRegistry, PropertyRenderer } from './core/PropertyRendererRegistry';
+export type { PropertyRendererFunction } from './core/PropertyRendererRegistry';
 
 // Renderer
 export * from './renderer';
@@ -14,6 +17,8 @@ export * from './renderer';
 export { ComponentBase } from './components/ComponentBase';
 export { Transform } from './components/Transform';
 export { Visual } from './components/Visual';
+export { TimelineComponent } from './components/TimelineComponent';
+export type { AnimationSegment } from './components/TimelineComponent';
 export { registerBuiltInComponents } from './components/registerComponents';
 
 // Scene system

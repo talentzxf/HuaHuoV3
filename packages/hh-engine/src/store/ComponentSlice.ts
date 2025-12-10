@@ -1,9 +1,15 @@
 import { createSlice, PayloadAction, nanoid } from "@reduxjs/toolkit";
+import { EasingType, EasingFunctions, EasingFunction } from '../core/EasingTypes';
 
 // KeyFrame data for a single property
 export interface PropertyKeyFrame {
     frame: number;
     value: any;
+    // Easing type for interpolation TO this keyframe (from previous keyframe)
+    // If not specified, uses linear interpolation
+    easingType?: EasingType;
+    // Custom bezier curve (only used when easingType is 'custom')
+    bezierCurve?: { p1x: number; p1y: number; p2x: number; p2y: number };
 }
 
 export interface ComponentSlice {
@@ -173,6 +179,35 @@ const componentSlice = createSlice({
         },
 
         /**
+         * Set easing type for a specific keyframe
+         * The easing applies when interpolating TO this keyframe (from the previous one)
+         */
+        setKeyFrameEasing(
+            state,
+            action: PayloadAction<{
+                componentId: string;
+                propName: string;
+                frame: number;
+                easingType: EasingType;
+                bezierCurve?: { p1x: number; p1y: number; p2x: number; p2y: number };
+            }>
+        ) {
+            const { componentId, propName, frame, easingType, bezierCurve } = action.payload;
+            const component = state.byId[componentId];
+            if (!component || !component.keyFrames[propName]) return;
+
+            const keyFrame = component.keyFrames[propName].find(kf => kf.frame === frame);
+            if (!keyFrame) return;
+
+            keyFrame.easingType = easingType;
+            if (easingType === EasingType.Custom && bezierCurve) {
+                keyFrame.bezierCurve = bezierCurve;
+            } else {
+                delete keyFrame.bezierCurve;
+            }
+        },
+
+        /**
          * Interpolate and update a single component's props based on current frame
          * This is called by AnimationPlayer for each active GameObject's components
          */
@@ -199,10 +234,16 @@ const componentSlice = createSlice({
 });
 
 /**
- * Linear interpolation for property values
+ * Interpolation for property values with easing support
  * Supports: numbers, vectors (objects with numeric values), arrays
+ * @param keyFrames - Sorted array of keyframes
+ * @param currentFrame - Current frame to interpolate to
+ * @returns Interpolated value
  */
-function interpolatePropertyValue(keyFrames: PropertyKeyFrame[], currentFrame: number): any {
+function interpolatePropertyValue(
+    keyFrames: PropertyKeyFrame[],
+    currentFrame: number
+): any {
     if (keyFrames.length === 0) return undefined;
 
     // If only one keyframe, return its value
@@ -240,10 +281,27 @@ function interpolatePropertyValue(keyFrames: PropertyKeyFrame[], currentFrame: n
         return keyFrames[keyFrames.length - 1].value;
     }
 
-    // Interpolate between prevKeyFrame and nextKeyFrame
-    const t = (currentFrame - prevKeyFrame.frame) / (nextKeyFrame.frame - prevKeyFrame.frame);
+    // Calculate linear t (0-1)
+    const linearT = (currentFrame - prevKeyFrame.frame) / (nextKeyFrame.frame - prevKeyFrame.frame);
 
-    return lerp(prevKeyFrame.value, nextKeyFrame.value, t);
+    // Get easing function from the next keyframe (easing TO the next keyframe)
+    const easingType = nextKeyFrame.easingType || EasingType.Linear;
+    const easingFunc = EasingFunctions[easingType] || EasingFunctions[EasingType.Linear];
+
+    // TODO: Handle custom bezier curves
+    // if (easingType === EasingType.Custom && nextKeyFrame.bezierCurve) {
+    //     easingFunc = createBezierEasing(
+    //         nextKeyFrame.bezierCurve.p1x,
+    //         nextKeyFrame.bezierCurve.p1y,
+    //         nextKeyFrame.bezierCurve.p2x,
+    //         nextKeyFrame.bezierCurve.p2y
+    //     );
+    // }
+
+    // Apply easing function
+    const easedT = easingFunc(linearT);
+
+    return lerp(prevKeyFrame.value, nextKeyFrame.value, easedT);
 }
 
 /**
@@ -307,6 +365,7 @@ export const {
     setPropertyKeyFrame,
     removePropertyKeyFrame,
     clearPropertyKeyFrames,
+    setKeyFrameEasing,
     interpolateComponentProps
 } = componentSlice.actions;
 
@@ -320,10 +379,14 @@ export default componentSlice.reducer;
  * @param currentFrame - The frame to interpolate to
  * @returns The interpolated props (new object)
  */
-export function interpolateComponent(component: ComponentSlice, currentFrame: number): Record<string, any> {
+export function interpolateComponent(
+    component: ComponentSlice,
+    currentFrame: number
+): Record<string, any> {
     const interpolatedProps = { ...component.props };
 
     // Interpolate each property that has keyframes
+    // Easing information is stored in each keyframe itself
     for (const propName in component.keyFrames) {
         const keyFrames = component.keyFrames[propName];
         if (keyFrames.length === 0) continue;

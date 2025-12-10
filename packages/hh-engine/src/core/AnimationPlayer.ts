@@ -197,11 +197,15 @@ export class AnimationPlayer {
             const component = state.components.byId[componentId];
             if (!component) continue;
 
+            // Skip Timeline component itself (it's just a UI helper)
+            if (component.type === 'Timeline') continue;
+
             // Check if this component has any keyframes
             const hasKeyFrames = Object.keys(component.keyFrames).length > 0;
             if (!hasKeyFrames) continue;
 
-            // Interpolate the component using the utility function
+            // Interpolate the component
+            // Easing is read from each keyframe's easingType field
             const interpolatedProps = interpolateComponent(component, currentFrame);
 
             // Update the component props

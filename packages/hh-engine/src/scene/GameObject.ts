@@ -55,6 +55,10 @@ export class GameObject extends RegistrableEntity implements IGameObject {
     };
 
     this.transform = this.addComponent<ITransform>('Transform', initialTransform);
+
+    // Every GameObject also has a Timeline component for UI/editing animation
+    // Timeline component doesn't store data - it just provides helper methods
+    this.addComponent('Timeline', {});
   }
 
   get name(): string {

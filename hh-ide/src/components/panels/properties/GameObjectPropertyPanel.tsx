@@ -2,15 +2,17 @@ import React, { useState, useEffect, memo, useMemo, useCallback } from 'react';
 import { Typography, Collapse, Input, Switch } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { SDK } from '@huahuo/sdk';
-import { getEngineStore, getEngineState, ComponentRegistry, updateComponentPropsWithKeyFrame } from '@huahuo/engine';
+import { getEngineStore, getEngineState, ComponentRegistry, updateComponentPropsWithKeyFrame, ComponentPropertyRendererRegistry } from '@huahuo/engine';
 import type { ComponentSlice } from '@huahuo/sdk';
 import PropertyTypeRegistry from './PropertyTypeRegistry';
 import { registerDefaultPropertyRenderers } from './defaultPropertyRenderers';
+import { registerCustomPropertyRenderers } from './registerCustomPropertyRenderers';
 
 const { Text } = Typography;
 
 // Initialize default property renderers on module load
 registerDefaultPropertyRenderers();
+registerCustomPropertyRenderers();
 
 interface GameObjectPropertyPanelProps {
   gameObjectId: string;
@@ -68,8 +70,23 @@ PropertyField.displayName = 'PropertyField';
 // Memoized component for rendering a single component's properties
 const ComponentPropertiesPanel = memo<{
   component: ComponentSlice;
+  gameObjectId: string;
   onPropertyChange: (componentId: string, propName: string, value: any) => void;
-}>(({ component, onPropertyChange }) => {
+}>(({ component, gameObjectId, onPropertyChange }) => {
+  // Check if there's a custom renderer registered for this component type
+  const rendererRegistry = ComponentPropertyRendererRegistry.getInstance();
+  const customRenderer = rendererRegistry.getRenderer(component.type);
+
+  if (customRenderer) {
+    // Use custom renderer if registered
+    return customRenderer({
+      component,
+      gameObjectId,
+      onPropertyChange
+    });
+  }
+
+  // Default rendering for components without custom renderer
   return (
     <div style={{ padding: '4px 0' }}>
       {Object.entries(component.props).map(([propName, propValue]) => (
@@ -89,6 +106,7 @@ const ComponentPropertiesPanel = memo<{
   return (
     prevProps.component.id === nextProps.component.id &&
     prevProps.component.type === nextProps.component.type &&
+    prevProps.gameObjectId === nextProps.gameObjectId &&
     JSON.stringify(prevProps.component.props) === JSON.stringify(nextProps.component.props) &&
     prevProps.onPropertyChange === nextProps.onPropertyChange
   );
@@ -128,7 +146,7 @@ const GameObjectPropertyPanel: React.FC<GameObjectPropertyPanelProps> = memo(({ 
         .filter(Boolean);
 
       setComponents(gameObjectComponents);
-      setActiveKeys(gameObjectComponents.map(c => c.id));
+      setActiveKeys(gameObjectComponents.map((c: ComponentSlice) => c.id));
     };
 
     updateData();
@@ -160,7 +178,6 @@ const GameObjectPropertyPanel: React.FC<GameObjectPropertyPanelProps> = memo(({ 
     }
 
     // Use updateComponentPropsWithKeyFrame to update both component props AND keyframes
-    // Cast to any because thunk types are not fully compatible
     (store.dispatch as any)(updateComponentPropsWithKeyFrame({
       id: componentId,
       patch: { [propName]: finalValue }
@@ -175,11 +192,12 @@ const GameObjectPropertyPanel: React.FC<GameObjectPropertyPanelProps> = memo(({ 
       children: (
         <ComponentPropertiesPanel
           component={component}
+          gameObjectId={gameObjectId}
           onPropertyChange={handlePropertyChange}
         />
       ),
     }));
-  }, [components, handlePropertyChange]);
+  }, [components, gameObjectId, handlePropertyChange]);
 
   if (!gameObjectData) {
     return (
