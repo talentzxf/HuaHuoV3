@@ -71,6 +71,15 @@ export class AnimationPlayer {
     }
 
     /**
+     * Force update all GameObjects based on current frame
+     * This is useful when clips are merged/split and we need to recalculate visibility
+     */
+    forceUpdate() {
+        console.log('[AnimationPlayer] Force update triggered');
+        this.updateGameObjects();
+    }
+
+    /**
      * Animation loop
      */
     private animate = () => {

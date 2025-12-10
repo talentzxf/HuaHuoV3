@@ -2,6 +2,7 @@ import { configureStore } from '@reduxjs/toolkit';
 import { authSlice, appSlice } from '@huahuo/hh-common';
 import counterReducer from './features/counter/counterSlice';
 import selectionReducer from './features/selection/selectionSlice';
+import canvasReducer from './features/canvas/canvasSlice';
 
 // Import unified engine reducer
 import { engineReducer } from '@huahuo/engine';
@@ -13,6 +14,7 @@ export const store = configureStore({
     app: appSlice.reducer,
     counter: counterReducer,
     selection: selectionReducer,
+    canvas: canvasReducer,
 
     // Engine reducer (unified, encapsulates internal structure)
     // Engine's playback state is used for play/pause control

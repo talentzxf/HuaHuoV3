@@ -22,7 +22,7 @@ export interface TimelineProps {
   onCurrentFrameChange?: (frame: number) => void;
   onMergeCells?: (trackId: string, startFrame: number, endFrame: number) => void;
   onSplitClip?: (trackId: string, clipId: string, splitFrame: number) => void;
-  onCellRightClick?: (trackId: string, frameNumber: number, x: number, y: number) => void;
+  onCellRightClick?: (trackId: string, frameNumber: number, x: number, y: number, clip?: TimelineClip) => void;
 }
 
 interface CellSelection {
@@ -503,22 +503,13 @@ export const Timeline: React.FC<TimelineProps> = ({
     const cell = getCellFromPosition(x, y);
     if (!cell) return;
 
-    // Call the callback with absolute screen position for context menu
-    if (onCellRightClick) {
-      onCellRightClick(cell.trackId, cell.frame, e.clientX, e.clientY);
-    }
-
     // Check if right-clicked inside a clip
     const clip = findClipAtFrame(cell.trackId, cell.frame);
 
-    if (clip) {
-      // Check if click is not at the start edge (allow split only after first frame)
-      const clipEnd = clip.startFrame + clip.length - 1;
-      if (cell.frame > clip.startFrame && cell.frame <= clipEnd) {
-        // Show split dialog
-        setSplitContext({ trackId: cell.trackId, clipId: clip.id, frame: cell.frame });
-        setShowSplitDialog(true);
-      }
+    // Call the callback with absolute screen position and clip info for context menu
+    // Parent will show appropriate menu items based on clip info
+    if (onCellRightClick) {
+      onCellRightClick(cell.trackId, cell.frame, e.clientX, e.clientY, clip || undefined);
     }
   };
 

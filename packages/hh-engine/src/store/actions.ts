@@ -3,7 +3,7 @@ import { updateComponentProps, setPropertyKeyFrame } from './ComponentSlice';
 import { addKeyFrame } from './LayerSlice';
 import { updateProjectTotalFrames } from './ProjectSlice';
 import { setDuration as setSceneDuration, setFps as setSceneFps } from './SceneSlice';
-import { play as playAction, pause as pauseAction } from './PlaybackSlice';
+import { play as playAction, pause as pauseAction, stop as stopAction } from './PlaybackSlice';
 import { getAnimationPlayer } from '../core/AnimationPlayer';
 
 /**
@@ -174,6 +174,17 @@ export const playAnimation = () => {
 export const pauseAnimation = () => {
     return (dispatch: any) => {
         dispatch(pauseAction());
+    };
+};
+
+/**
+ * Stop animation
+ * Pauses playback and resets to frame 0
+ */
+export const stopAnimation = () => {
+    return (dispatch: any) => {
+        console.log('[stopAnimation] Stopping and resetting to frame 0');
+        dispatch(stopAction());
     };
 };
 

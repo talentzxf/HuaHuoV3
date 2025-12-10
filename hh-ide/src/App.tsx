@@ -1,7 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { playAnimation, pauseAnimation, getEngineStore, getEngineState } from '@huahuo/engine';
-import { SDK } from '@huahuo/sdk';
+import { playAnimation, pauseAnimation, stopAnimation, getEngineStore } from '@huahuo/engine';
 import FlexLayoutWrapper from './components/FlexLayoutWrapper';
 import MainMenu from './components/MainMenu';
 import { message } from 'antd';
@@ -9,25 +8,8 @@ import { message } from 'antd';
 const App: React.FC = () => {
   const { t } = useTranslation();
 
-  // Get isPlaying from Engine state instead of IDE state
-  const [isPlaying, setIsPlaying] = useState(false);
-
   useEffect(() => {
     console.info('🎉 HuaHuo IDE loaded successfully!');
-
-    // Wait for SDK initialization before subscribing to Engine store
-    SDK.executeAfterInit(() => {
-      // Subscribe to Engine playback state changes
-      const engineStore = getEngineStore();
-      const unsubscribe = engineStore.subscribe(() => {
-        const engineState = getEngineState();
-        setIsPlaying(engineState.playback.isPlaying);
-      });
-
-      // Get initial state
-      const initialState = getEngineState();
-      setIsPlaying(initialState.playback.isPlaying);
-    });
   }, []);
 
   const handleSave = () => {
@@ -64,8 +46,13 @@ const App: React.FC = () => {
   const handlePause = () => {
     const engineStore = getEngineStore();
     (engineStore.dispatch as any)(pauseAnimation());
-
     message.warning(t('messages.paused'));
+  };
+
+  const handleStop = () => {
+    const engineStore = getEngineStore();
+    (engineStore.dispatch as any)(stopAnimation());
+    message.info(t('messages.stopped'));
   };
 
   return (
@@ -78,7 +65,7 @@ const App: React.FC = () => {
         onRedo={handleRedo}
         onPlay={handlePlay}
         onPause={handlePause}
-        isPlaying={isPlaying}
+        onStop={handleStop}
       />
       <FlexLayoutWrapper />
     </>

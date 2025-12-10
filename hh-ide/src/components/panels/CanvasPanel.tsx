@@ -1,8 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSelector } from 'react-redux';
-import { Button, Space, Dropdown } from 'antd';
-import type { MenuProps } from 'antd';
+import { useSelector, useDispatch } from 'react-redux';
+import { Button, Space } from 'antd';
 import {
   BorderOutlined,
   DragOutlined,
@@ -14,6 +13,8 @@ import { Timeline } from '@huahuo/timeline';
 import { store } from '../../store/store';
 import type { RootState } from '../../store/store';
 import { getSelectionAdapter } from '../../adapters/SelectionAdapter';
+import { requestCanvasRefresh, clearCanvasRefreshFlag } from '../../store/features/canvas/canvasSlice';
+import { TimelineContextMenu } from './TimelineContextMenu';
 import { PointerTool, CircleTool, RectangleTool, LineTool } from './tools';
 import './CanvasPanel.css';
 
@@ -21,6 +22,7 @@ type DrawTool = 'pointer' | 'circle' | 'rectangle' | 'line' | null;
 
 const CanvasPanel: React.FC = () => {
   const { t } = useTranslation();
+  const dispatch = useDispatch();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [currentTool, setCurrentTool] = useState<DrawTool>('pointer');
   const currentToolRef = useRef<DrawTool>('pointer');
@@ -39,6 +41,9 @@ const CanvasPanel: React.FC = () => {
   const fps = useSelector((state: RootState) => state.engine.project.current?.fps || 30);
   const animationEndFrame = useSelector((state: RootState) => state.engine.project.current?.animationEndFrame ?? null);
 
+  // Get canvas refresh flag from Redux store
+  const needsRefresh = useSelector((state: RootState) => state.canvas.needsRefresh);
+
   // Timeline state
   const [currentFrame, setCurrentFrame] = useState(0);
   const [tracks, setTracks] = useState<Array<{
@@ -55,6 +60,8 @@ const CanvasPanel: React.FC = () => {
     x: number;
     y: number;
     frameNumber: number;
+    trackId?: string;
+    clip?: { id: string; startFrame: number; length: number };
   } | null>(null);
 
   // Load Scene data
@@ -126,6 +133,24 @@ const CanvasPanel: React.FC = () => {
     };
   }, []);
 
+  // Handle dirty flag to refresh canvas
+  useEffect(() => {
+    if (!needsRefresh) return;
+
+    if (SDK.isInitialized()) {
+      // Trigger AnimationPlayer to update all GameObjects based on current frame
+      // This will recalculate visibility and interpolate components according to clips
+      const animationPlayer = getAnimationPlayer();
+      console.log('[CanvasPanel] Triggering AnimationPlayer force update due to timeline changes');
+
+      // Force update to recalculate GameObject visibility based on new clips
+      animationPlayer.forceUpdate();
+    }
+
+    // Clear dirty flag via Redux action
+    dispatch(clearCanvasRefreshFlag());
+  }, [needsRefresh, dispatch]);
+
   // Timeline event handlers
   const handleCellClick = (trackId: string, frameNumber: number) => {
     console.log('Cell clicked:', trackId, frameNumber);
@@ -149,6 +174,9 @@ const CanvasPanel: React.FC = () => {
 
     console.log('Dispatching addTimelineClip:', { layerId, startFrame, length });
     engineStore.dispatch(addTimelineClip(layerId, startFrame, length));
+
+    // Request canvas refresh via IDE store
+    dispatch(requestCanvasRefresh());
   };
 
   const handleSplitClip = (trackId: string, clipId: string, splitFrame: number) => {
@@ -160,39 +188,34 @@ const CanvasPanel: React.FC = () => {
 
     console.log('Dispatching splitTimelineClip:', { layerId, clipId, splitFrame });
     engineStore.dispatch(splitTimelineClip(layerId, clipId, splitFrame));
+
+    // Request canvas refresh via IDE store
+    dispatch(requestCanvasRefresh());
   };
 
-  const handleCellRightClick = (trackId: string, frameNumber: number, x: number, y: number) => {
-    console.log('Cell right-clicked:', { trackId, frameNumber, x, y });
+  const handleCellRightClick = (
+    trackId: string,
+    frameNumber: number,
+    x: number,
+    y: number,
+    clip?: { id: string; startFrame: number; length: number }
+  ) => {
+    console.log('Cell right-clicked:', { trackId, frameNumber, x, y, clip });
 
-    // Show context menu
+    // Show context menu with clip info
     setContextMenu({
       visible: true,
       x,
       y,
-      frameNumber
+      frameNumber,
+      trackId,
+      clip
     });
   };
 
-  const handleSetProjectEnd = () => {
-    if (!contextMenu) return;
-
-    const engineStore = getEngineStore();
-
-    engineStore.dispatch(setAnimationEndFrame({ frame: contextMenu.frameNumber }));
-    console.log(`Set animation end to frame ${contextMenu.frameNumber}`);
-
+  const handleCloseContextMenu = () => {
     setContextMenu(null);
   };
-
-  // Context menu items
-  const contextMenuItems: MenuProps['items'] = [
-    {
-      key: 'set-animation-end',
-      label: `Set Animation End (Frame ${contextMenu?.frameNumber ?? 0})`,
-      onClick: handleSetProjectEnd,
-    },
-  ];
 
   // Update current tool ref when tool changes
   useEffect(() => {
@@ -427,26 +450,15 @@ const CanvasPanel: React.FC = () => {
       )}
 
       {/* Context menu for Timeline */}
-      {contextMenu && (
-        <Dropdown
-          menu={{ items: contextMenuItems }}
-          open={contextMenu.visible}
-          onOpenChange={(visible) => {
-            if (!visible) setContextMenu(null);
-          }}
-        >
-          <div
-            style={{
-              position: 'fixed',
-              left: contextMenu.x,
-              top: contextMenu.y,
-              width: 1,
-              height: 1,
-              pointerEvents: 'none',
-            }}
-          />
-        </Dropdown>
-      )}
+      <TimelineContextMenu
+        visible={contextMenu?.visible ?? false}
+        x={contextMenu?.x ?? 0}
+        y={contextMenu?.y ?? 0}
+        frameNumber={contextMenu?.frameNumber ?? 0}
+        trackId={contextMenu?.trackId}
+        clip={contextMenu?.clip}
+        onClose={handleCloseContextMenu}
+      />
 
       {/* Canvas area - takes remaining space */}
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>

@@ -34,7 +34,8 @@ export {
     setSceneDurationAndExpandProject,
     setSceneFpsAndExpandProject,
     playAnimation,
-    pauseAnimation
+    pauseAnimation,
+    stopAnimation
 } from './actions';
 
 // Note: Host applications should use engineReducer for simplicity

@@ -6,7 +6,8 @@
     "undo": "Undo",
     "redo": "Redo",
     "play": "Play",
-    "pause": "Pause"
+    "pause": "Pause",
+    "stop": "Stop"
   },
   "messages": {
     "projectSaved": "Project saved successfully!",
@@ -15,7 +16,8 @@
     "undo": "Undo",
     "redo": "Redo",
     "playing": "Playing...",
-    "paused": "Paused"
+    "paused": "Paused",
+    "stopped": "Stopped"
   },
   "tooltips": {
     "saveShortcut": "Save (Ctrl+S)",
@@ -24,7 +26,8 @@
     "undoShortcut": "Undo (Ctrl+Z)",
     "redoShortcut": "Redo (Ctrl+Y)",
     "play": "Play",
-    "pause": "Pause"
+    "pause": "Pause (stay at current frame)",
+    "stop": "Stop (return to first frame)"
   },
   "canvas": {
     "tools": {

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSelector } from 'react-redux';
 import {
   SaveOutlined,
   FolderOpenOutlined,
@@ -8,11 +9,13 @@ import {
   RedoOutlined,
   CaretRightOutlined,
   PauseOutlined,
+  BorderOutlined,
   SettingOutlined,
 } from '@ant-design/icons';
-import { Button, Tooltip } from 'antd';
+import { Button, Tooltip, Space } from 'antd';
 import LanguageSwitcher from './LanguageSwitcher';
 import ProjectSettingsModal from './modals/ProjectSettingsModal';
+import type { RootState } from '../../store/store';
 import './MainMenu.css';
 
 interface MainMenuProps {
@@ -23,7 +26,7 @@ interface MainMenuProps {
   onRedo?: () => void;
   onPlay?: () => void;
   onPause?: () => void;
-  isPlaying?: boolean;
+  onStop?: () => void;
 }
 
 const MainMenu: React.FC<MainMenuProps> = ({
@@ -34,9 +37,12 @@ const MainMenu: React.FC<MainMenuProps> = ({
   onRedo,
   onPlay,
   onPause,
-  isPlaying = false,
+  onStop,
 }) => {
   const { t } = useTranslation();
+
+  // Get isPlaying directly from Engine playback state
+  const isPlaying = useSelector((state: RootState) => state.engine.playback.isPlaying);
   const [projectSettingsOpen, setProjectSettingsOpen] = useState(false);
 
   // Add keyboard shortcuts
@@ -134,7 +140,7 @@ const MainMenu: React.FC<MainMenuProps> = ({
         </Tooltip>
       </div>
 
-      {/* Center Section: Play/Pause Controls */}
+      {/* Center Section: Play/Pause/Stop Controls */}
       <div className="main-menu-section main-menu-center">
         {!isPlaying ? (
           <Button
@@ -148,17 +154,29 @@ const MainMenu: React.FC<MainMenuProps> = ({
             {t('mainMenu.play')}
           </Button>
         ) : (
-          <Button
-            type="primary"
-            icon={<PauseOutlined />}
-            onClick={onPause}
-            className="main-menu-pause-button"
-            size="large"
-            danger
-            title={t('tooltips.pause')}
-          >
-            {t('mainMenu.pause')}
-          </Button>
+          <Space size="small">
+            <Button
+              type="default"
+              icon={<PauseOutlined />}
+              onClick={onPause}
+              className="main-menu-pause-button"
+              size="large"
+              title={t('tooltips.pause')}
+            >
+              {t('mainMenu.pause')}
+            </Button>
+            <Button
+              type="default"
+              danger
+              icon={<BorderOutlined />}
+              onClick={onStop}
+              className="main-menu-stop-button"
+              size="large"
+              title={t('tooltips.stop')}
+            >
+              {t('mainMenu.stop')}
+            </Button>
+          </Space>
         )}
       </div>
 
