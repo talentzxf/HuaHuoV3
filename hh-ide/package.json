@@ -36,7 +36,6 @@
     "react-redux": "^9.2.0",
     "redux": "^5.0.1",
     "reflect-metadata": "^0.2.2",
-    "reselect": "^5.1.1",
     "typescript": "^5.9.2"
   },
   "devDependencies": {
