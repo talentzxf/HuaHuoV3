@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Select, Collapse, Typography, Space, Tag } from 'antd';
 import { EasingType, type AnimationSegment, getEngineStore, getEngineState, setKeyFrameEasing } from '@huahuo/engine';
+import { subscribeToKeyframeChanges } from '../../../store/listeners/keyframeListener';
 
 const { Text } = Typography;
 const { Option } = Select;
@@ -9,8 +10,9 @@ interface AnimationSegmentEditorProps {
   gameObjectId: string;
 }
 
-// Helper function to extract keyframes data from store (DRY principle)
-const extractComponentsKeyFrames = (state: any, gameObjectId: string) => {
+// Helper function to extract keyframes data from store
+const extractComponentsKeyFrames = (gameObjectId: string) => {
+  const state = getEngineState();
   const gameObject = state.gameObjects.byId[gameObjectId];
   if (!gameObject) return [];
 
@@ -28,27 +30,13 @@ const extractComponentsKeyFrames = (state: any, gameObjectId: string) => {
   return result;
 };
 
-// Helper function to extract only keyframes for comparison (faster than full object)
-const extractKeyFramesOnly = (state: any, gameObjectId: string) => {
-  const gameObject = state.gameObjects.byId[gameObjectId];
-  if (!gameObject) return [];
-
-  const result = [];
-  for (const compId of gameObject.componentIds) {
-    const comp = state.components.byId[compId];
-    if (comp && comp.type !== 'Timeline') {
-      result.push(comp.keyFrames);
-    }
-  }
-  return result;
-};
-
 /**
  * Animation Segment Editor
  * Displays all animation segments from all components and allows editing easing per segment
  *
- * Performance optimizations:
- * 1. Manual store subscription (not useSelector) to avoid re-running on every Redux action
+ * Performance: Uses Redux Toolkit Listener Middleware
+ * - Only updates when keyframe-related actions are dispatched
+ * - Ignores all other actions (drag, playback, selection, etc.)
  * 2. JSON.stringify comparison (faster than lodash.isEqual for simple data)
  * 3. DRY - extracted duplicate data extraction logic
  * 4. Only compares keyframes (not full component objects)
@@ -56,37 +44,27 @@ const extractKeyFramesOnly = (state: any, gameObjectId: string) => {
 const AnimationSegmentEditorInner: React.FC<AnimationSegmentEditorProps> = ({
   gameObjectId
 }) => {
-  // Initialize state without subscribing to Redux
-  const [componentsKeyFrames, setComponentsKeyFrames] = useState<any[]>(() => {
-    return extractComponentsKeyFrames(getEngineState(), gameObjectId);
-  });
+  // State to hold keyframes data
+  const [componentsKeyFrames, setComponentsKeyFrames] = useState<any[]>(() =>
+    extractComponentsKeyFrames(gameObjectId)
+  );
 
-  // Subscribe to store changes, but only update when keyframes actually change
+  // Subscribe to keyframe changes via listener middleware
   useEffect(() => {
-    // Initialize data
-    const initialData = extractComponentsKeyFrames(getEngineState(), gameObjectId);
-    setComponentsKeyFrames(initialData);
+    // Update on mount
+    setComponentsKeyFrames(extractComponentsKeyFrames(gameObjectId));
 
-    // Create snapshot for comparison (only keyframes, not full objects)
-    let prevSnapshot = JSON.stringify(
-      initialData.map(c => c.keyFrames)
-    );
-
-    // Subscribe to store
-    const store = getEngineStore();
-    const unsubscribe = store.subscribe(() => {
-      // Extract only keyframes for comparison (faster)
-      const currentKeyFrames = extractKeyFramesOnly(getEngineState(), gameObjectId);
-      const currentSnapshot = JSON.stringify(currentKeyFrames);
-
-      // Only update if keyframes actually changed
-      if (currentSnapshot !== prevSnapshot) {
-        prevSnapshot = currentSnapshot;
-        setComponentsKeyFrames(extractComponentsKeyFrames(getEngineState(), gameObjectId));
+    // Subscribe to keyframe changes
+    // ✅ Only triggers on keyframe-related actions (setPropertyKeyFrame, etc.)
+    // ❌ Ignores all other actions (updateComponentProps, playback, etc.)
+    const unsubscribe = subscribeToKeyframeChanges((changedGameObjectId) => {
+      // Only update if this is our GameObject
+      if (changedGameObjectId === gameObjectId) {
+        setComponentsKeyFrames(extractComponentsKeyFrames(gameObjectId));
       }
     });
 
-    return () => unsubscribe();
+    return unsubscribe;
   }, [gameObjectId]);
 
   // Collect animation segments directly from keyframes data

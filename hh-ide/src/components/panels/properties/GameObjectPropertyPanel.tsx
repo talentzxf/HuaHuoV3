@@ -7,6 +7,7 @@ import type { ComponentSlice } from '@huahuo/sdk';
 import PropertyTypeRegistry from './PropertyTypeRegistry';
 import { registerDefaultPropertyRenderers } from './defaultPropertyRenderers';
 import { registerCustomPropertyRenderers } from './registerCustomPropertyRenderers';
+import { subscribeToGameObjectChanges } from '../../../store/listeners/gameObjectListener';
 
 const { Text } = Typography;
 
@@ -149,11 +150,17 @@ const GameObjectPropertyPanel: React.FC<GameObjectPropertyPanelProps> = memo(({ 
       setActiveKeys(gameObjectComponents.map((c: ComponentSlice) => c.id));
     };
 
+    // Initial update
     updateData();
 
-    const store = getEngineStore();
-    const unsubscribe = store.subscribe(() => {
-      updateData();
+    // Subscribe to GameObject changes via listener middleware
+    // ✅ Only triggers on GameObject/Component-related actions
+    // ❌ Ignores all other actions (playback, canvas, selection changes without property changes, etc.)
+    const unsubscribe = subscribeToGameObjectChanges((event) => {
+      // Only update if this is our GameObject or if gameObjectId is undefined (affects all)
+      if (!event.gameObjectId || event.gameObjectId === gameObjectId) {
+        updateData();
+      }
     });
 
     return () => unsubscribe();
