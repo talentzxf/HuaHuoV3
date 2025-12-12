@@ -121,11 +121,15 @@ const GameObjectPropertyPanel: React.FC<GameObjectPropertyPanelProps> = memo(({ 
   const [components, setComponents] = useState<ComponentSlice[]>([]);
   const [activeKeys, setActiveKeys] = useState<string[]>([]);
 
+  // ✅ Use ref to track previous component IDs (avoid stale closure)
+  const prevComponentIdsRef = React.useRef<string[]>([]);
+
   useEffect(() => {
     if (!gameObjectId || !SDK.isInitialized()) {
       setGameObjectData(null);
       setComponents([]);
       setActiveKeys([]);
+      prevComponentIdsRef.current = [];
       return;
     }
 
@@ -137,6 +141,7 @@ const GameObjectPropertyPanel: React.FC<GameObjectPropertyPanelProps> = memo(({ 
         setGameObjectData(null);
         setComponents([]);
         setActiveKeys([]);
+        prevComponentIdsRef.current = [];
         return;
       }
 
@@ -146,8 +151,22 @@ const GameObjectPropertyPanel: React.FC<GameObjectPropertyPanelProps> = memo(({ 
         .map((compId: string) => state.components.byId[compId])
         .filter(Boolean);
 
+      // ✅ Check if component list actually changed
+      const newComponentIds = gameObjectComponents.map((c: ComponentSlice) => c.id);
+      const oldComponentIds = prevComponentIdsRef.current;
+
+      const componentsChanged =
+        newComponentIds.length !== oldComponentIds.length ||
+        newComponentIds.some((id, idx) => id !== oldComponentIds[idx]);
+
       setComponents(gameObjectComponents);
-      setActiveKeys(gameObjectComponents.map((c: ComponentSlice) => c.id));
+      prevComponentIdsRef.current = newComponentIds;
+
+      // ✅ Only reset activeKeys if components list changed (added/removed components)
+      // Otherwise preserve the user's collapse/expand state
+      if (componentsChanged) {
+        setActiveKeys(newComponentIds);
+      }
     };
 
     // Initial update

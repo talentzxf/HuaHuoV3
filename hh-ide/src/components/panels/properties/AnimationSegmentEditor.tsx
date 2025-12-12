@@ -150,28 +150,28 @@ const AnimationSegmentEditorInner: React.FC<AnimationSegmentEditorProps> = ({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                padding: '4px 8px',
+                padding: '4px 6px',
                 background: '#1a1a1a',
                 borderRadius: '4px',
-                fontSize: '11px'
+                fontSize: '10px',
+                gap: '8px'
               }}
             >
-              <div style={{ flex: 1 }}>
-                <Text style={{ fontSize: '11px', color: '#ffffff' }}>
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                <Text style={{ fontSize: '11px', color: '#ffffff', whiteSpace: 'nowrap' }}>
                   {segment.propertyName}
                 </Text>
-                <br />
-                <Text type="secondary" style={{ fontSize: '10px' }}>
-                  Frame {segment.startFrame + 1} → {segment.endFrame + 1}
-                  <span style={{ marginLeft: '8px', color: '#666' }}>
-                    ({segment.endFrame - segment.startFrame + 1} frames)
+                <Text type="secondary" style={{ fontSize: '9px', whiteSpace: 'nowrap' }}>
+                  {segment.startFrame + 1}→{segment.endFrame + 1}
+                  <span style={{ marginLeft: '4px', color: '#666' }}>
+                    ({segment.endFrame - segment.startFrame + 1})
                   </span>
                 </Text>
               </div>
               <Select
                 value={segment.easingType}
                 onChange={(value) => handleEasingChange(segment, value)}
-                style={{ width: '120px', fontSize: '11px' }}
+                style={{ width: '90px', fontSize: '10px', flexShrink: 0 }}
                 size="small"
               >
                 {easingOptions.map(opt => (

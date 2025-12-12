@@ -11,11 +11,6 @@ import { engineReducer } from '@huahuo/engine';
 import { keyframeListenerMiddleware, setupKeyframeListener } from './listeners/keyframeListener';
 import { gameObjectListenerMiddleware, setupGameObjectListener } from './listeners/gameObjectListener';
 
-// Debug: Check if middlewares are properly created
-console.log('keyframeListenerMiddleware:', keyframeListenerMiddleware);
-console.log('gameObjectListenerMiddleware:', gameObjectListenerMiddleware);
-console.log('keyframeListenerMiddleware.middleware:', keyframeListenerMiddleware?.middleware);
-console.log('gameObjectListenerMiddleware.middleware:', gameObjectListenerMiddleware?.middleware);
 
 export const store = configureStore({
   reducer: {

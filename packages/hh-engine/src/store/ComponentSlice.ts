@@ -41,9 +41,20 @@ const componentSlice = createSlice({
                     type: string;
                     parentId: string;
                     initialProps: Record<string, any>;
+                    currentFrame: number;  // ✅ Add currentFrame parameter
                 }>
             ) {
-                const { id, type, parentId, initialProps } = action.payload;
+                const { id, type, parentId, initialProps, currentFrame } = action.payload;
+
+                // ✅ Initialize keyframes with initial values at current frame
+                const keyFrames: Record<string, PropertyKeyFrame[]> = {};
+                for (const propName in initialProps) {
+                    keyFrames[propName] = [{
+                        frame: currentFrame,
+                        value: initialProps[propName],
+                        easingType: EasingType.Linear
+                    }];
+                }
 
                 state.byId[id] = {
                     id,
@@ -51,16 +62,19 @@ const componentSlice = createSlice({
                     parentId,
                     enabled: true,
                     props: { ...initialProps },
-                    keyFrames: {}  // Initialize empty keyframes
+                    keyFrames  // ✅ Initialize with keyframes at current frame
                 };
+
+                console.log(`[ComponentSlice] ✅ Created component ${type} (${id}) at frame ${currentFrame} with initial keyframes:`, Object.keys(keyFrames));
             },
-            prepare(type: string, parentId: string, initialProps: Record<string, any>) {
+            prepare(type: string, parentId: string, initialProps: Record<string, any>, currentFrame: number) {
                 return {
                     payload: {
                         id: nanoid(),
                         type,
                         parentId,
-                        initialProps
+                        initialProps,
+                        currentFrame
                     }
                 };
             }

@@ -95,8 +95,11 @@ export class GameObject extends RegistrableEntity implements IGameObject {
         throw new Error(`Component type "${componentType}" not registered`);
       }
 
+      // ✅ Get current frame for initial keyframe recording
+      const currentFrame = getEngineState().playback.currentFrame;
+
       // Create component data in Redux Store first
-      const componentAction = getEngineStore().dispatch(createComponent(componentType, this.id, config || {}));
+      const componentAction = getEngineStore().dispatch(createComponent(componentType, this.id, config || {}, currentFrame));
       const componentId = componentAction.payload.id;
 
       // Attach component to this GameObject
@@ -115,8 +118,11 @@ export class GameObject extends RegistrableEntity implements IGameObject {
       const tempInstance = new ComponentClass(this, config);
       componentType = tempInstance.type;
 
+      // ✅ Get current frame for initial keyframe recording
+      const currentFrame = getEngineState().playback.currentFrame;
+
       // Create component data in Redux Store
-      const componentAction = getEngineStore().dispatch(createComponent(componentType, this.id, config || {}));
+      const componentAction = getEngineStore().dispatch(createComponent(componentType, this.id, config || {}, currentFrame));
       const componentId = componentAction.payload.id;
 
       // Attach component to this GameObject
