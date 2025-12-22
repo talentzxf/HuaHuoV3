@@ -1,5 +1,11 @@
 import { TransformHandlerBase } from './TransformHandlerBase';
 import { shapeTranslateHandler } from './ShapeTranslateHandler';
+import { shapeRotateHandler } from './ShapeRotateHandler';
+import {
+  shapeScaleHandler,
+  shapeHorizontalScaleHandler,
+  shapeVerticalScaleHandler
+} from './ShapeScaleHandler';
 
 /**
  * TransformHandlerMap
@@ -11,10 +17,18 @@ export class TransformHandlerMap {
   private handlerMap: Map<string, TransformHandlerBase> = new Map();
 
   constructor() {
-    // Register default handlers
+    // Register default handlers for translation
     this.registerHandler('fill', shapeTranslateHandler);
     this.registerHandler('stroke', shapeTranslateHandler);
     this.registerHandler('bounds', shapeTranslateHandler);
+
+    // Register rotation handler
+    this.registerHandler('rotation', shapeRotateHandler);
+
+    // Register scale handlers
+    this.registerHandler('corner', shapeScaleHandler); // Corner handles - uniform scaling
+    this.registerHandler('edge-horizontal', shapeHorizontalScaleHandler); // Left/Right edges
+    this.registerHandler('edge-vertical', shapeVerticalScaleHandler); // Top/Bottom edges
   }
 
   /**
@@ -34,4 +48,9 @@ export class TransformHandlerMap {
 
 export { TransformHandlerBase };
 export { shapeTranslateHandler } from './ShapeTranslateHandler';
-
+export { shapeRotateHandler } from './ShapeRotateHandler';
+export {
+  shapeScaleHandler,
+  shapeHorizontalScaleHandler,
+  shapeVerticalScaleHandler
+} from './ShapeScaleHandler';

@@ -66,6 +66,7 @@ export class ShapeTranslateHandler extends TransformHandlerBase {
         y: initialPos.y + deltaY
       };
 
+
       const engineStore = getEngineStore();
       // Update position and add keyframe automatically
       (engineStore.dispatch as any)(updateComponentPropsWithKeyFrame({
@@ -78,39 +79,18 @@ export class ShapeTranslateHandler extends TransformHandlerBase {
   }
 
   protected onEndMove(): void {
-    if (!this.startPosition) return;
+    // ✅ FIX: Don't update position again in onEndMove
+    // Position has already been updated in onDragging
+    // Just clean up state to prevent teleporting bugs
 
-    // Calculate final delta
-    const finalDeltaX = (this.currentPosition?.x || 0) - this.startPosition.x;
-    const finalDeltaY = (this.currentPosition?.y || 0) - this.startPosition.y;
-
-    // Update Redux store with final positions
-    const engineStore = getEngineStore();
-
-    this.targetGameObjects.forEach(gameObjectId => {
-      const initialPos = this.initialPositions.get(gameObjectId);
-      const transformComponentId = this.transformComponentIds.get(gameObjectId);
-
-      if (!initialPos || !transformComponentId) return;
-
-      const finalPosition = {
-        x: initialPos.x + finalDeltaX,
-        y: initialPos.y + finalDeltaY
-      };
-
-      // Update position and add keyframe automatically
-      (engineStore.dispatch as any)(updateComponentPropsWithKeyFrame({
-        id: transformComponentId,
-        patch: {
-          position: finalPosition
-        }
-      }));
-    });
-
-    // Clean up
+    // Clean up state
     this.initialPositions.clear();
     this.transformComponentIds.clear();
     this.currentPosition = null;
+
+    // Note: No need to dispatch updateComponentPropsWithKeyFrame here
+    // because onDragging already updated the position on every mouse move.
+    // Updating again here would cause duplicate keyframes and potential teleport bugs.
   }
 }
 

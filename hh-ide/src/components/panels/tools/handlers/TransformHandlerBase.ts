@@ -40,9 +40,14 @@ export abstract class TransformHandlerBase {
    * End transformation
    */
   endMove(): void {
+    if (!this.isDragging) return; // Already ended, prevent duplicate calls
+
     this.isDragging = false;
     this.onEndMove();
+
+    // ✅ Clean up state to prevent stale data
     this.startPosition = null;
+    this.targetGameObjects.clear();
   }
 
   /**

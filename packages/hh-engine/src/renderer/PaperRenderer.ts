@@ -78,9 +78,23 @@ export class PaperRenderer implements IRenderer {
         }
     ): void {
         const scope = this.scope!;
+
+        // ✅ FIX: Following the old BaseShapeJS pattern
+        // 1. Reset rotation to 0
+        item.rotation = 0;
+
+        // 2. Reset scaling to (1, 1) temporarily for accurate positioning
+        const targetScaling = new scope.Point(transform.scale.x, transform.scale.y);
+        item.scaling = new scope.Point(1.0, 1.0);
+
+        // 3. Set position (this is the pivot/anchor position)
         item.position = new scope.Point(transform.position.x, transform.position.y);
+
+        // 4. Apply rotation (absolute angle)
         item.rotation = transform.rotation;
-        item.scaling = new scope.Point(transform.scale.x, transform.scale.y);
+
+        // 5. Apply scaling
+        item.scaling = targetScaling;
     }
 
     removeRenderItem(item: paper.Item): void {

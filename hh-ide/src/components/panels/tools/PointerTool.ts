@@ -1,15 +1,21 @@
 import paper from 'paper';
 import { BaseTool } from './BaseTool';
-import { SDK } from '@huahuo/sdk';
 import { store } from '../../../store/store';
 import { selectObject, clearSelection } from '../../../store/features/selection/selectionSlice';
-import { TransformHandlerBase, TransformHandlerMap, shapeTranslateHandler } from './handlers/TransformHandlerMap';
+import { RotatableSelectionBox } from './RotatableSelectionBox';
+import {
+  shapeTranslateHandler,
+  shapeRotateHandler,
+  shapeScaleHandler,
+  shapeHorizontalScaleHandler,
+  shapeVerticalScaleHandler
+} from './handlers';
 
 export class PointerTool extends BaseTool {
   name = 'pointer';
   private selectionRect: paper.Path.Rectangle | null = null;
-  private transformHandler: TransformHandlerBase | null = null;
-  private transformHandlerMap: TransformHandlerMap = new TransformHandlerMap();
+  private rotatableSelection: RotatableSelectionBox | null = null;
+  private currentOperationType: 'rotation' | 'scale-corner' | 'scale-edge-v' | 'scale-edge-h' | 'drag' | null = null;
 
   onMouseDown(event: paper.ToolEvent, scope: paper.PaperScope): void {
     // Store start point
@@ -23,9 +29,31 @@ export class PointerTool extends BaseTool {
     }
 
     console.log('[PointerTool] Mouse down at:', event.point.toString());
-    console.log('[PointerTool] Active layer:', activeLayer.name || 'unnamed');
-    console.log('[PointerTool] Active layer children count:', activeLayer.children.length);
 
+    // ✅ FIRST: Check if clicked on selection box handles
+    if (this.rotatableSelection) {
+      const handleType = this.rotatableSelection.onMouseDown(event);
+      if (handleType) {
+        console.log('[PointerTool] Handle clicked:', handleType);
+        this.currentOperationType = handleType;
+
+        // Get gameObjectIds from selected items
+        const gameObjectIds = new Set<string>();
+        this.rotatableSelection.getSelectedItems().forEach(item => {
+          if (item.data?.gameObjectId) {
+            gameObjectIds.add(item.data.gameObjectId);
+          }
+        });
+
+        // Start appropriate handler
+        this.startHandler(handleType, gameObjectIds, event.point);
+
+        this.startPoint = null;
+        return;
+      }
+    }
+
+    // THEN: Check if clicked on an object
     const hitResult = activeLayer.hitTest(event.point, {
       segments: true,
       stroke: true,
@@ -35,9 +63,15 @@ export class PointerTool extends BaseTool {
 
     console.log('[PointerTool] HitTest result:', hitResult ? 'HIT' : 'MISS');
 
-    // If clicked on an item, select it and prepare for transform
+    // If clicked on an item, select it
     if (hitResult && hitResult.item) {
-      console.log('[PointerTool] Hit item:', hitResult.item.name, 'has gameObjectId:', !!hitResult.item.data?.gameObjectId);
+      console.log('[PointerTool] Hit item:', hitResult.item.name);
+
+      // Skip selection box UI elements
+      if (hitResult.item.data?.isSelectionBox) {
+        console.log('[PointerTool] Item is selection box UI, skipping');
+        return;
+      }
 
       // Skip locked items
       if (hitResult.item.locked) {
@@ -45,39 +79,47 @@ export class PointerTool extends BaseTool {
         return;
       }
 
-      // Get GameObject ID from item.data
+      // Get GameObject ID
       const gameObjectId = hitResult.item.data?.gameObjectId;
       if (!gameObjectId) {
         console.warn('[PointerTool] Item has no gameObjectId');
         return;
       }
 
-      // If not already selected, select it
-      if (!hitResult.item.selected) {
-        // Deselect all items in active layer
-        activeLayer.children.forEach((item: any) => {
-          item.selected = false;
-        });
-
-        hitResult.item.selected = true;
-        store.dispatch(selectObject({ type: 'gameObject', id: gameObjectId }));
-        console.log('[PointerTool] Selected GameObject:', gameObjectId);
+      // Initialize RotatableSelectionBox if not exists
+      if (!this.rotatableSelection) {
+        this.rotatableSelection = new RotatableSelectionBox();
       }
 
-      // Set up transform handler based on hit type
-      const hitType = hitResult.type;
-      const handler = this.transformHandlerMap.getHandler(hitType);
-      this.setTransformHandler(gameObjectId, event.point, handler);
+      // Disable Paper.js default selection
+      activeLayer.children.forEach((item: any) => {
+        item.selected = false;
+      });
+
+      // Dispatch Redux selection
+      store.dispatch(selectObject({ type: 'gameObject', id: gameObjectId }));
+      console.log('[PointerTool] Selected GameObject:', gameObjectId);
+
+      // Show selection box
+      this.rotatableSelection.setSelection([hitResult.item]);
 
       this.startPoint = null; // Don't start drag selection
     }
   }
 
   onMouseDrag(event: paper.ToolEvent, scope: paper.PaperScope): void {
-    // If transforming, delegate to handler
-    if (this.transformHandler && this.transformHandler.getIsDragging()) {
-      this.transformHandler.dragging({ x: event.point.x, y: event.point.y });
-      return;
+    // ✅ If we're in a transform operation, handle it
+    if (this.currentOperationType && this.rotatableSelection) {
+      const opType = this.rotatableSelection.onMouseDrag(event);
+
+      if (opType) {
+        // Call appropriate handler
+        this.dragHandler(this.currentOperationType, event.point);
+
+        // Refresh selection box
+        this.rotatableSelection.refresh();
+        return;
+      }
     }
 
     // Otherwise, draw selection rectangle
@@ -98,6 +140,23 @@ export class PointerTool extends BaseTool {
   }
 
   onMouseUp(event: paper.ToolEvent, scope: paper.PaperScope): void {
+    // ✅ Handle selection box mouse up
+    if (this.rotatableSelection && this.currentOperationType) {
+      const opType = this.rotatableSelection.onMouseUp(event);
+
+      if (opType) {
+        // End appropriate handler
+        this.endHandler(opType);
+
+        // Refresh selection box
+        this.rotatableSelection.refresh();
+
+        this.currentOperationType = null;
+        this.startPoint = null;
+        return;
+      }
+    }
+
     // Use the currently active layer
     const activeLayer = scope.project.activeLayer;
     if (!activeLayer) {
@@ -105,76 +164,152 @@ export class PointerTool extends BaseTool {
       return;
     }
 
-    // If was transforming, end the transformation
-    if (this.transformHandler) {
-      this.transformHandler.endMove();
-      this.transformHandler = null;
-      this.startPoint = null;
-      return;
-    }
-
     // Handle selection rectangle (drag selection)
     if (this.selectionRect) {
-      // Perform selection based on rectangle bounds
       const selectionBounds = this.selectionRect.bounds;
 
-      // Deselect all first
-      activeLayer.children.forEach((item: any) => {
-        item.selected = false;
-      });
-
-      // Select items that intersect with selection rectangle
+      // Find items that intersect with selection rectangle
+      let selectedItem: paper.Item | null = null;
       let selectedGameObjectId: string | null = null;
 
       activeLayer.children.forEach((item: any) => {
-        // Skip locked items (like whiteCanvas)
-        if (item.locked) return;
+        if (item.locked || item.data?.isSelectionBox) return;
 
         if (item.bounds.intersects(selectionBounds)) {
-          item.selected = true;
-
-          // Get GameObject ID from item.data (only first selected item)
-          if (!selectedGameObjectId && item.data?.gameObjectId) {
+          if (!selectedItem && item.data?.gameObjectId) {
+            selectedItem = item;
             selectedGameObjectId = item.data.gameObjectId;
-            console.log('[PointerTool] Selected GameObject by drag:', selectedGameObjectId);
           }
         }
       });
 
-      // Dispatch selection (or clear if nothing selected)
-      store.dispatch(selectedGameObjectId ? selectObject({ type: 'gameObject', id: selectedGameObjectId }) : clearSelection());
+      // Dispatch selection
+      if (selectedGameObjectId && selectedItem) {
+        store.dispatch(selectObject({ type: 'gameObject', id: selectedGameObjectId }));
 
-      // IMPORTANT: Always remove selection rectangle after use
+        if (!this.rotatableSelection) {
+          this.rotatableSelection = new RotatableSelectionBox();
+        }
+        this.rotatableSelection.setSelection([selectedItem]);
+      } else {
+        store.dispatch(clearSelection());
+        if (this.rotatableSelection) {
+          this.rotatableSelection.clear();
+        }
+      }
+
       this.selectionRect.remove();
       this.selectionRect = null;
     } else if (this.startPoint) {
-      // Single click on empty space (no selection rect was created because no drag)
-      // Deselect all
-      activeLayer.children.forEach((item: any) => {
-        item.selected = false;
-      });
+      // Single click on empty space
       store.dispatch(clearSelection());
+      if (this.rotatableSelection) {
+        this.rotatableSelection.clear();
+      }
     }
 
-    // Always reset startPoint
     this.startPoint = null;
+    this.currentOperationType = null;
   }
 
   /**
-   * Set up transform handler for GameObject
+   * Start appropriate handler based on operation type
    */
-  private setTransformHandler(
-    gameObjectId: string,
-    position: paper.Point,
-    handler: TransformHandlerBase = shapeTranslateHandler
+  private startHandler(
+    opType: 'rotation' | 'scale-corner' | 'scale-edge-v' | 'scale-edge-h' | 'drag',
+    gameObjectIds: Set<string>,
+    point: paper.Point
   ): void {
-    this.transformHandler = handler;
+    const pos = { x: point.x, y: point.y };
 
-    // Set target GameObject
-    this.transformHandler.setTarget(gameObjectId);
+    switch (opType) {
+      case 'rotation':
+        shapeRotateHandler.setTarget(gameObjectIds);
+        shapeRotateHandler.beginMove(pos);
+        break;
 
-    // Begin transformation
-    this.transformHandler.beginMove({ x: position.x, y: position.y });
+      case 'scale-corner':
+        shapeScaleHandler.setTarget(gameObjectIds);
+        shapeScaleHandler.beginMove(pos);
+        break;
+
+      case 'scale-edge-h':
+        shapeHorizontalScaleHandler.setTarget(gameObjectIds);
+        shapeHorizontalScaleHandler.beginMove(pos);
+        break;
+
+      case 'scale-edge-v':
+        shapeVerticalScaleHandler.setTarget(gameObjectIds);
+        shapeVerticalScaleHandler.beginMove(pos);
+        break;
+
+      case 'drag':
+        // Use the gameObjectIds parameter passed in
+        shapeTranslateHandler.setTarget(gameObjectIds);
+        shapeTranslateHandler.beginMove(pos);
+        break;
+    }
+  }
+
+  /**
+   * Drag appropriate handler
+   */
+  private dragHandler(
+    opType: 'rotation' | 'scale-corner' | 'scale-edge-v' | 'scale-edge-h' | 'drag',
+    point: paper.Point
+  ): void {
+    const pos = { x: point.x, y: point.y };
+
+    switch (opType) {
+      case 'rotation':
+        shapeRotateHandler.dragging(pos);
+        break;
+
+      case 'scale-corner':
+        shapeScaleHandler.dragging(pos);
+        break;
+
+      case 'scale-edge-h':
+        shapeHorizontalScaleHandler.dragging(pos);
+        break;
+
+      case 'scale-edge-v':
+        shapeVerticalScaleHandler.dragging(pos);
+        break;
+
+      case 'drag':
+        shapeTranslateHandler.dragging(pos);
+        break;
+    }
+  }
+
+  /**
+   * End appropriate handler
+   */
+  private endHandler(
+    opType: 'rotation' | 'scale-corner' | 'scale-edge-v' | 'scale-edge-h' | 'drag'
+  ): void {
+    switch (opType) {
+      case 'rotation':
+        shapeRotateHandler.endMove();
+        break;
+
+      case 'scale-corner':
+        shapeScaleHandler.endMove();
+        break;
+
+      case 'scale-edge-h':
+        shapeHorizontalScaleHandler.endMove();
+        break;
+
+      case 'scale-edge-v':
+        shapeVerticalScaleHandler.endMove();
+        break;
+
+      case 'drag':
+        shapeTranslateHandler.endMove();
+        break;
+    }
   }
 }
 
