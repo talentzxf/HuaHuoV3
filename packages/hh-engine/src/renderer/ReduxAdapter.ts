@@ -179,6 +179,8 @@ export class ReduxAdapter {
         const removedGameObjectIds = previousGameObjectIds.filter((id: string) => !currentGameObjectIds.includes(id));
         removedGameObjectIds.forEach((gameObjectId: string) => {
             console.debug(`GameObject removed: ${gameObjectId}`);
+            // ✅ Remove the Paper.js render item
+            this.handleGameObjectRemoved(gameObjectId);
         });
 
         // Check for GameObject property changes (only active state affects rendering)
@@ -213,6 +215,29 @@ export class ReduxAdapter {
         // Update visibility of the render item
         if (renderItem.visible !== undefined) {
             renderItem.visible = active;
+        }
+    }
+
+    /**
+     * Handle GameObject removal - remove Paper.js render item
+     */
+    private handleGameObjectRemoved(gameObjectId: string): void {
+        const renderItem = (this.renderer as any).getRenderItem?.(gameObjectId);
+        if (!renderItem) {
+            console.debug(`[ReduxAdapter] No render item found for GameObject: ${gameObjectId}`);
+            return;
+        }
+
+        console.debug(`[ReduxAdapter] Removing render item for GameObject: ${gameObjectId}`);
+
+        // Remove the Paper.js item from canvas
+        if (renderItem.remove) {
+            renderItem.remove();
+        }
+
+        // Unregister from renderer's registry
+        if ((this.renderer as any).unregisterRenderItem) {
+            (this.renderer as any).unregisterRenderItem(gameObjectId);
         }
     }
 

@@ -130,13 +130,16 @@ export class RotatableSelectionBox {
       return;
     }
 
+    // Type assertion to help TypeScript
+    const bounds = combinedBounds as paper.Rectangle;
+
     // ✅ Expand bounds by BOUND_MARGIN (like old ShapeSelector)
     // This makes it easier to grab the selection box and handles
     const expandedBounds = new paper.Rectangle(
-      combinedBounds.x - this.BOUND_MARGIN,
-      combinedBounds.y - this.BOUND_MARGIN,
-      combinedBounds.width + this.BOUND_MARGIN * 2,
-      combinedBounds.height + this.BOUND_MARGIN * 2
+      bounds.x - this.BOUND_MARGIN,
+      bounds.y - this.BOUND_MARGIN,
+      bounds.width + this.BOUND_MARGIN * 2,
+      bounds.height + this.BOUND_MARGIN * 2
     );
 
     this.hideSelectionBox();
@@ -253,8 +256,9 @@ export class RotatableSelectionBox {
   /**
    * Handle mouse down event
    * Returns the handle type that was clicked, or null if nothing was clicked
+   * ✅ Only handles rotation and scale handles - NOT drag!
    */
-  public onMouseDown(event: paper.ToolEvent): 'rotation' | 'scale-corner' | 'scale-edge-v' | 'scale-edge-h' | 'drag' | null {
+  public onMouseDown(event: paper.ToolEvent): 'rotation' | 'scale-corner' | 'scale-edge-v' | 'scale-edge-h' | null {
     // Check if clicked on rotation handle
     if (this.rotationHandle && this.rotationHandle.contains(event.point)) {
       this.isRotating = true;
@@ -290,21 +294,16 @@ export class RotatableSelectionBox {
       }
     }
 
-    // Check if clicked inside bounding box (for dragging)
-    if (this.boundingBox && this.boundingBox.contains(event.point)) {
-      this.isDragging = true;
-      this.dragStartPoint = event.point;
-      return 'drag';
-    }
-
+    // ✅ NO drag handling - PointerTool will handle clicking on objects
     return null;
   }
 
   /**
    * Handle mouse drag event
    * Returns the type of drag operation, or null if not dragging
+   * ✅ Only returns rotation or scale - NOT drag!
    */
-  public onMouseDrag(_event: paper.ToolEvent): 'rotation' | 'scale' | 'drag' | null {
+  public onMouseDrag(_event: paper.ToolEvent): 'rotation' | 'scale' | null {
     if (this.isRotating) {
       return 'rotation';
     }
@@ -313,9 +312,6 @@ export class RotatableSelectionBox {
       return 'scale';
     }
 
-    if (this.isDragging) {
-      return 'drag';
-    }
 
     return null;
   }
@@ -323,13 +319,12 @@ export class RotatableSelectionBox {
   /**
    * Handle mouse up event
    * Returns the type of operation that ended, or null
+   * ✅ Only returns rotation or scale types - NOT drag!
    */
-  public onMouseUp(_event: paper.ToolEvent): 'rotation' | 'scale-corner' | 'scale-edge-v' | 'scale-edge-h' | 'drag' | null {
-    let operationType: 'rotation' | 'scale-corner' | 'scale-edge-v' | 'scale-edge-h' | 'drag' | null = null;
+  public onMouseUp(_event: paper.ToolEvent): 'rotation' | 'scale-corner' | 'scale-edge-v' | 'scale-edge-h' | null {
+    let operationType: 'rotation' | 'scale-corner' | 'scale-edge-v' | 'scale-edge-h' | null = null;
 
-    if (this.isDragging) {
-      operationType = 'drag';
-    } else if (this.isRotating) {
+    if (this.isRotating) {
       operationType = 'rotation';
     } else if (this.isScaling && this.activeHandle) {
       const edgeIndex = this.activeHandle.data.edgeIndex;

@@ -9,5 +9,6 @@ export {
   shapeHorizontalScaleHandler,
   shapeVerticalScaleHandler
 } from './ShapeScaleHandler';
+export { ObjectDeleteHandler } from './ObjectDeleteHandler';
 export { TransformHandlerMap } from './TransformHandlerMap';
 

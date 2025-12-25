@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSelector, useDispatch } from 'react-redux';
 import { Button, Space } from 'antd';
@@ -8,7 +8,7 @@ import {
 } from '@ant-design/icons';
 import paper from 'paper';
 import { SDK } from '@huahuo/sdk';
-import { getEngineStore, addTimelineClip, splitTimelineClip, setCurrentFrame as setEngineFrame, getAnimationPlayer, setAnimationEndFrame } from '@huahuo/engine';
+import { getEngineStore, addTimelineClip, splitTimelineClip, setCurrentFrame as setEngineFrame, getAnimationPlayer } from '@huahuo/engine';
 import { Timeline } from '@huahuo/timeline';
 import { store } from '../../store/store';
 import type { RootState } from '../../store/store';
@@ -16,6 +16,7 @@ import { getSelectionAdapter } from '../../adapters/SelectionAdapter';
 import { requestCanvasRefresh, clearCanvasRefreshFlag } from '../../store/features/canvas/canvasSlice';
 import { TimelineContextMenu } from './TimelineContextMenu';
 import { PointerTool, CircleTool, RectangleTool, LineTool } from './tools';
+import { ObjectDeleteHandler } from './tools/handlers';
 import './CanvasPanel.css';
 
 type DrawTool = 'pointer' | 'circle' | 'rectangle' | 'line' | null;
@@ -280,12 +281,11 @@ const CanvasPanel: React.FC = () => {
     // Handle delete key for selected items and ESC key to switch to pointer
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (scope.project) {
-          scope.project.activeLayer.children.forEach((item: any) => {
-            if (item.selected) {
-              item.remove();
-            }
-          });
+        // Use ObjectDeleteHandler to delete selected object
+        const deleted = ObjectDeleteHandler.deleteSelected();
+
+        if (deleted) {
+          console.log('[CanvasPanel] Object deleted successfully');
         }
       } else if (e.key === 'Escape') {
         // Switch to pointer tool
