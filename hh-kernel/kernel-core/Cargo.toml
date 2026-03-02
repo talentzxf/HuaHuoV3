@@ -1,0 +1,22 @@
+[package]
+name = "kernel-core"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+hecs.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+nanoid.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+log.workspace = true
+indexmap.workspace = true
+bincode.workspace = true
+bytes.workspace = true
+kernel-sdk = { workspace = true }
+
+[dev-dependencies]
+env_logger.workspace = true
+

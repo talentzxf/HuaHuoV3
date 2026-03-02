@@ -1,0 +1,19 @@
+﻿syntax = "proto3";
+package huahuo.kernel;
+import "types.proto";
+message EventEnvelope {
+    oneof event {
+        ProjectLoadedEvent project_loaded = 1;
+        GameObjectCreatedEvent game_object_created = 2;
+        GameObjectDeletedEvent game_object_deleted = 3;
+        KeyFrameUpdatedEvent keyframe_updated = 4;
+        FrameAdvancedEvent frame_advanced = 5;
+    }
+}
+message ProjectLoadedEvent { string project_id = 1; string project_name = 2; }
+message GameObjectCreatedEvent { string game_object_id = 1; string name = 2; string layer_id = 3; uint32 born_frame = 4; }
+message GameObjectDeletedEvent { string game_object_id = 1; }
+message KeyFrameUpdatedEvent { string game_object_id = 1; string component_type = 2; string prop_name = 3; uint32 frame = 4; PropertyValue value = 5; }
+message FrameAdvancedEvent { uint32 frame = 1; repeated GameObjectState states = 2; }
+message GameObjectState { string game_object_id = 1; }
+

@@ -1,0 +1,71 @@
+syntax = "proto3";
+package huahuo.kernel;
+
+import "types.proto";
+
+// ─── Queries (read operations, correspond to Redux selectors) ─────────────────
+
+message QueryEnvelope {
+    oneof query {
+        GetProjectQuery get_project = 1;
+        GetSceneQuery get_scene = 2;
+        GetGameObjectQuery get_game_object = 3;
+        GetInterpolatedPropsQuery get_interpolated_props = 4;
+        GetActiveGameObjectsQuery get_active_game_objects = 5;
+        GetPlaybackStateQuery get_playback_state = 6;
+    }
+}
+
+message GetProjectQuery {}
+message GetSceneQuery { string scene_id = 1; }
+message GetGameObjectQuery { string game_object_id = 1; }
+
+/// Get all interpolated property values for a game object at a specific frame.
+message GetInterpolatedPropsQuery {
+    string game_object_id = 1;
+    uint32 frame = 2;
+}
+
+/// Get all game objects visible at a specific frame.
+message GetActiveGameObjectsQuery {
+    string scene_id = 1;
+    uint32 frame = 2;
+}
+
+message GetPlaybackStateQuery {}
+
+// ─── Query Responses ───────────────────────────────────────────────────────────
+
+message ComponentPropsResult {
+    // prop_name -> PropertyValue
+    map<string, PropertyValue> props = 1;
+}
+
+message InterpolatedPropsResult {
+    // component_type -> ComponentPropsResult
+    map<string, ComponentPropsResult> components = 1;
+}
+
+message ActiveGameObjectsResult {
+    repeated string game_object_ids = 1;
+}
+
+message PlaybackStateResult {
+    uint32 current_frame = 1;
+    bool is_playing = 2;
+    double fps = 3;
+    uint32 total_frames = 4;
+}
+
+message QueryResponse {
+    bool ok = 1;
+    string error = 2;
+    oneof result {
+        bytes project_data = 10;
+        bytes scene_data = 11;
+        InterpolatedPropsResult interpolated_props = 12;
+        ActiveGameObjectsResult active_game_objects = 13;
+        PlaybackStateResult playback_state = 14;
+    }
+}
+

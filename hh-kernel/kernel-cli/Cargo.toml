@@ -1,0 +1,22 @@
+[package]
+name = "kernel-cli"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "hhk"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+log.workspace = true
+env_logger.workspace = true
+prost.workspace = true
+bytes.workspace = true
+nanoid.workspace = true
+kernel-core = { workspace = true }
+kernel-proto = { workspace = true }
+kernel-schema = { workspace = true }

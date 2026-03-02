@@ -1,0 +1,117 @@
+syntax = "proto3";
+package huahuo.kernel;
+
+import "types.proto";
+
+// ─── Commands (write operations, correspond to Redux dispatch) ─────────────────
+
+message CommandEnvelope {
+    oneof command {
+        // Project
+        CreateProjectCmd create_project = 1;
+        LoadProjectCmd load_project = 2;
+        SaveProjectCmd save_project = 3;
+
+        // Scene / Layer
+        CreateSceneCmd create_scene = 10;
+        CreateLayerCmd create_layer = 11;
+
+        // Game Object
+        CreateGameObjectCmd create_game_object = 20;
+        DeleteGameObjectCmd delete_game_object = 21;
+        SetGameObjectActiveCmd set_game_object_active = 22;
+
+        // Keyframe
+        SetKeyFrameCmd set_keyframe = 30;
+        RemoveKeyFrameCmd remove_keyframe = 31;
+
+        // Playback
+        PlayCmd play = 40;
+        PauseCmd pause = 41;
+        StopCmd stop = 42;
+        SetCurrentFrameCmd set_current_frame = 43;
+
+        // Sub-project (self-embedding)
+        EmbedAnimationCmd embed_animation = 50;
+    }
+}
+
+message CreateProjectCmd {
+    string name = 1;
+    double fps = 2;
+    uint32 canvas_width = 3;
+    uint32 canvas_height = 4;
+}
+
+message LoadProjectCmd {
+    bytes data = 1;  // raw binary project file
+}
+
+message SaveProjectCmd {}
+
+message CreateSceneCmd {
+    string name = 1;
+    double fps = 2;
+    double duration = 3;
+}
+
+message CreateLayerCmd {
+    string scene_id = 1;
+    string name = 2;
+}
+
+message CreateGameObjectCmd {
+    string layer_id = 1;
+    string name = 2;
+    uint32 born_frame = 3;
+}
+
+message DeleteGameObjectCmd {
+    string game_object_id = 1;
+}
+
+message SetGameObjectActiveCmd {
+    string game_object_id = 1;
+    bool active = 2;
+}
+
+message SetKeyFrameCmd {
+    string game_object_id = 1;
+    string component_type = 2;
+    string prop_name = 3;
+    KeyFrame keyframe = 4;
+}
+
+message RemoveKeyFrameCmd {
+    string game_object_id = 1;
+    string component_type = 2;
+    string prop_name = 3;
+    uint32 frame = 4;
+}
+
+message PlayCmd {}
+message PauseCmd {}
+message StopCmd {}
+
+message SetCurrentFrameCmd {
+    uint32 frame = 1;
+}
+
+message EmbedAnimationCmd {
+    string target_game_object_id = 1;
+    bytes sub_project_data = 2;
+    uint32 start_frame = 3;
+    double time_scale = 4;
+    bool loop_playback = 5;
+}
+
+// ─── Command Response ──────────────────────────────────────────────────────────
+
+message CommandResponse {
+    bool ok = 1;
+    string error = 2;
+    // Optional payload for commands that create entities
+    string created_id = 3;
+    bytes payload = 4;
+}
+

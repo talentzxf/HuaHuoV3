@@ -1,0 +1,31 @@
+[package]
+name = "kernel-wasm"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wasm-bindgen.workspace = true
+js-sys.workspace = true
+wasm-bindgen-futures.workspace = true
+console_error_panic_hook.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+prost.workspace = true
+bytes.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+log.workspace = true
+nanoid.workspace = true
+kernel-core = { workspace = true }
+kernel-proto = { workspace = true }
+
+[dependencies.web-sys]
+workspace = true
+features = []
+
+[profile.release]
+opt-level = "s"
+lto = true

@@ -1,0 +1,58 @@
+[workspace]
+members = [
+    "kernel-core",
+    "kernel-schema",
+    "kernel-proto",
+    "kernel-wasm",
+    "kernel-cli",
+    "kernel-sdk",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["HuaHuo Team"]
+license = "MIT"
+
+[workspace.dependencies]
+# ECS
+hecs = "0.10"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+bincode = "1"
+prost = "0.13"
+bytes = "1"
+
+# UUID / ID generation
+uuid = { version = "1", features = ["v4", "serde"] }
+nanoid = "0.4"
+
+# Utilities
+thiserror = "2"
+anyhow = "1"
+log = "0.4"
+env_logger = "0.11"
+indexmap = { version = "2", features = ["serde"] }
+
+# Async (for WASM event loop)
+tokio = { version = "1", features = ["sync"] }
+
+# WASM
+wasm-bindgen = "0.2"
+js-sys = "0.3"
+web-sys = "0.3"
+wasm-bindgen-futures = "0.4"
+console_error_panic_hook = "0.1"
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+
+# Internal crates
+kernel-core = { path = "kernel-core" }
+kernel-schema = { path = "kernel-schema" }
+kernel-proto = { path = "kernel-proto" }
+kernel-sdk = { path = "kernel-sdk" }
+

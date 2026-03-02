@@ -1,0 +1,51 @@
+syntax = "proto3";
+package huahuo.kernel;
+
+// ─── Shared Types ─────────────────────────────────────────────────────────────
+
+message Vec2 {
+    double x = 1;
+    double y = 2;
+}
+
+message Color {
+    uint32 r = 1;
+    uint32 g = 2;
+    uint32 b = 3;
+    uint32 a = 4;
+}
+
+enum EasingType {
+    EASING_STEP = 0;
+    EASING_LINEAR = 1;
+    EASING_EASE_IN = 2;
+    EASING_EASE_OUT = 3;
+    EASING_EASE_IN_OUT = 4;
+    EASING_BEZIER = 5;
+}
+
+message BezierParams {
+    double x1 = 1;
+    double y1 = 2;
+    double x2 = 3;
+    double y2 = 4;
+}
+
+message PropertyValue {
+    oneof value {
+        double float_val = 1;
+        Vec2 vec2_val = 2;
+        Color color_val = 3;
+        bool bool_val = 4;
+        string string_val = 5;
+        sint64 int_val = 6;
+    }
+}
+
+message KeyFrame {
+    uint32 frame = 1;
+    PropertyValue value = 2;
+    EasingType easing = 3;
+    BezierParams bezier = 4;  // populated when easing = BEZIER
+}
+
