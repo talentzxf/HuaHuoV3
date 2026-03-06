@@ -18,5 +18,6 @@ prost.workspace = true
 bytes.workspace = true
 nanoid.workspace = true
 kernel-core = { workspace = true }
+kernel-sdk = { workspace = true }
 kernel-proto = { workspace = true }
 kernel-schema = { workspace = true }

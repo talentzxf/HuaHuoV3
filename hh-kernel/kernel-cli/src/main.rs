@@ -2,6 +2,7 @@ use clap::{Parser, Subcommand};
 use anyhow::Result;
 
 mod commands;
+mod dsl;
 
 #[derive(Parser)]
 #[command(
@@ -54,7 +55,253 @@ enum Commands {
         /// Input .hhk file
         input: String,
     },
+
+    /// Run a HuaHuo Script (.hhs) file
+    Run {
+        /// Path to the .hhs script file
+        script: String,
+        /// Dry-run: parse and execute but do not write files
+        #[arg(long)]
+        dry_run: bool,
+    },
+
+    /// Dump a .hhk project as a human-readable .hhs script
+    Dump {
+        /// Input .hhk project file
+        input: String,
+        /// Output .hhs file (omit to print to stdout)
+        #[arg(short, long)]
+        output: Option<String>,
+    },
+
+    /// Start an interactive REPL for HuaHuo Script
+    Repl {
+        /// Optionally pre-load a .hhk or .hhs file before entering the REPL
+        #[arg(short, long)]
+        load: Option<String>,
+    },
+
+    // ── Scene commands ────────────────────────────────────────────────────────
+    /// Manage scenes in a project
+    Scene {
+        #[command(subcommand)]
+        action: SceneCommands,
+    },
+
+    // ── Layer commands ────────────────────────────────────────────────────────
+    /// Manage layers inside a scene
+    Layer {
+        #[command(subcommand)]
+        action: LayerCommands,
+    },
+
+    // ── GameObject commands ───────────────────────────────────────────────────
+    /// Manage game objects and their keyframes
+    #[command(name = "go")]
+    GameObject {
+        #[command(subcommand)]
+        action: GameObjectCommands,
+    },
 }
+
+// ── Scene subcommands ─────────────────────────────────────────────────────────
+
+#[derive(Subcommand)]
+enum SceneCommands {
+    /// Add a new scene to the project
+    Add {
+        /// .hhk project file
+        input: String,
+        /// Scene name
+        name: String,
+        /// Frames per second (defaults to project fps)
+        #[arg(long)]
+        fps: Option<f64>,
+        /// Duration in seconds (default: 5)
+        #[arg(long)]
+        duration: Option<f64>,
+    },
+    /// List all scenes in the project
+    List {
+        /// .hhk project file
+        input: String,
+    },
+    /// Set the current (active) scene
+    SetCurrent {
+        /// .hhk project file
+        input: String,
+        /// Scene ID to activate
+        scene_id: String,
+    },
+    /// Remove a scene from the project
+    Remove {
+        /// .hhk project file
+        input: String,
+        /// Scene ID to remove
+        scene_id: String,
+    },
+}
+
+// ── Layer subcommands ─────────────────────────────────────────────────────────
+
+#[derive(Subcommand)]
+enum LayerCommands {
+    /// Add a new layer to a scene
+    Add {
+        /// .hhk project file
+        input: String,
+        /// Layer name
+        name: String,
+        /// Scene ID (defaults to current scene)
+        #[arg(long)]
+        scene_id: Option<String>,
+    },
+    /// List layers in a scene
+    List {
+        /// .hhk project file
+        input: String,
+        /// Scene ID (defaults to current scene)
+        #[arg(long)]
+        scene_id: Option<String>,
+    },
+    /// Remove a layer (and its game objects) from a scene
+    Remove {
+        /// .hhk project file
+        input: String,
+        /// Layer ID to remove
+        layer_id: String,
+        /// Scene ID (defaults to current scene)
+        #[arg(long)]
+        scene_id: Option<String>,
+    },
+    /// Set layer properties (visible, locked)
+    Set {
+        /// .hhk project file
+        input: String,
+        /// Layer ID
+        layer_id: String,
+        /// Scene ID (defaults to current scene)
+        #[arg(long)]
+        scene_id: Option<String>,
+        /// Set visibility (true/false)
+        #[arg(long)]
+        visible: Option<bool>,
+        /// Set locked (true/false)
+        #[arg(long)]
+        locked: Option<bool>,
+    },
+}
+
+// ── GameObject subcommands ────────────────────────────────────────────────────
+
+#[derive(Subcommand)]
+enum GameObjectCommands {
+    /// Add a new game object to a layer
+    Add {
+        /// .hhk project file
+        input: String,
+        /// Game object name
+        name: String,
+        /// Layer ID to add to
+        layer_id: String,
+        /// Scene ID (defaults to current scene)
+        #[arg(long)]
+        scene_id: Option<String>,
+        /// Born frame (default: 0)
+        #[arg(long, default_value = "0")]
+        born_frame: u32,
+    },
+    /// List game objects in a scene or layer
+    List {
+        /// .hhk project file
+        input: String,
+        /// Scene ID (defaults to current scene)
+        #[arg(long)]
+        scene_id: Option<String>,
+        /// Filter by layer ID
+        #[arg(long)]
+        layer_id: Option<String>,
+    },
+    /// Remove a game object from the scene
+    Remove {
+        /// .hhk project file
+        input: String,
+        /// Game object ID
+        go_id: String,
+        /// Scene ID (defaults to current scene)
+        #[arg(long)]
+        scene_id: Option<String>,
+    },
+    /// Show details of a game object (components + keyframes)
+    Show {
+        /// .hhk project file
+        input: String,
+        /// Game object ID
+        go_id: String,
+        /// Scene ID (defaults to current scene)
+        #[arg(long)]
+        scene_id: Option<String>,
+    },
+    /// Set a keyframe on a component property
+    ///
+    /// VALUE FORMAT: <type>:<data>
+    ///   float:1.5   int:3   bool:true   string:hello
+    ///   vec2:1.0,2.0   vec3:1.0,2.0,3.0   color:1.0,0.5,0.25,1.0
+    ///
+    /// EASING: linear | step | ease-in | ease-out | ease-in-out | bezier:x1,y1,x2,y2
+    #[command(name = "set-kf")]
+    SetKeyframe {
+        /// .hhk project file
+        input: String,
+        /// Game object ID
+        go_id: String,
+        /// Component type name (e.g. Transform, Visual)
+        component: String,
+        /// Property name (e.g. position, rotation)
+        property: String,
+        /// Frame number
+        frame: u32,
+        /// Value in format type:data (e.g. vec2:100.0,200.0)
+        value: String,
+        /// Easing function (default: linear)
+        #[arg(long, default_value = "linear")]
+        easing: Option<String>,
+        /// Scene ID (defaults to current scene)
+        #[arg(long)]
+        scene_id: Option<String>,
+    },
+    /// Remove a keyframe from a component property
+    #[command(name = "rm-kf")]
+    RemoveKeyframe {
+        /// .hhk project file
+        input: String,
+        /// Game object ID
+        go_id: String,
+        /// Component type name
+        component: String,
+        /// Property name
+        property: String,
+        /// Frame number
+        frame: u32,
+        /// Scene ID (defaults to current scene)
+        #[arg(long)]
+        scene_id: Option<String>,
+    },
+    /// Interpolate component properties at a given frame and print results
+    Interpolate {
+        /// .hhk project file
+        input: String,
+        /// Game object ID
+        go_id: String,
+        /// Frame number
+        frame: u32,
+        /// Scene ID (defaults to current scene)
+        #[arg(long)]
+        scene_id: Option<String>,
+    },
+}
+
+// ── main ──────────────────────────────────────────────────────────────────────
 
 fn main() -> Result<()> {
     env_logger::init();
@@ -73,6 +320,78 @@ fn main() -> Result<()> {
         Commands::Info { input } => {
             commands::info::run(input)
         }
+
+        Commands::Run { script, dry_run } => {
+            commands::run::run(script, dry_run)
+        }
+
+        Commands::Dump { input, output } => {
+            commands::dump::run(input, output)
+        }
+
+        Commands::Repl { load } => {
+            commands::repl::run(load)
+        }
+
+        // Scene
+        Commands::Scene { action } => match action {
+            SceneCommands::Add { input, name, fps, duration } => {
+                commands::scene::add(input, name, fps, duration)
+            }
+            SceneCommands::List { input } => {
+                commands::scene::list(input)
+            }
+            SceneCommands::SetCurrent { input, scene_id } => {
+                commands::scene::set_current(input, scene_id)
+            }
+            SceneCommands::Remove { input, scene_id } => {
+                commands::scene::remove(input, scene_id)
+            }
+        },
+
+        // Layer
+        Commands::Layer { action } => match action {
+            LayerCommands::Add { input, name, scene_id } => {
+                commands::layer::add(input, name, scene_id)
+            }
+            LayerCommands::List { input, scene_id } => {
+                commands::layer::list(input, scene_id)
+            }
+            LayerCommands::Remove { input, layer_id, scene_id } => {
+                commands::layer::remove(input, layer_id, scene_id)
+            }
+            LayerCommands::Set { input, layer_id, scene_id, visible, locked } => {
+                commands::layer::set_prop(input, layer_id, scene_id, visible, locked)
+            }
+        },
+
+        // GameObject
+        Commands::GameObject { action } => match action {
+            GameObjectCommands::Add { input, name, layer_id, scene_id, born_frame } => {
+                commands::gameobject::add(input, name, layer_id, scene_id, born_frame)
+            }
+            GameObjectCommands::List { input, scene_id, layer_id } => {
+                commands::gameobject::list(input, scene_id, layer_id)
+            }
+            GameObjectCommands::Remove { input, go_id, scene_id } => {
+                commands::gameobject::remove(input, go_id, scene_id)
+            }
+            GameObjectCommands::Show { input, go_id, scene_id } => {
+                commands::gameobject::show(input, go_id, scene_id)
+            }
+            GameObjectCommands::SetKeyframe {
+                input, go_id, component, property, frame, value, easing, scene_id,
+            } => {
+                commands::gameobject::set_keyframe(input, go_id, component, property, frame, value, easing, scene_id)
+            }
+            GameObjectCommands::RemoveKeyframe {
+                input, go_id, component, property, frame, scene_id,
+            } => {
+                commands::gameobject::remove_keyframe(input, go_id, component, property, frame, scene_id)
+            }
+            GameObjectCommands::Interpolate { input, go_id, frame, scene_id } => {
+                commands::gameobject::interpolate(input, go_id, frame, scene_id)
+            }
+        },
     }
 }
-

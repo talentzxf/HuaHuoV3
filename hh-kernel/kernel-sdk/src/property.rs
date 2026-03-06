@@ -2,13 +2,16 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// A single property value - supports all types that can be keyframe-animated.
+///
+/// NOTE: Uses tuple variants (not struct variants) for bincode compatibility.
+/// Field order: Vec2(x, y)  Vec3(x, y, z)  Color(r, g, b, a)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type", content = "value")]
 pub enum PropertyValue {
     Float(f64),
-    Vec2 { x: f64, y: f64 },
-    Vec3 { x: f64, y: f64, z: f64 },
-    Color { r: u8, g: u8, b: u8, a: u8 },
+    Vec2(f64, f64),
+    Vec3(f64, f64, f64),
+    /// (r, g, b, a) in 0-255
+    Color(u8, u8, u8, u8),
     Bool(bool),
     String(String),
     Int(i64),
@@ -21,28 +24,24 @@ impl PropertyValue {
             (PropertyValue::Float(a), PropertyValue::Float(b)) => {
                 Some(PropertyValue::Float(a + (b - a) * t))
             }
-            (PropertyValue::Vec2 { x: ax, y: ay }, PropertyValue::Vec2 { x: bx, y: by }) => {
-                Some(PropertyValue::Vec2 {
-                    x: ax + (bx - ax) * t,
-                    y: ay + (by - ay) * t,
-                })
+            (PropertyValue::Vec2(ax, ay), PropertyValue::Vec2(bx, by)) => {
+                Some(PropertyValue::Vec2(ax + (bx - ax) * t, ay + (by - ay) * t))
             }
-            (PropertyValue::Vec3 { x: ax, y: ay, z: az }, PropertyValue::Vec3 { x: bx, y: by, z: bz }) => {
-                Some(PropertyValue::Vec3 {
-                    x: ax + (bx - ax) * t,
-                    y: ay + (by - ay) * t,
-                    z: az + (bz - az) * t,
-                })
+            (PropertyValue::Vec3(ax, ay, az), PropertyValue::Vec3(bx, by, bz)) => {
+                Some(PropertyValue::Vec3(
+                    ax + (bx - ax) * t,
+                    ay + (by - ay) * t,
+                    az + (bz - az) * t,
+                ))
             }
-            (
-                PropertyValue::Color { r: r1, g: g1, b: b1, a: a1 },
-                PropertyValue::Color { r: r2, g: g2, b: b2, a: a2 },
-            ) => Some(PropertyValue::Color {
-                r: ((*r1 as f64) + ((*r2 as f64) - (*r1 as f64)) * t) as u8,
-                g: ((*g1 as f64) + ((*g2 as f64) - (*g1 as f64)) * t) as u8,
-                b: ((*b1 as f64) + ((*b2 as f64) - (*b1 as f64)) * t) as u8,
-                a: ((*a1 as f64) + ((*a2 as f64) - (*a1 as f64)) * t) as u8,
-            }),
+            (PropertyValue::Color(r1, g1, b1, a1), PropertyValue::Color(r2, g2, b2, a2)) => {
+                Some(PropertyValue::Color(
+                    ((*r1 as f64) + ((*r2 as f64) - (*r1 as f64)) * t) as u8,
+                    ((*g1 as f64) + ((*g2 as f64) - (*g1 as f64)) * t) as u8,
+                    ((*b1 as f64) + ((*b2 as f64) - (*b1 as f64)) * t) as u8,
+                    ((*a1 as f64) + ((*a2 as f64) - (*a1 as f64)) * t) as u8,
+                ))
+            }
             // Non-interpolatable types: snap to the start value
             _ => Some(self.clone()),
         }

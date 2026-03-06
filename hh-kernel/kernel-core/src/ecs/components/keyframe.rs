@@ -3,7 +3,6 @@ use kernel_sdk::property::PropertyValue;
 
 /// Easing function type for keyframe interpolation.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type")]
 pub enum EasingType {
     /// Constant (no interpolation - snap to value)
     Step,
@@ -15,8 +14,8 @@ pub enum EasingType {
     EaseOut,
     /// Ease in-out (slow start and end)
     EaseInOut,
-    /// Custom cubic bezier: P1(x1,y1), P2(x2,y2)
-    Bezier { x1: f64, y1: f64, x2: f64, y2: f64 },
+    /// Custom cubic bezier: P1(x1,y1), P2(x2,y2) — stored as (x1, y1, x2, y2)
+    Bezier(f64, f64, f64, f64),
 }
 
 impl EasingType {
@@ -34,7 +33,7 @@ impl EasingType {
                     -1.0 + (4.0 - 2.0 * t) * t
                 }
             }
-            EasingType::Bezier { x1, y1, x2, y2 } => {
+            EasingType::Bezier(x1, y1, x2, y2) => {
                 cubic_bezier_y(t, *x1, *y1, *x2, *y2)
             }
         }

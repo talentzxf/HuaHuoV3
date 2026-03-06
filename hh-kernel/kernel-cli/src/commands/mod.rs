@@ -2,4 +2,9 @@ pub mod new;
 pub mod export;
 pub mod validate;
 pub mod info;
-
+pub mod scene;
+pub mod layer;
+pub mod gameobject;
+pub mod run;
+pub mod dump;
+pub mod repl;

@@ -1,0 +1,22 @@
+# Load the previously saved project and add another game object
+load("test-output.hhk")
+
+let scene = project.scene("DefaultScene")
+let layer = scene.layer("drawing")
+
+# Add a second object
+let box1 = layer.new_go("box", born=10)
+box1.add_component("Transform")
+box1.set_kf("Transform", "position", frame=10, value=vec2(200, 400))
+box1.set_kf("Transform", "position", frame=50, value=vec2(600, 200), easing="ease-out")
+box1.set_kf("Transform", "rotation", frame=10, value=float(0))
+box1.set_kf("Transform", "rotation", frame=50, value=float(180), easing="bezier:0.42,0,0.58,1")
+
+# Verify interpolation at frame 30
+box1.interpolate(frame=30)
+
+# Print info
+project.info()
+
+save()
+

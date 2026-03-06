@@ -1,0 +1,35 @@
+# Dumped from: test-output.hhk
+# Project: TestAnim (dypA87gnrav1zixCDBBbz)
+
+new_project("TestAnim", fps=30, w=1280, h=720)
+
+# ── Scene: DefaultScene ──────────────────────────────────────────
+let DefaultScene = project.new_scene("DefaultScene", fps=30, duration=5)
+let background = DefaultScene.new_layer("background")
+
+let drawing = DefaultScene.new_layer("drawing")
+
+# go: ball
+let ball = drawing.new_go("ball", born=0)
+ball.add_component("Transform")
+ball.set_kf("Transform", "position", frame=0, value=vec2(0, 360))
+ball.set_kf("Transform", "position", frame=30, value=vec2(640, 360), easing="ease-in-out")
+ball.set_kf("Transform", "position", frame=60, value=vec2(1280, 360))
+ball.set_kf("Transform", "rotation", frame=0, value=float(0))
+ball.set_kf("Transform", "rotation", frame=60, value=float(360))
+ball.add_component("Visual")
+ball.set_kf("Visual", "fillColor", frame=0, value=color(0, 100, 255, 255))
+ball.set_kf("Visual", "fillColor", frame=60, value=color(255, 50, 0, 255))
+ball.set_kf("Visual", "strokeColor", frame=0, value=color(255, 255, 255, 255))
+
+# ── Scene: Cut02 ──────────────────────────────────────────
+let Cut02 = project.new_scene("Cut02", fps=24, duration=8)
+let particles = Cut02.new_layer("particles")
+
+# go: spark
+let spark = particles.new_go("spark", born=5)
+spark.add_component("Transform")
+spark.set_kf("Transform", "position", frame=5, value=vec2(100, 100))
+spark.set_kf("Transform", "position", frame=20, value=vec2(300, 50), easing="ease-out")
+
+save("test-output.hhk")

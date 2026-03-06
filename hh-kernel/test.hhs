@@ -1,0 +1,48 @@
+# HuaHuo Script integration test
+# Creates a project, adds objects, sets keyframes, interpolates, then saves.
+
+new_project("TestAnim", fps=30, w=1280, h=720)
+
+# Get the default scene & layer
+let scene = project.scene("DefaultScene")
+let layer = scene.layer("drawing")
+
+# Create a ball that moves across the screen
+let ball = layer.new_go("ball", born=0)
+ball.add_component("Transform")
+ball.add_component("Visual")
+
+# Animate position: frame 0 → 60
+ball.set_kf("Transform", "position", frame=0,  value=vec2(0, 360))
+ball.set_kf("Transform", "position", frame=30, value=vec2(640, 360), easing="ease-in-out")
+ball.set_kf("Transform", "position", frame=60, value=vec2(1280, 360))
+
+# Animate rotation
+ball.set_kf("Transform", "rotation", frame=0,  value=float(0))
+ball.set_kf("Transform", "rotation", frame=60, value=float(360))
+
+# Animate fill color: blue → red
+ball.set_kf("Visual", "fillColor", frame=0,  value=color(0, 100, 255, 255))
+ball.set_kf("Visual", "fillColor", frame=60, value=color(255, 50, 0, 255))
+
+# Hex color convenience
+ball.set_kf("Visual", "strokeColor", frame=0, value=hex("#FFFFFF"))
+
+# Inspect interpolated values at frame 15
+ball.interpolate(frame=15)
+
+# Add a second scene
+let cut2 = project.new_scene("Cut02", fps=24, duration=8)
+let fxLayer = cut2.new_layer("particles")
+let spark = fxLayer.new_go("spark", born=5)
+spark.add_component("Transform")
+spark.set_kf("Transform", "position", frame=5,  value=vec2(100, 100))
+spark.set_kf("Transform", "position", frame=20, value=vec2(300, 50), easing="ease-out")
+
+# Show info
+ball.info()
+project.info()
+
+# Save
+save("test-output.hhk")
+
