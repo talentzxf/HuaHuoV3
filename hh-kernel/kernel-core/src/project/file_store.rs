@@ -147,6 +147,18 @@ impl FileEntry {
 /// - Collapses consecutive `/` into one
 /// - Strips trailing `/` (except the root `/` itself)
 pub fn normalize_path(path: &str) -> String {
+    // Detect Windows-style absolute paths (e.g. "C:/foo" or "C:\foo") and
+    // strip the drive letter so they become proper vfs paths like "/foo".
+    let path = if path.len() >= 2 && path.chars().nth(1) == Some(':') {
+        &path[2..]
+    } else {
+        path
+    };
+
+    // Normalise backslashes to forward slashes (Windows paths)
+    let path_fwd: String = path.replace('\\', "/");
+    let path = path_fwd.as_str();
+
     let with_slash = if path.starts_with('/') {
         path.to_string()
     } else {

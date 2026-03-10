@@ -6,10 +6,12 @@
 use std::collections::HashMap;
 use anyhow::{bail, Result};
 use nanoid::nanoid;
+use md5;
 
 use kernel_core::{Project, Scene, Layer};
 use kernel_core::project::game_object::GameObjectData;
 use kernel_core::ecs::components::keyframe::{EasingType, KeyFrame};
+use kernel_core::project::file_store::{FileEntry, normalize_path};
 use kernel_core::storage::{deserialize_project, serialize_project};
 use kernel_sdk::property::PropertyValue;
 
@@ -159,6 +161,144 @@ impl Interpreter {
             "print" => {
                 let msg = require_pos_str(&args, 0, "print(msg)")?;
                 println!("{}", msg);
+                Ok(HhsValue::Null)
+            }
+
+            // ── hashing ──────────────────────────────────────────────────────
+
+            // md5_str("hello world")
+            "md5_str" => {
+                let s = require_pos_str(&args, 0, "md5_str(string)")?;
+                let digest = format!("{:x}", md5::compute(s.as_bytes()));
+                println!("{}", digest);
+                Ok(HhsValue::Str(digest))
+            }
+
+            // md5("/bin/hhk.exe")  — MD5 of an embedded file inside the project
+            "md5" => {
+                let vfs  = require_pos_str(&args, 0, "md5(vfs_path)")?;
+                let proj = self.require_project()?;
+                let entry = proj.find_file_by_path(&vfs)
+                    .ok_or_else(|| anyhow::anyhow!("md5: '{}' not found in project", vfs))?;
+                let digest = format!("{:x}", md5::compute(&entry.data));
+                println!("{}", digest);
+                Ok(HhsValue::Str(digest))
+            }
+
+            // ── file management ──────────────────────────────────────────────
+
+            // files_import("local/path.png", "/assets/images/logo.png")
+            "files_import" => {
+                let local = require_pos_str(&args, 0, "files_import(local_path, vfs_path)")?;
+                let vfs   = require_pos_str(&args, 1, "files_import(local_path, vfs_path)")?;
+
+                let data = std::fs::read(&local)
+                    .map_err(|e| anyhow::anyhow!("files_import: cannot read '{}': {}", local, e))?;
+
+                let ext  = std::path::Path::new(&local)
+                    .extension().and_then(|s| s.to_str()).unwrap_or("");
+                let mime = FileEntry::mime_from_extension(ext).to_string();
+                let size = data.len();
+
+                let proj = self.require_project()?;
+                let id   = proj.add_file_at(&vfs, &mime, data);
+                println!("✓ Imported '{}' → '{}'\n  id: {}\n  mime: {}\n  size: {} bytes",
+                    local, normalize_path(&vfs), id, mime, size);
+                Ok(HhsValue::Null)
+            }
+
+            // files_export("/assets/images/logo.png", "local/output.png")
+            "files_export" => {
+                let vfs   = require_pos_str(&args, 0, "files_export(vfs_path, local_path)")?;
+                let local = require_pos_str(&args, 1, "files_export(vfs_path, local_path)")?;
+
+                let proj = self.require_project()?;
+                let entry = proj.find_file_by_path(&vfs)
+                    .ok_or_else(|| anyhow::anyhow!("files_export: '{}' not found", vfs))?;
+                let data  = entry.data.clone();
+                let size  = entry.size;
+                let norm  = normalize_path(&vfs);
+
+                if let Some(parent) = std::path::Path::new(&local).parent() {
+                    if !parent.as_os_str().is_empty() {
+                        std::fs::create_dir_all(parent)?;
+                    }
+                }
+                std::fs::write(&local, &data)?;
+                println!("✓ Exported '{}' → '{}'\n  size: {} bytes", norm, local, size);
+                Ok(HhsValue::Null)
+            }
+
+            // files_list()  or  files_list("/assets")  or  files_list("/assets", recursive=true)
+            "files_list" => {
+                let dir       = get_pos_str(&args, 0).unwrap_or_else(|| "/".to_string());
+                let recursive = named_bool(&args, "recursive").unwrap_or(false);
+                // Default to recursive when listing root (no dir specified)
+                let is_recursive = recursive || args.is_empty();
+
+                let proj = self.require_project()?;
+                let entries = if is_recursive {
+                    proj.list_files_under(&dir)
+                } else {
+                    proj.list_files_in_dir(&dir)
+                };
+
+                if entries.is_empty() {
+                    if proj.files.is_empty() {
+                        println!("  (no embedded files in project)");
+                    } else {
+                        println!("  (no files under '{}')", normalize_path(&dir));
+                    }
+                } else {
+                    println!();
+                    for e in &entries {
+                        println!("  {:<50} {:>10}  {}", e.path, fmt_size(e.size), e.mime_type);
+                    }
+                    println!("\n  {} file(s)", entries.len());
+                }
+                Ok(HhsValue::Null)
+            }
+
+            // files_rm("/assets/images/logo.png")
+            "files_rm" => {
+                let vfs = require_pos_str(&args, 0, "files_rm(vfs_path)")?;
+                let proj = self.require_project()?;
+                let removed = proj.remove_file_by_path(&vfs)
+                    .ok_or_else(|| anyhow::anyhow!("files_rm: '{}' not found", vfs))?;
+                println!("✓ Removed '{}' ({} bytes)", removed.path, removed.size);
+                Ok(HhsValue::Null)
+            }
+
+            // files_mv("/old/path.png", "/new/path.png")
+            "files_mv" => {
+                let old = require_pos_str(&args, 0, "files_mv(old_path, new_path)")?;
+                let new = require_pos_str(&args, 1, "files_mv(old_path, new_path)")?;
+
+                let proj  = self.require_project()?;
+                let id    = proj.find_file_by_path(&old)
+                    .ok_or_else(|| anyhow::anyhow!("files_mv: '{}' not found", old))?
+                    .id.clone();
+                let new_norm = normalize_path(&new);
+                if proj.find_file_by_path(&new_norm).is_some() {
+                    bail!("files_mv: '{}' already exists — remove it first", new_norm);
+                }
+                proj.move_file(&id, &new_norm);
+                println!("✓ Moved '{}' → '{}'", normalize_path(&old), new_norm);
+                Ok(HhsValue::Null)
+            }
+
+            // files_info("/assets/images/logo.png")
+            "files_info" => {
+                let vfs  = require_pos_str(&args, 0, "files_info(vfs_path)")?;
+                let proj = self.require_project()?;
+                let entry = proj.find_file_by_path(&vfs)
+                    .ok_or_else(|| anyhow::anyhow!("files_info: '{}' not found", vfs))?;
+                println!("File: {}", entry.path);
+                println!("  id:         {}", entry.id);
+                println!("  name:       {}", entry.name);
+                println!("  mime:       {}", entry.mime_type);
+                println!("  size:       {} bytes ({})", entry.size, fmt_size(entry.size));
+                println!("  created_at: {}", entry.created_at);
                 Ok(HhsValue::Null)
             }
 
@@ -1284,6 +1424,12 @@ fn parse_easing(s: &str) -> Result<EasingType> {
         }
         other => bail!("unknown easing '{}'. Use: linear step ease-in ease-out ease-in-out bezier:x1,y1,x2,y2", other),
     }
+}
+
+fn fmt_size(bytes: u64) -> String {
+    if bytes < 1024 { format!("{} B", bytes) }
+    else if bytes < 1024 * 1024 { format!("{:.1} KB", bytes as f64 / 1024.0) }
+    else { format!("{:.1} MB", bytes as f64 / (1024.0 * 1024.0)) }
 }
 
 

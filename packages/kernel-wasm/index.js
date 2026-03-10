@@ -32,6 +32,7 @@ let _subs = {};
 let _subIdCounter = 0;
 
 function _publish(topic, payload) {
+  console.debug('[kernel-stub] publish:', topic, JSON.stringify(payload).slice(0, 80));
   for (const [, sub] of Object.entries(_subs)) {
     const pattern = sub.pattern;
     // Simple wildcard matching: "*" matches everything, segments with "*" match any
@@ -185,8 +186,14 @@ function _dispatch(cmdJson) {
           kfs.push({ frame: keyframe.frame, value: keyframe.value, easing: keyframe.easing || 'linear' });
           kfs.sort((a, b) => a.frame - b.frame);
         }
-        _publish(`keyframe/${game_object_id}/${component_type}/${prop_name}`, { action: 'set', frame: keyframe.frame });
-        _publish('keyframe', { action: 'set', game_object_id, component_type, prop_name });
+        // Publish with go_id so KernelAdapter can re-interpolate this GO
+        _publish(`keyframe/${game_object_id}/${component_type}/${prop_name}`, {
+          action: 'set', frame: keyframe.frame,
+          go_id: game_object_id, component_type, prop_name
+        });
+        _publish('keyframe', {
+          action: 'set', go_id: game_object_id, component_type, prop_name
+        });
         break;
       }
       case 'Play': {
@@ -252,7 +259,19 @@ function _query(queryJson) {
         break;
       case 'GetCurrentScene': {
         const sid = _state.project?.current_scene_id;
-        result.data = sid ? _state.scenes[sid] ?? null : null;
+        if (!sid || !_state.scenes[sid]) { result.data = null; break; }
+        const scene = _state.scenes[sid];
+        // Build a game_objects map from all GOs belonging to this scene's layers
+        const gameObjects = {};
+        for (const layerId of scene.layer_ids ?? []) {
+          const layer = _state.layers[layerId];
+          if (!layer) continue;
+          for (const goId of layer.game_object_ids ?? []) {
+            const go = _state.gameObjects[goId];
+            if (go) gameObjects[goId] = { ...go, born_frame_id: go.born_frame };
+          }
+        }
+        result.data = { ...scene, game_objects: gameObjects };
         break;
       }
       case 'GetGameObject':

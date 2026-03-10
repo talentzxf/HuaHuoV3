@@ -17,6 +17,7 @@ env_logger.workspace = true
 prost.workspace = true
 bytes.workspace = true
 nanoid.workspace = true
+md5.workspace = true
 kernel-core = { workspace = true }
 kernel-sdk = { workspace = true }
 kernel-proto = { workspace = true }

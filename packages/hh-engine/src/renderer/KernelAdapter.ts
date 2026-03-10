@@ -18,6 +18,24 @@ export class KernelAdapter {
   }
 
   startListening(): void {
+    // If kernel isn't ready yet, subscribe to a 'ready' event or poll — but since
+    // KernelBridge.subscribe() calls assertReady(), we must only call this AFTER init().
+    // Guard: skip if not ready (caller must call startListening again after init).
+    if (!this.kernel.ready) {
+      console.warn('[KernelAdapter] startListening called before kernel ready — deferring');
+      // Poll until ready
+      const poll = setInterval(() => {
+        if (this.kernel.ready) {
+          clearInterval(poll);
+          this._doStartListening();
+        }
+      }, 50);
+      return;
+    }
+    this._doStartListening();
+  }
+
+  private _doStartListening(): void {
     // ── GO lifecycle ──────────────────────────────────────────────────────
     this.subIds.push(
       this.kernel.subscribe('go', (ev) => {
@@ -39,9 +57,12 @@ export class KernelAdapter {
     // ── Component property / keyframe changes → re-interpolate & redraw ──
     this.subIds.push(
       this.kernel.subscribe('keyframe', (ev) => {
-        const goId = ev.go_id ?? ev.Keyframe?.go_id;
+        // ev.go_id is set by the stub / kernel when a keyframe is changed
+        const goId = ev.go_id ?? ev.game_object_id ?? ev.Keyframe?.go_id;
         const frame = this.kernel.getPlaybackState()?.current_frame ?? 0;
-        if (goId) this.applyInterpolatedProps(goId, frame);
+        if (goId) {
+          this.applyInterpolatedProps(goId, frame);
+        }
         this.renderer.render();
       })
     );
@@ -65,12 +86,11 @@ export class KernelAdapter {
 
     // ── Scene changes → rebuild Paper layers ─────────────────────────────
     this.subIds.push(
-      this.kernel.subscribe('layer', (ev) => {
-        // Layer visibility / lock handled separately if needed
+      this.kernel.subscribe('layer', (_ev) => {
         this.renderer.render();
       })
     );
-  }
+  }  // end _doStartListening
 
   stopListening(): void {
     for (const id of this.subIds) {

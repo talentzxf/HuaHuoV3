@@ -98,8 +98,10 @@ pub fn list(project_path: String, dir: Option<String>, recursive: bool) -> Resul
     let project = deserialize_project(&bytes)?;
 
     let filter_dir = dir.as_deref().unwrap_or("/");
+    // Default to recursive when no --dir specified (show everything)
+    let is_recursive = recursive || dir.is_none();
 
-    let entries = if recursive {
+    let entries = if is_recursive {
         project.list_files_under(filter_dir)
     } else {
         project.list_files_in_dir(filter_dir)
@@ -109,23 +111,7 @@ pub fn list(project_path: String, dir: Option<String>, recursive: bool) -> Resul
     println!("Files in '{}' (project: {}, {} total embedded):", project_path, project.name, total_files);
 
     if entries.is_empty() {
-        if recursive {
-            println!("  (no files under '{}')", normalize_path(filter_dir));
-        } else {
-            // Show a tree of all dirs to help navigation
-            let dirs = project.list_dirs();
-            if dirs.len() <= 1 && total_files == 0 {
-                println!("  (project has no embedded files)");
-            } else {
-                println!("  (no direct files in '{}' — use --recursive or list a subdirectory)", normalize_path(filter_dir));
-                println!("\n  Directories:");
-                for d in &dirs {
-                    if d != "/" {
-                        println!("    {}/", d);
-                    }
-                }
-            }
-        }
+        println!("  (no files under '{}')", normalize_path(filter_dir));
         return Ok(());
     }
 

@@ -30,6 +30,9 @@ bytes = "1"
 uuid = { version = "1", features = ["v4", "serde"] }
 nanoid = "0.4"
 
+# Hashing
+md5 = "0.7"
+
 # Utilities
 thiserror = "2"
 anyhow = "1"
