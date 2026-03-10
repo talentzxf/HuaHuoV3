@@ -81,7 +81,12 @@ enum Commands {
         load: Option<String>,
     },
 
-    // ── Scene commands ────────────────────────────────────────────────────────
+    // ── File management ───────────────────────────────────────────────────────
+    /// Manage embedded resource files (images, audio, fonts, …)
+    Files {
+        #[command(subcommand)]
+        action: FilesCommands,
+    },
     /// Manage scenes in a project
     Scene {
         #[command(subcommand)]
@@ -101,6 +106,83 @@ enum Commands {
     GameObject {
         #[command(subcommand)]
         action: GameObjectCommands,
+    },
+}
+
+// ── Files subcommands ─────────────────────────────────────────────────────────
+
+#[derive(Subcommand)]
+enum FilesCommands {
+    /// Import a local file into the project at a virtual path.
+    ///
+    /// Example: hhk files import project.hhk ./logo.png /assets/images/logo.png
+    Import {
+        /// .hhk project file
+        project: String,
+        /// Local file to import
+        local_file: String,
+        /// Virtual destination path inside the project (e.g. /assets/images/logo.png)
+        vfs_path: String,
+    },
+
+    /// Export (dump) an embedded file to the local filesystem.
+    ///
+    /// Example: hhk files export project.hhk /assets/images/logo.png ./logo.png
+    Export {
+        /// .hhk project file
+        project: String,
+        /// Virtual path inside the project
+        vfs_path: String,
+        /// Local output path
+        local_output: String,
+    },
+
+    /// List embedded files (optionally filtered to a directory).
+    ///
+    /// Example: hhk files list project.hhk
+    ///          hhk files list project.hhk --dir /assets
+    ///          hhk files list project.hhk --dir /assets --recursive
+    List {
+        /// .hhk project file
+        project: String,
+        /// Filter to this virtual directory (default: /)
+        #[arg(long, default_value = "/")]
+        dir: Option<String>,
+        /// List all files recursively under the directory
+        #[arg(short, long)]
+        recursive: bool,
+    },
+
+    /// Remove an embedded file by its virtual path.
+    ///
+    /// Example: hhk files rm project.hhk /assets/images/logo.png
+    Rm {
+        /// .hhk project file
+        project: String,
+        /// Virtual path of the file to remove
+        vfs_path: String,
+    },
+
+    /// Move / rename an embedded file to a new virtual path.
+    ///
+    /// Example: hhk files mv project.hhk /logo.png /assets/images/logo.png
+    Mv {
+        /// .hhk project file
+        project: String,
+        /// Current virtual path of the file
+        old_path: String,
+        /// New virtual path for the file
+        new_path: String,
+    },
+
+    /// Show metadata for an embedded file.
+    ///
+    /// Example: hhk files info project.hhk /assets/images/logo.png
+    Info {
+        /// .hhk project file
+        project: String,
+        /// Virtual path of the file
+        vfs_path: String,
     },
 }
 
@@ -332,6 +414,28 @@ fn main() -> Result<()> {
         Commands::Repl { load } => {
             commands::repl::run(load)
         }
+
+        // Files
+        Commands::Files { action } => match action {
+            FilesCommands::Import { project, local_file, vfs_path } => {
+                commands::files::import(project, local_file, vfs_path)
+            }
+            FilesCommands::Export { project, vfs_path, local_output } => {
+                commands::files::export(project, vfs_path, local_output)
+            }
+            FilesCommands::List { project, dir, recursive } => {
+                commands::files::list(project, dir, recursive)
+            }
+            FilesCommands::Rm { project, vfs_path } => {
+                commands::files::rm(project, vfs_path)
+            }
+            FilesCommands::Mv { project, old_path, new_path } => {
+                commands::files::mv(project, old_path, new_path)
+            }
+            FilesCommands::Info { project, vfs_path } => {
+                commands::files::info(project, vfs_path)
+            }
+        },
 
         // Scene
         Commands::Scene { action } => match action {

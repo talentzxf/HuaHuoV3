@@ -42,13 +42,14 @@ mod tests {
     fn test_v2_roundtrip_preserves_files() {
         let mut p = simple_project();
         let png_data = vec![0x89u8, 0x50, 0x4E, 0x47]; // PNG magic bytes
-        let id = p.add_file("sprite.png", "image/png", png_data.clone());
+        let id = p.add_file_at("/assets/sprite.png", "image/png", png_data.clone());
 
         let bytes    = serialize_project(&p).expect("serialize");
         let decoded  = deserialize_project(&bytes).expect("deserialize");
 
         assert_eq!(decoded.files.len(), 1);
         let entry = decoded.files.get(&id).expect("file entry missing after roundtrip");
+        assert_eq!(entry.path,      "/assets/sprite.png");
         assert_eq!(entry.name,      "sprite.png");
         assert_eq!(entry.mime_type, "image/png");
         assert_eq!(entry.data,      png_data);
@@ -58,9 +59,9 @@ mod tests {
     #[test]
     fn test_v2_roundtrip_multiple_files() {
         let mut p = simple_project();
-        let id1 = p.add_file("bg.jpg",    "image/jpeg", vec![1, 2, 3]);
-        let id2 = p.add_file("theme.ttf", "font/ttf",   vec![4, 5, 6, 7]);
-        let id3 = p.add_file("sfx.mp3",   "audio/mpeg", vec![8]);
+        let id1 = p.add_file_at("/assets/bg.jpg",        "image/jpeg", vec![1, 2, 3]);
+        let id2 = p.add_file_at("/fonts/theme.ttf",      "font/ttf",   vec![4, 5, 6, 7]);
+        let id3 = p.add_file_at("/assets/audio/sfx.mp3", "audio/mpeg", vec![8]);
 
         let bytes   = serialize_project(&p).expect("serialize");
         let decoded = deserialize_project(&bytes).expect("deserialize");
@@ -155,7 +156,7 @@ mod tests {
     #[test]
     fn test_fileref_in_keyframe_survives_roundtrip() {
         let mut p    = simple_project();
-        let file_id  = p.add_file("tex.png", "image/png", vec![0xFF, 0x00]);
+        let file_id  = p.add_file_at("/textures/tex.png", "image/png", vec![0xFF, 0x00]);
 
         let mut scene = Scene::new("s1".into(), "Scene".into(), 30.0, 5.0);
         let mut go    = GameObjectData::new("go1".into(), "Sprite".into(), 0);

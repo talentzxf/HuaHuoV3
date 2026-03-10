@@ -8,3 +8,4 @@ pub mod gameobject;
 pub mod run;
 pub mod dump;
 pub mod repl;
+pub mod files;

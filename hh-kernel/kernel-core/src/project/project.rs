@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use crate::project::scene::Scene;
 use crate::project::element::{ElementDef, detect_element_cycle};
-use crate::project::file_store::FileEntry;
+use crate::project::file_store::{FileEntry, normalize_path, is_direct_child, is_under_dir};
 
 /// The top-level project container.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -109,18 +109,41 @@ impl Project {
 
     // ── File store ────────────────────────────────────────────────────────────
 
-    /// Embed a resource file in the project.  Generates a unique id and
-    /// returns it so callers can store `PropertyValue::FileRef(id)`.
+    /// Embed a resource file at a **virtual path** inside the project.
+    ///
+    /// The path is normalized (leading `/` ensured).  Returns the generated
+    /// unique id, which can be stored in `PropertyValue::FileRef(id)`.
+    ///
+    /// If a file already exists at the same path it is **overwritten**.
+    pub fn add_file_at(
+        &mut self,
+        path: impl Into<String>,
+        mime_type: impl Into<String>,
+        data: Vec<u8>,
+    ) -> String {
+        let path = normalize_path(&path.into());
+        // Remove any existing file at this path first
+        let old_id = self.files.values()
+            .find(|e| e.path == path)
+            .map(|e| e.id.clone());
+        if let Some(old) = old_id {
+            self.files.remove(&old);
+        }
+        let id = nanoid::nanoid!();
+        let entry = FileEntry::new_at_path(id.clone(), path, mime_type, data, chrono_now());
+        self.files.insert(id.clone(), entry);
+        id
+    }
+
+    /// Convenience: embed at root `/name` (backward-compatible with old API).
     pub fn add_file(
         &mut self,
         name: impl Into<String>,
         mime_type: impl Into<String>,
         data: Vec<u8>,
     ) -> String {
-        let id = nanoid::nanoid!();
-        let entry = FileEntry::new(id.clone(), name, mime_type, data, chrono_now());
-        self.files.insert(id.clone(), entry);
-        id
+        let name: String = name.into();
+        self.add_file_at(format!("/{}", name), mime_type, data)
     }
 
     /// Remove a file by id.  Returns the removed entry if it existed.
@@ -128,9 +151,22 @@ impl Project {
         self.files.remove(id)
     }
 
+    /// Remove a file by virtual path.  Returns the removed entry if it existed.
+    pub fn remove_file_by_path(&mut self, path: &str) -> Option<FileEntry> {
+        let path = normalize_path(path);
+        let id = self.files.values().find(|e| e.path == path)?.id.clone();
+        self.files.remove(&id)
+    }
+
     /// Get a file entry by id.
     pub fn get_file(&self, id: &str) -> Option<&FileEntry> {
         self.files.get(id)
+    }
+
+    /// Find a file by its exact virtual path (e.g. `/assets/images/logo.png`).
+    pub fn find_file_by_path(&self, path: &str) -> Option<&FileEntry> {
+        let path = normalize_path(path);
+        self.files.values().find(|e| e.path == path)
     }
 
     /// Find a file by its original filename.  Returns the first match.
@@ -138,11 +174,68 @@ impl Project {
         self.files.values().find(|e| e.name == name)
     }
 
-    /// Iterate over all embedded file entries in insertion-independent order.
+    /// Move (rename) a file to a new virtual path.
+    /// Returns `true` on success, `false` if no file with that id exists.
+    pub fn move_file(&mut self, id: &str, new_path: impl Into<String>) -> bool {
+        let new_path = normalize_path(&new_path.into());
+        if let Some(entry) = self.files.get_mut(id) {
+            use crate::project::file_store::file_name_from_path;
+            entry.name = file_name_from_path(&new_path).to_string();
+            entry.path = new_path;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// List all files directly inside a directory (non-recursive).
+    /// Use `"/"` for the root.
+    pub fn list_files_in_dir(&self, dir: &str) -> Vec<&FileEntry> {
+        let mut entries: Vec<&FileEntry> = self.files.values()
+            .filter(|e| is_direct_child(&e.path, dir))
+            .collect();
+        entries.sort_by_key(|e| &e.path);
+        entries
+    }
+
+    /// List all files under a directory recursively.
+    /// Use `"/"` to list everything.
+    pub fn list_files_under(&self, dir: &str) -> Vec<&FileEntry> {
+        let mut entries: Vec<&FileEntry> = self.files.values()
+            .filter(|e| is_under_dir(&e.path, dir))
+            .collect();
+        entries.sort_by_key(|e| &e.path);
+        entries
+    }
+
+    /// Iterate over all embedded file entries sorted by path.
     pub fn list_files(&self) -> Vec<&FileEntry> {
         let mut entries: Vec<&FileEntry> = self.files.values().collect();
-        entries.sort_by_key(|e| &e.name);
+        entries.sort_by_key(|e| &e.path);
         entries
+    }
+
+    /// Collect all unique directory paths present in the file store, sorted.
+    /// Always includes `"/"`.
+    pub fn list_dirs(&self) -> Vec<String> {
+        let mut dirs = std::collections::BTreeSet::new();
+        dirs.insert("/".to_string());
+        for entry in self.files.values() {
+            // Walk up from the file's path, collecting each parent directory
+            let segments: Vec<&str> = entry.path
+                .split('/')
+                .filter(|s| !s.is_empty())
+                .collect();
+            // All segments except the last (which is the filename)
+            let dir_segments = if segments.is_empty() { &[][..] } else { &segments[..segments.len() - 1] };
+            let mut cur = String::new();
+            for seg in dir_segments {
+                cur.push('/');
+                cur.push_str(seg);
+                dirs.insert(cur.clone());
+            }
+        }
+        dirs.into_iter().collect()
     }
 }
 
@@ -164,35 +257,51 @@ mod tests {
         assert!(p.files.is_empty());
     }
 
-    // ── add_file ──────────────────────────────────────────────────────────────
+    // ── add_file_at ───────────────────────────────────────────────────────────
 
     #[test]
-    fn test_add_file_returns_nonempty_id() {
+    fn test_add_file_at_returns_nonempty_id() {
         let mut p = make_project();
-        let id = p.add_file("logo.png", "image/png", vec![1, 2, 3]);
+        let id = p.add_file_at("/assets/logo.png", "image/png", vec![1, 2, 3]);
         assert!(!id.is_empty());
     }
 
     #[test]
-    fn test_add_file_stored_in_files_map() {
+    fn test_add_file_at_stores_normalized_path() {
         let mut p = make_project();
-        let data = vec![0xAA, 0xBB];
-        let id = p.add_file("icon.png", "image/png", data.clone());
-
-        assert_eq!(p.files.len(), 1);
+        let id = p.add_file_at("assets/images/icon.png", "image/png", vec![0xAA]);
         let entry = p.files.get(&id).unwrap();
+        assert_eq!(entry.path, "/assets/images/icon.png");
         assert_eq!(entry.name, "icon.png");
-        assert_eq!(entry.mime_type, "image/png");
-        assert_eq!(entry.data, data);
-        assert_eq!(entry.size, 2);
+    }
+
+    #[test]
+    fn test_add_file_at_overwrites_same_path() {
+        let mut p = make_project();
+        p.add_file_at("/assets/logo.png", "image/png", vec![1]);
+        p.add_file_at("/assets/logo.png", "image/png", vec![2]);
+        assert_eq!(p.files.len(), 1);
+        let entry = p.find_file_by_path("/assets/logo.png").unwrap();
+        assert_eq!(entry.data, vec![2]);
+    }
+
+    // ── add_file (root convenience) ───────────────────────────────────────────
+
+    #[test]
+    fn test_add_file_places_at_root() {
+        let mut p = make_project();
+        let id = p.add_file("logo.png", "image/png", vec![1, 2, 3]);
+        let entry = p.files.get(&id).unwrap();
+        assert_eq!(entry.path, "/logo.png");
+        assert_eq!(entry.name, "logo.png");
     }
 
     #[test]
     fn test_add_multiple_files_have_distinct_ids() {
         let mut p = make_project();
-        let id1 = p.add_file("a.png", "image/png", vec![1]);
-        let id2 = p.add_file("b.png", "image/png", vec![2]);
-        let id3 = p.add_file("c.png", "image/png", vec![3]);
+        let id1 = p.add_file_at("/a.png", "image/png", vec![1]);
+        let id2 = p.add_file_at("/b.png", "image/png", vec![2]);
+        let id3 = p.add_file_at("/c.png", "image/png", vec![3]);
         assert_ne!(id1, id2);
         assert_ne!(id2, id3);
         assert_eq!(p.files.len(), 3);
@@ -203,7 +312,7 @@ mod tests {
     #[test]
     fn test_remove_file_returns_entry() {
         let mut p = make_project();
-        let id = p.add_file("sound.mp3", "audio/mpeg", vec![10, 20]);
+        let id = p.add_file_at("/audio/sound.mp3", "audio/mpeg", vec![10, 20]);
         let removed = p.remove_file(&id);
         assert!(removed.is_some());
         assert_eq!(removed.unwrap().name, "sound.mp3");
@@ -211,25 +320,37 @@ mod tests {
     }
 
     #[test]
+    fn test_remove_file_by_path() {
+        let mut p = make_project();
+        p.add_file_at("/assets/logo.png", "image/png", vec![1]);
+        let removed = p.remove_file_by_path("/assets/logo.png");
+        assert!(removed.is_some());
+        assert!(p.files.is_empty());
+    }
+
+    #[test]
     fn test_remove_nonexistent_file_returns_none() {
         let mut p = make_project();
         assert!(p.remove_file("no-such-id").is_none());
+        assert!(p.remove_file_by_path("/ghost.png").is_none());
     }
 
-    // ── get_file ──────────────────────────────────────────────────────────────
+    // ── find_file_by_path ─────────────────────────────────────────────────────
 
     #[test]
-    fn test_get_file_by_id() {
+    fn test_find_file_by_path() {
         let mut p = make_project();
-        let id = p.add_file("font.ttf", "font/ttf", vec![0xFF]);
-        let entry = p.get_file(&id).unwrap();
-        assert_eq!(entry.name, "font.ttf");
+        p.add_file_at("/assets/images/logo.png", "image/png", vec![0xFF]);
+        assert!(p.find_file_by_path("/assets/images/logo.png").is_some());
+        assert!(p.find_file_by_path("/other.png").is_none());
     }
 
     #[test]
-    fn test_get_file_unknown_id_returns_none() {
-        let p = make_project();
-        assert!(p.get_file("ghost").is_none());
+    fn test_find_file_by_path_normalizes_input() {
+        let mut p = make_project();
+        p.add_file_at("/assets/logo.png", "image/png", vec![1]);
+        // Without leading slash should still work
+        assert!(p.find_file_by_path("assets/logo.png").is_some());
     }
 
     // ── find_file_by_name ─────────────────────────────────────────────────────
@@ -237,35 +358,95 @@ mod tests {
     #[test]
     fn test_find_file_by_name_finds_correct_entry() {
         let mut p = make_project();
-        p.add_file("alpha.png", "image/png", vec![1]);
-        p.add_file("beta.png",  "image/png", vec![2]);
-        let found = p.find_file_by_name("beta.png").unwrap();
-        assert_eq!(found.mime_type, "image/png");
+        p.add_file_at("/alpha/a.png", "image/png", vec![1]);
+        p.add_file_at("/beta/b.png",  "image/png", vec![2]);
+        let found = p.find_file_by_name("b.png").unwrap();
         assert_eq!(found.data, vec![2]);
     }
 
+    // ── move_file ─────────────────────────────────────────────────────────────
+
     #[test]
-    fn test_find_file_by_name_missing_returns_none() {
+    fn test_move_file_updates_path_and_name() {
         let mut p = make_project();
-        p.add_file("exists.png", "image/png", vec![]);
-        assert!(p.find_file_by_name("missing.png").is_none());
+        let id = p.add_file_at("/logo.png", "image/png", vec![1]);
+        assert!(p.move_file(&id, "/assets/images/logo.png"));
+        let entry = p.get_file(&id).unwrap();
+        assert_eq!(entry.path, "/assets/images/logo.png");
+        assert_eq!(entry.name, "logo.png");
+    }
+
+    #[test]
+    fn test_move_file_nonexistent_returns_false() {
+        let mut p = make_project();
+        assert!(!p.move_file("ghost-id", "/new/path.png"));
+    }
+
+    // ── list_files_in_dir ─────────────────────────────────────────────────────
+
+    #[test]
+    fn test_list_files_in_dir_direct_only() {
+        let mut p = make_project();
+        p.add_file_at("/assets/images/logo.png",  "image/png", vec![1]);
+        p.add_file_at("/assets/images/icon.png",  "image/png", vec![2]);
+        p.add_file_at("/assets/audio/bgm.mp3",    "audio/mpeg", vec![3]);
+        p.add_file_at("/logo.png",                "image/png", vec![4]);
+
+        let in_images = p.list_files_in_dir("/assets/images");
+        assert_eq!(in_images.len(), 2);
+
+        let in_assets = p.list_files_in_dir("/assets");
+        assert_eq!(in_assets.len(), 0, "direct children only; subdirs not counted");
+
+        let in_root = p.list_files_in_dir("/");
+        assert_eq!(in_root.len(), 1); // only /logo.png
+    }
+
+    // ── list_files_under ─────────────────────────────────────────────────────
+
+    #[test]
+    fn test_list_files_under_recursive() {
+        let mut p = make_project();
+        p.add_file_at("/assets/images/logo.png", "image/png", vec![1]);
+        p.add_file_at("/assets/audio/bgm.mp3",   "audio/mpeg", vec![2]);
+        p.add_file_at("/other.txt",               "text/plain", vec![3]);
+
+        let under_assets = p.list_files_under("/assets");
+        assert_eq!(under_assets.len(), 2);
+
+        let under_root = p.list_files_under("/");
+        assert_eq!(under_root.len(), 3);
     }
 
     // ── list_files ────────────────────────────────────────────────────────────
 
     #[test]
-    fn test_list_files_sorted_by_name() {
+    fn test_list_files_sorted_by_path() {
         let mut p = make_project();
-        p.add_file("zebra.png",  "image/png", vec![3]);
-        p.add_file("apple.png",  "image/png", vec![1]);
-        p.add_file("mango.png",  "image/png", vec![2]);
-        let names: Vec<&str> = p.list_files().iter().map(|e| e.name.as_str()).collect();
-        assert_eq!(names, vec!["apple.png", "mango.png", "zebra.png"]);
+        p.add_file_at("/z/zebra.png", "image/png", vec![3]);
+        p.add_file_at("/a/apple.png", "image/png", vec![1]);
+        p.add_file_at("/m/mango.png", "image/png", vec![2]);
+        let paths: Vec<&str> = p.list_files().iter().map(|e| e.path.as_str()).collect();
+        assert_eq!(paths, vec!["/a/apple.png", "/m/mango.png", "/z/zebra.png"]);
+    }
+
+    // ── list_dirs ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_list_dirs_includes_root() {
+        let p = make_project();
+        assert!(p.list_dirs().contains(&"/".to_string()));
     }
 
     #[test]
-    fn test_list_files_empty_project() {
-        let p = make_project();
-        assert!(p.list_files().is_empty());
+    fn test_list_dirs_discovers_all_directories() {
+        let mut p = make_project();
+        p.add_file_at("/assets/images/logo.png", "image/png", vec![]);
+        p.add_file_at("/assets/audio/bgm.mp3",   "audio/mpeg", vec![]);
+        let dirs = p.list_dirs();
+        assert!(dirs.contains(&"/".to_string()));
+        assert!(dirs.contains(&"/assets".to_string()));
+        assert!(dirs.contains(&"/assets/images".to_string()));
+        assert!(dirs.contains(&"/assets/audio".to_string()));
     }
 }
