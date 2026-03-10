@@ -8,6 +8,7 @@
 //! - Binary serialization with versioning
 
 pub mod ecs;
+pub mod event;
 pub mod project;
 pub mod storage;
 
@@ -16,6 +17,7 @@ pub use ecs::{
     systems::{interpolate_game_object, interpolate_scene_at_frame, InterpolatedProps, PlaybackState},
     KernelWorld,
 };
-pub use project::{GameObjectData, Layer, Project, Scene};
+pub use event::{EventBus, HhEvent};
+pub use project::{GameObjectData, Layer, Project, Scene, FileEntry};
 pub use storage::{deserialize_project, serialize_project};
 

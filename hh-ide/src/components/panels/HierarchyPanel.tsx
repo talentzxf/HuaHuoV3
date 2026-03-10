@@ -4,6 +4,7 @@ import { Tree, Typography } from 'antd';
 import type { TreeDataNode } from 'antd';
 import { FolderOutlined, FileOutlined, AppstoreOutlined } from '@ant-design/icons';
 import { SDK } from '@huahuo/sdk';
+import { getKernel } from '@huahuo/engine';
 import type { IGameObject } from '@huahuo/sdk';
 import type { RootState } from '../../store/store';
 import { selectObject, clearSelection } from '../../store/features/selection/selectionSlice';
@@ -23,12 +24,21 @@ const HierarchyPanel: React.FC<HierarchyPanelProps> = ({ onSelectGameObject }) =
   // Get selection from Redux store
   const selection = useSelector((state: RootState) => state.selection);
 
-  // Subscribe to engine state changes - this will trigger re-render when scene/layers/gameObjects change
-  const gameObjectsById = useSelector((state: RootState) => state.engine?.gameObjects?.byId);
-  const layersById = useSelector((state: RootState) => state.engine?.layers?.byId);
-  const scenesById = useSelector((state: RootState) => state.engine?.scenes?.byId);
+  // Use a version counter bumped by kernel events to trigger tree rebuild
+  const [sceneVersion, setSceneVersion] = useState(0);
+  useEffect(() => {
+    const kernel = getKernel();
+    if (!kernel.ready) return;
+    const bump = () => setSceneVersion(v => v + 1);
+    const ids = [
+      kernel.subscribe('go',    bump),
+      kernel.subscribe('layer', bump),
+      kernel.subscribe('scene', bump),
+    ];
+    return () => ids.forEach(id => kernel.unsubscribe(id));
+  }, []);
 
-  // Use useMemo to build tree data and ID mappings - only rebuild when engine state changes
+  // Use useMemo to build tree data and ID mappings - only rebuild when kernel scene changes
   const { treeData, gameObjectIdToKey, layerIdToKey, sceneIdToKey } = useMemo(() => {
     if (!SDK.isInitialized()) {
       return {
@@ -89,7 +99,7 @@ const HierarchyPanel: React.FC<HierarchyPanelProps> = ({ onSelectGameObject }) =
       layerIdToKey: layerToKeyMap,
       sceneIdToKey: sceneToKeyMap,
     };
-  }, [gameObjectsById, layersById, scenesById]); // Only rebuild when engine state changes
+  }, [sceneVersion]); // Only rebuild when kernel emits scene/layer/go events
 
   // Calculate selectedKeys from selection state
   const selectedKeys = useMemo(() => {

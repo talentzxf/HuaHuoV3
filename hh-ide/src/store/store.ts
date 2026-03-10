@@ -4,41 +4,24 @@ import counterReducer from './features/counter/counterSlice';
 import selectionReducer from './features/selection/selectionSlice';
 import canvasReducer from './features/canvas/canvasSlice';
 
-// Import unified engine reducer
-import { engineReducer } from '@huahuo/engine';
-
-// Import listener middlewares
-import { keyframeListenerMiddleware, setupKeyframeListener } from './listeners/keyframeListener';
-import { gameObjectListenerMiddleware, setupGameObjectListener } from './listeners/gameObjectListener';
-
+// NOTE: The engine's data layer has moved to Rust/WASM (KernelBridge).
+// Only UI-only slices remain in Redux.
+// Engine state (project, scenes, layers, gameObjects, components, playback)
+// is accessed via getKernel() from @huahuo/engine.
 
 export const store = configureStore({
   reducer: {
-    // IDE-specific reducers
+    // IDE-only UI state
     auth: authSlice.reducer,
     app: appSlice.reducer,
     counter: counterReducer,
     selection: selectionReducer,
     canvas: canvasReducer,
-
-    // Engine reducer (unified, encapsulates internal structure)
-    // Engine's playback state is used for play/pause control
-    engine: engineReducer,
   },
   middleware: getDefaultMiddleware =>
-    getDefaultMiddleware({
-      serializableCheck: false
-    }).prepend(
-      keyframeListenerMiddleware.middleware,
-      gameObjectListenerMiddleware.middleware
-    ),
+    getDefaultMiddleware({ serializableCheck: false }),
   devTools: true,
 });
 
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;
-
-// Setup listeners
-setupKeyframeListener();
-setupGameObjectListener();
-

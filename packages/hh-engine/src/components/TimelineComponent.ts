@@ -3,13 +3,8 @@ import { IGameObject } from '../core/IGameObject';
 import { ComponentBase } from './ComponentBase';
 import { Component } from '../core/PropertyConfig';
 import { EasingType } from '../core/EasingTypes';
-import { getEngineState, getEngineStore } from '../core/EngineGlobals';
-import { setKeyFrameEasing } from '../store/ComponentSlice';
+import { getKernel } from '../core/KernelBridge';
 
-/**
- * Animation segment represents interpolation between two keyframes
- * This is a computed/derived data structure, not stored in Redux
- */
 export interface AnimationSegment {
   componentId: string;
   componentType: string;
@@ -20,12 +15,8 @@ export interface AnimationSegment {
 }
 
 /**
- * Timeline component - UI helper for managing animation easing
- * This component doesn't store any data itself - it just provides
- * methods to collect and edit easing information from other components' keyframes
- *
- * Note: The @PropertyRenderer decorator is applied in the IDE layer
- * to avoid circular dependencies (TimelineComponent -> PropertyRenderer -> TimelineComponent)
+ * Timeline component — UI helper for managing animation easing.
+ * Reads keyframes directly from the Rust kernel.
  */
 @Component
 export class TimelineComponent extends ComponentBase implements IComponent {
@@ -35,80 +26,48 @@ export class TimelineComponent extends ComponentBase implements IComponent {
     super(gameObject, config || {});
   }
 
-  /**
-   * Collect all animation segments from all components of this GameObject
-   * This reads keyframes from all components and returns segment information
-   */
   collectAnimationSegments(): AnimationSegment[] {
-    const state = getEngineState();
-    const gameObject = state.gameObjects.byId[this.gameObject.id];
-    if (!gameObject) return [];
+    const kernel = getKernel();
+    if (!kernel.ready) return [];
+
+    const go = kernel.getGameObject(this.gameObject.id);
+    if (!go) return [];
 
     const segments: AnimationSegment[] = [];
 
-    // Iterate through all components
-    for (const componentId of gameObject.componentIds) {
-      const component = state.components.byId[componentId];
-      if (!component) continue;
-
-      // Skip Timeline component itself
-      if (component.type === 'Timeline') continue;
-
-      // Iterate through all properties with keyframes
-      for (const propertyName in component.keyFrames) {
-        const keyFrames = component.keyFrames[propertyName];
-        if (keyFrames.length < 2) continue; // Need at least 2 keyframes to make a segment
-
-        // Create segments between consecutive keyframes
+    for (const [compType, compData] of Object.entries(go.components ?? {})) {
+      const cd = compData as any;
+      if (compType === 'Timeline') continue;
+      for (const propertyName in cd.keyFrames ?? {}) {
+        const keyFrames: any[] = cd.keyFrames[propertyName];
+        if (!Array.isArray(keyFrames) || keyFrames.length < 2) continue;
         for (let i = 0; i < keyFrames.length - 1; i++) {
-          const startFrame = keyFrames[i].frame;
-          const endFrame = keyFrames[i + 1].frame;
-
-          // Easing is stored on the END keyframe (easing TO that keyframe)
-          const easingType = keyFrames[i + 1].easingType || EasingType.Linear;
-
           segments.push({
-            componentId,
-            componentType: component.type,
+            componentId: `${this.gameObject.id}_${compType}`,
+            componentType: compType,
             propertyName,
-            startFrame,
-            endFrame,
-            easingType
+            startFrame: keyFrames[i].frame,
+            endFrame: keyFrames[i + 1].frame,
+            easingType: keyFrames[i + 1].easing ?? EasingType.Linear,
           });
         }
       }
     }
-
     return segments;
   }
 
-  /**
-   * Set easing type for a specific animation segment
-   * This dispatches an action to update the keyframe's easing
-   */
   setSegmentEasing(
-    componentId: string,
+    _componentId: string,
     propertyName: string,
-    startFrame: number,
+    _startFrame: number,
     endFrame: number,
-    easingType: EasingType
+    easingType: EasingType,
+    componentType: string
   ): void {
-    const store = getEngineStore();
-
-    // Set easing on the END keyframe (easing TO that keyframe)
-    store.dispatch(setKeyFrameEasing({
-      componentId,
-      propName: propertyName,
-      frame: endFrame,
-      easingType
-    }));
+    const kernel = getKernel();
+    if (!kernel.ready) return;
+    kernel.setKeyframe(this.gameObject.id, componentType, propertyName, endFrame, undefined, easingType);
   }
 
-  /**
-   * Timeline component doesn't need to apply anything to renderer
-   */
-  applyToRenderer(renderer: any, renderItem: any): void {
-    // No-op: Timeline is just a UI helper
-  }
+  applyToRenderer(_renderer: any, _renderItem: any): void {}
 }
-

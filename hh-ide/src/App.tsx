@@ -1,59 +1,73 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { playAnimation, pauseAnimation, stopAnimation, getEngineStore } from '@huahuo/engine';
+import { getKernel, KernelBridge } from '@huahuo/engine';
 import FlexLayoutWrapper from './components/FlexLayoutWrapper';
 import MainMenu from './components/MainMenu';
-import { message } from 'antd';
+import { message, Spin } from 'antd';
 
 const App: React.FC = () => {
   const { t } = useTranslation();
+  const [kernelReady, setKernelReady] = useState(false);
 
   useEffect(() => {
-    console.info('🎉 HuaHuo IDE loaded successfully!');
+    // Initialize the Rust/WASM kernel once on startup
+    KernelBridge.getInstance().init().then(() => {
+      console.info('🎉 HuaHuo IDE loaded — Rust kernel ready');
+      setKernelReady(true);
+    }).catch(err => {
+      console.error('Failed to initialize Rust kernel:', err);
+      message.error('Failed to load animation engine');
+    });
   }, []);
 
   const handleSave = () => {
     message.success(t('messages.projectSaved'));
-    // TODO: Implement save logic
+    // TODO: getKernel().saveBytes() and write to file
   };
 
   const handleOpen = () => {
     message.info(t('messages.openingProject'));
-    // TODO: Implement open logic
+    // TODO: read file bytes → getKernel().loadBytes(bytes)
   };
 
   const handlePreview = () => {
     message.info(t('messages.openingPreview'));
-    // TODO: Implement preview logic
   };
 
   const handleUndo = () => {
     message.info(t('messages.undo'));
-    // TODO: Implement undo logic
+    // TODO: implement undo via kernel command
   };
 
   const handleRedo = () => {
     message.info(t('messages.redo'));
-    // TODO: Implement redo logic
+    // TODO: implement redo via kernel command
   };
 
   const handlePlay = () => {
-    const engineStore = getEngineStore();
-    (engineStore.dispatch as any)(playAnimation());
+    getKernel().play();
     message.success(t('messages.playing'));
   };
 
   const handlePause = () => {
-    const engineStore = getEngineStore();
-    (engineStore.dispatch as any)(pauseAnimation());
+    getKernel().pause();
     message.warning(t('messages.paused'));
   };
 
   const handleStop = () => {
-    const engineStore = getEngineStore();
-    (engineStore.dispatch as any)(stopAnimation());
+    getKernel().stop();
     message.info(t('messages.stopped'));
   };
+
+  if (!kernelReady) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
+        <Spin size="large" tip="Loading animation engine...">
+          <div style={{ padding: 48, background: 'rgba(0,0,0,0)', borderRadius: 4 }} />
+        </Spin>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -73,4 +87,3 @@ const App: React.FC = () => {
 };
 
 export default App;
-

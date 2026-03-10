@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Form, Typography, Divider, Switch, Input } from 'antd';
-import { getEngineStore } from '@huahuo/engine';
-import { renameLayer, setLayerVisible, setLayerHasTimeline } from '@huahuo/sdk';
+import { getKernel } from '@huahuo/engine';
 import './LayerPropertyPanel.css';
 
 const { Text } = Typography;
@@ -16,74 +15,45 @@ const LayerPropertyPanel: React.FC<LayerPropertyPanelProps> = ({ layerId }) => {
   const [layerData, setLayerData] = useState<any>(null);
 
   useEffect(() => {
-    console.debug('[LayerPropertyPanel] layerId changed:', layerId);
+    if (!layerId) { setLayerData(null); return; }
 
-    if (!layerId) {
-      setLayerData(null);
-      return;
-    }
-
-    const updateData = () => {
-      const engineStore = getEngineStore();
-      const state = engineStore.getState();
-      const engineState = state.engine || state;
-
-      const layer = engineState.layers.byId[layerId];
-      console.debug('[LayerPropertyPanel] Layer data:', layer);
-
-      if (!layer) {
-        setLayerData(null);
-        return;
-      }
-
-      setLayerData(layer);
+    const refresh = () => {
+      const kernel = getKernel();
+      if (!kernel.ready) return;
+      // Layer data is inside the scene
+      const scene = kernel.getCurrentScene();
+      if (!scene) { setLayerData(null); return; }
+      const layer = scene.layers?.[layerId];
+      setLayerData(layer ?? null);
     };
 
-    updateData();
+    refresh();
 
-    // Subscribe to engine store changes
-    const engineStore = getEngineStore();
-    const unsubscribe = engineStore.subscribe(() => {
-      updateData();
-    });
-
-    return () => unsubscribe();
+    // Subscribe to layer events for this specific layer
+    const kernel = getKernel();
+    if (!kernel.ready) return;
+    const sub = kernel.subscribe(`layer/${layerId}`, () => refresh());
+    return () => kernel.unsubscribe(sub);
   }, [layerId]);
 
   const handleNameChange = (value: string) => {
-    if (!layerId) return;
-
-    const engineStore = getEngineStore();
-    engineStore.dispatch(renameLayer({
-      layerId: layerId,
-      name: value
-    }));
+    // TODO: add RenameLayer command to kernel
+    console.warn('[LayerPropertyPanel] Layer rename not yet implemented in kernel');
   };
 
   const handleVisibleChange = (checked: boolean) => {
-    if (!layerId) return;
-
-    const engineStore = getEngineStore();
-    engineStore.dispatch(setLayerVisible({
-      layerId: layerId,
-      visible: checked
-    }));
+    // TODO: add SetLayerVisible command to kernel
+    console.warn('[LayerPropertyPanel] Layer visibility not yet implemented in kernel');
   };
 
   const handleHasTimelineChange = (checked: boolean) => {
-    if (!layerId) return;
-
-    const engineStore = getEngineStore();
-    engineStore.dispatch(setLayerHasTimeline({
-      layerId: layerId,
-      hasTimeline: checked
-    }));
+    console.warn('[LayerPropertyPanel] hasTimeline not yet implemented in kernel');
   };
 
   if (!layerId || !layerData) {
     return (
       <div className="layer-property-panel">
-        <Text style={{ color: '#999999', fontStyle: 'italic' }}>
+        <Text style={{ color: '#999', fontStyle: 'italic' }}>
           {t('layerPropertyPanel.selectLayer', 'Select a Layer to view properties')}
         </Text>
       </div>
@@ -110,7 +80,7 @@ const LayerPropertyPanel: React.FC<LayerPropertyPanelProps> = ({ layerId }) => {
       <div style={rowStyle}>
         <Text style={labelStyle}>Layer Name:</Text>
         <Input
-          value={layerData.name}
+          value={layerData.name ?? ''}
           onChange={(e) => handleNameChange(e.target.value)}
           onKeyDown={(e) => e.stopPropagation()}
           size="small"
@@ -118,7 +88,7 @@ const LayerPropertyPanel: React.FC<LayerPropertyPanelProps> = ({ layerId }) => {
         />
         <Text style={{ ...labelStyle, width: 'auto', marginLeft: '8px' }}>Active:</Text>
         <Switch
-          checked={layerData.visible}
+          checked={layerData.visible ?? true}
           onChange={handleVisibleChange}
           size="small"
         />
@@ -127,7 +97,7 @@ const LayerPropertyPanel: React.FC<LayerPropertyPanelProps> = ({ layerId }) => {
       <div style={rowStyle}>
         <Text style={labelStyle}>Use Timeline:</Text>
         <Switch
-          checked={layerData.hasTimeline}
+          checked={layerData.hasTimeline ?? true}
           onChange={handleHasTimelineChange}
           size="small"
         />

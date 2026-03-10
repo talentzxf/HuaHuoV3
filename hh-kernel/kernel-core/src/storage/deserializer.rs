@@ -1,6 +1,8 @@
 use anyhow::{bail, Result};
+
 use crate::project::Project;
 use crate::storage::format::{FileEnvelope, CURRENT_VERSION};
+use crate::storage::migrations::v1::{project_from_v1, ProjectV1Compat};
 
 /// Deserialize a `Project` from a binary blob.
 /// Routes to the appropriate migration path based on the schema version.
@@ -17,6 +19,13 @@ pub fn deserialize_project(bytes: &[u8]) -> Result<Project> {
 
     match envelope.schema_version {
         1 => {
+            // V1 files were serialised as the old Project struct (no `files`
+            // field).  Deserialise into the compat replica, then convert.
+            let compat: ProjectV1Compat = bincode::deserialize(payload)?;
+            Ok(project_from_v1(compat))
+        }
+        2 => {
+            // V2 files are serialised directly as the current Project.
             let project: Project = bincode::deserialize(payload)?;
             Ok(project)
         }

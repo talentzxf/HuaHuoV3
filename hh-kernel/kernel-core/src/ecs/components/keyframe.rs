@@ -155,5 +155,51 @@ mod tests {
         let val = interpolate_keyframes(&keyframes, 0).unwrap();
         assert_eq!(val, PropertyValue::Float(5.0));
     }
+
+    // ── FileRef keyframe behaviour ─────────────────────────────────────────────
+
+    #[test]
+    fn test_file_ref_at_exact_frame_returns_value() {
+        let keyframes = vec![KeyFrame::new(0, PropertyValue::FileRef("tex-id".into()))];
+        let val = interpolate_keyframes(&keyframes, 0).unwrap();
+        assert_eq!(val, PropertyValue::FileRef("tex-id".into()));
+    }
+
+    #[test]
+    fn test_file_ref_snaps_between_two_keyframes() {
+        // Two FileRef keyframes: at frame 0 → "tex-a", frame 10 → "tex-b"
+        // At frame 5 (midpoint), result should snap to the first value "tex-a".
+        let keyframes = vec![
+            KeyFrame::new(0,  PropertyValue::FileRef("tex-a".into())),
+            KeyFrame::new(10, PropertyValue::FileRef("tex-b".into())),
+        ];
+        let val = interpolate_keyframes(&keyframes, 5).unwrap();
+        assert_eq!(val, PropertyValue::FileRef("tex-a".into()),
+            "FileRef should snap to first keyframe value at mid-point");
+    }
+
+    #[test]
+    fn test_file_ref_at_last_keyframe() {
+        let keyframes = vec![
+            KeyFrame::new(0,  PropertyValue::FileRef("tex-a".into())),
+            KeyFrame::new(10, PropertyValue::FileRef("tex-b".into())),
+        ];
+        assert_eq!(
+            interpolate_keyframes(&keyframes, 10).unwrap(),
+            PropertyValue::FileRef("tex-b".into())
+        );
+    }
+
+    #[test]
+    fn test_file_ref_after_last_keyframe_returns_last() {
+        let keyframes = vec![
+            KeyFrame::new(0,  PropertyValue::FileRef("tex-a".into())),
+            KeyFrame::new(10, PropertyValue::FileRef("tex-b".into())),
+        ];
+        assert_eq!(
+            interpolate_keyframes(&keyframes, 99).unwrap(),
+            PropertyValue::FileRef("tex-b".into())
+        );
+    }
 }
 

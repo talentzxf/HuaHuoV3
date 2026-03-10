@@ -1,8 +1,12 @@
+pub mod element;
+pub mod file_store;
 pub mod game_object;
 pub mod layer;
 pub mod project;
 pub mod scene;
 
+pub use element::{ElementDef, ElementInstance, detect_element_cycle};
+pub use file_store::FileEntry;
 pub use game_object::GameObjectData;
 pub use layer::Layer;
 pub use project::Project;

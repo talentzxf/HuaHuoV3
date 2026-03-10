@@ -1,4 +1,4 @@
-import { getEngineStore, deleteGameObject } from '@huahuo/engine';
+import { getKernel } from '@huahuo/engine';
 import { store } from '../../../../store/store';
 import { clearSelection } from '../../../../store/features/selection/selectionSlice';
 
@@ -56,9 +56,8 @@ export class ObjectDeleteHandler {
    */
   private static deleteGameObject(gameObjectId: string): boolean {
     try {
-      // Delete GameObject from Redux Store
-      const engineStore = getEngineStore();
-      engineStore.dispatch(deleteGameObject(gameObjectId));
+      // Delete GameObject using Kernel
+      getKernel().deleteGameObject(gameObjectId);
 
       // Clear selection
       store.dispatch(clearSelection());

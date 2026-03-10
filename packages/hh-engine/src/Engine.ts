@@ -1,74 +1,57 @@
 import { IScene } from './core/IScene';
 import { IGameObject } from './core/IGameObject';
 import { Scene } from './scene/Scene';
-import { IRenderer, PaperRenderer, ReduxAdapter } from './renderer';
+import { IRenderer, PaperRenderer } from './renderer';
+import { KernelAdapter } from './renderer/KernelAdapter';
 import { ComponentRegistry } from './core/ComponentRegistry';
 import { registerBuiltInComponents } from './components/registerComponents';
-import type { Store } from '@reduxjs/toolkit';
-import type { EngineState } from './store/store';
-import { initEngineStore } from './core/EngineGlobals';
+import { KernelBridge, getKernel } from './core/KernelBridge';
 
 export class Engine {
   private currentScene: Scene | null = null;
   private renderer: IRenderer;
-  private reduxAdapter: ReduxAdapter;
+  private kernelAdapter: KernelAdapter;
   private sceneContext: any;
   private selectedGameObjectId: string | null = null;
+  private kernel: KernelBridge;
 
   constructor(
     canvas: HTMLCanvasElement,
-    store: Store,
-    selectEngineState: (state: any) => EngineState,
     renderer?: IRenderer
   ) {
-    // Initialize global store reference
-    initEngineStore(store, selectEngineState);
+    this.kernel = getKernel();
 
     this.renderer = renderer || new PaperRenderer();
     this.renderer.initialize(canvas);
     this.sceneContext = this.renderer.createSceneContext();
 
-    // Setup Redux to Renderer adapter
-    this.reduxAdapter = new ReduxAdapter(this.renderer, store);
-    this.reduxAdapter.startListening();
+    // KernelAdapter subscribes to WASM events → updates Paper.js
+    this.kernelAdapter = new KernelAdapter(this.renderer, this.kernel);
+    this.kernelAdapter.startListening();
 
     // Register built-in components
     registerBuiltInComponents();
   }
 
   /**
-   * Select a GameObject (updates Paper.js render item selection state)
-   * This should be called by IDE when selection changes
+   * Select a GameObject (updates Paper.js render item selection state).
    */
   selectGameObject(gameObjectId: string | null): void {
-    // Deselect previous
     if (this.selectedGameObjectId) {
-      const prevRenderItem = (this.renderer as any).getRenderItem?.(this.selectedGameObjectId);
-      if (prevRenderItem) {
-        prevRenderItem.selected = false;
-      }
+      const prev = (this.renderer as any).getRenderItem?.(this.selectedGameObjectId);
+      if (prev) prev.selected = false;
     }
-
-    // Select new
     this.selectedGameObjectId = gameObjectId;
     if (gameObjectId) {
-      const currRenderItem = (this.renderer as any).getRenderItem?.(gameObjectId);
-      if (currRenderItem) {
-        currRenderItem.selected = true;
-      }
+      const curr = (this.renderer as any).getRenderItem?.(gameObjectId);
+      if (curr) curr.selected = true;
     }
-
-    // Trigger render
     this.renderer.render();
   }
 
-  /**
-   * Get currently selected GameObject ID
-   */
   getSelectedGameObjectId(): string | null {
     return this.selectedGameObjectId;
   }
-
 
   registerComponent(componentType: string, factory: any): void {
     ComponentRegistry.getInstance().register(componentType, factory);
@@ -83,15 +66,11 @@ export class Engine {
     return this.currentScene;
   }
 
-  loadScene(sceneData: any): IScene {
-    // TODO: Implement scene loading with renderer
-    throw new Error("loadScene not implemented yet");
+  loadScene(_sceneData: any): IScene {
+    throw new Error('loadScene not implemented yet');
   }
 
-  saveScene(): any {
-    // TODO: Implement scene serialization
-    return null;
-  }
+  saveScene(): any { return null; }
 
   createGameObjectFromPaperItem(item: any, layerName?: string): IGameObject | null {
     if (!this.currentScene) {
@@ -99,7 +78,6 @@ export class Engine {
       return null;
     }
 
-    // Get or create layer
     let layer = layerName
       ? this.currentScene.getLayerByName(layerName)
       : this.currentScene.layers[0];
@@ -113,19 +91,10 @@ export class Engine {
       return null;
     }
 
-    // Create GameObject with the Paper.js item as renderItem
-    // GameObject constructor will initialize Transform from renderItem
     const gameObject = layer.addGameObject(item.name || 'GameObject', item);
-
-    // Store GameObject ID in Paper.js item data for quick reverse lookup
     item.data = item.data || {};
     item.data.gameObjectId = gameObject.id;
 
-    // Note: Transform is already initialized from renderItem in GameObject constructor
-
-    // Extract visual properties and add Visual component
-    // The item itself (circle, rectangle, or any shape) is the renderItem
-    // Shape can be changed later through vertex editing tools
     gameObject.addComponent('Visual', {
       fillColor: item.fillColor ? this.colorToCSS(item.fillColor) : undefined,
       strokeColor: item.strokeColor ? this.colorToCSS(item.strokeColor) : undefined,
@@ -138,19 +107,14 @@ export class Engine {
 
   private colorToCSS(color: any): string {
     if (!color) return '#000000';
-    if (typeof color.toCSS === 'function') {
-      return color.toCSS(true);
-    }
-    // Fallback for color objects
-    if (color.red !== undefined && color.green !== undefined && color.blue !== undefined) {
+    if (typeof color.toCSS === 'function') return color.toCSS(true);
+    if (color.red !== undefined) {
       const r = Math.round(color.red * 255);
       const g = Math.round(color.green * 255);
       const b = Math.round(color.blue * 255);
       const a = color.alpha !== undefined ? color.alpha : 1;
-      if (a < 1) {
-        return `rgba(${r}, ${g}, ${b}, ${a})`;
-      }
-      return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+      if (a < 1) return `rgba(${r}, ${g}, ${b}, ${a})`;
+      return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
     }
     return '#000000';
   }
@@ -160,25 +124,16 @@ export class Engine {
   }
 
   dispose(): void {
-    this.reduxAdapter.stopListening();
+    this.kernelAdapter.stopListening();
     this.renderer.dispose();
   }
 
-  getRenderer(): IRenderer {
-    return this.renderer;
-  }
-
-  getSceneContext(): any {
-    return this.sceneContext;
-  }
+  getRenderer(): IRenderer { return this.renderer; }
+  getSceneContext(): any { return this.sceneContext; }
+  getKernel(): KernelBridge { return this.kernel; }
 
   /**
-   * Handle canvas resize - updates view transformation to scale and center content
-   * Uses Paper.js view.scaling and view.center instead of transforming individual layers
-   * @param containerWidth - Container width in pixels
-   * @param containerHeight - Container height in pixels
-   * @param baseWidth - Base canvas width for scaling reference (default: 800)
-   * @param baseHeight - Base canvas height for scaling reference (default: 600)
+   * Handle canvas resize — updates Paper.js view transform.
    */
   handleCanvasResize(
     containerWidth: number,
@@ -186,55 +141,20 @@ export class Engine {
     baseWidth: number = 800,
     baseHeight: number = 600
   ): void {
-    if (!this.sceneContext || !this.currentScene) {
-      console.warn('[Engine.handleCanvasResize] No sceneContext or currentScene');
-      return;
-    }
+    if (!this.sceneContext || !this.currentScene) return;
+    if (containerWidth === 0 || containerHeight === 0) return;
 
     const scope = this.sceneContext;
     const view = scope.view;
 
-    // Skip resize if container is hidden (width/height = 0)
-    if (containerWidth === 0 || containerHeight === 0) {
-      console.log('[Engine.handleCanvasResize] Container hidden, skipping resize');
-      return;
-    }
-
-    console.log('[Engine.handleCanvasResize] ===== RESIZE START =====');
-    console.log('[Engine.handleCanvasResize] Container:', containerWidth, 'x', containerHeight);
-    console.log('[Engine.handleCanvasResize] Base:', baseWidth, 'x', baseHeight);
-
-    // Calculate scale ratio
     const scaleX = containerWidth / baseWidth;
     const scaleY = containerHeight / baseHeight;
-    const ratio = Math.min(scaleX, scaleY) * 0.9; // 0.9 for padding
+    const ratio = Math.min(scaleX, scaleY) * 0.9;
 
-    // Calculate content dimensions and padding
-    const scaledWidth = baseWidth * ratio;
-    const scaledHeight = baseHeight * ratio;
-    const paddingX = (containerWidth - scaledWidth) / 2;
-    const paddingY = (containerHeight - scaledHeight) / 2;
-
-    console.log('[Engine.handleCanvasResize] Ratio:', ratio, 'Padding:', paddingX, ',', paddingY);
-
-    // Set view size first
     view.viewSize = new scope.Size(containerWidth, containerHeight);
-
-    // Apply view zoom (scaling)
     view.zoom = ratio;
+    view.center = new scope.Point(baseWidth / 2, baseHeight / 2);
 
-    // Center the view on the middle of the canvas
-    // The canvas is at (0, 0) to (baseWidth, baseHeight)
-    // We want to center it in the view
-    const centerX = baseWidth / 2;
-    const centerY = baseHeight / 2;
-    view.center = new scope.Point(centerX, centerY);
-
-    console.log('[Engine.handleCanvasResize] View zoom:', view.zoom);
-    console.log('[Engine.handleCanvasResize] View center:', view.center.toString());
-    console.log('[Engine.handleCanvasResize] ===== RESIZE END =====');
-
-    // Trigger render
     this.renderer.render();
   }
 }

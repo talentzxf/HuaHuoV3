@@ -1,4 +1,5 @@
-import { Engine, createProject, addSceneToProject, getEngineStore } from '@huahuo/engine';
+import { Engine, getKernel } from '@huahuo/engine';
+import { Layer } from '@huahuo/engine';
 import { SceneAPI } from '../scene/SceneAPI';
 import { EditorAPI } from '../editor/EditorAPI';
 
@@ -17,18 +18,18 @@ export class SDK {
   }
 
   /**
-   * Initialize the SDK
+   * Initialize the SDK.
+   * The data layer is now handled by KernelBridge (Rust/WASM) — no Redux store needed.
    * @param canvas - HTML Canvas element
-   * @param store - Redux store instance
-   * @param selectEngineState - Selector function to get engine state from store
    */
-  static initialize(canvas: HTMLCanvasElement, store: any, selectEngineState: (state: any) => any): void {
+  static initialize(canvas: HTMLCanvasElement): void {
     if (!SDK._instance) {
-      const engine = new Engine(canvas, store, selectEngineState);
+      // Engine no longer takes a Redux store; KernelBridge is the data layer
+      const engine = new Engine(canvas);
       const editorAPI = new EditorAPI();
       SDK._instance = new SDK(engine, editorAPI);
 
-      // Create new project with default scene and layers
+      // Create new project in the Rust kernel
       SDK._instance.createNewProject();
 
       // Execute all queued callbacks
@@ -36,70 +37,53 @@ export class SDK {
       const queue = SDK._initQueue.slice();
       SDK._initQueue = [];
       queue.forEach(callback => {
-        try {
-          callback();
-        } catch (error) {
-          console.error('Error executing queued callback:', error);
-        }
+        try { callback(); }
+        catch (error) { console.error('Error executing queued callback:', error); }
       });
     }
   }
 
   /**
-   * Create a new project with default scene and layers
-   * This is called during SDK initialization
+   * Create a new project in the Rust kernel with default scene and layers.
    */
   private createNewProject(): void {
     console.log('[SDK.createNewProject] ===== START =====');
 
-    // Create Project
-    const store = getEngineStore();
+    const kernel = getKernel();
+    if (!kernel.ready) {
+      console.error('[SDK.createNewProject] Kernel not ready — skipping project creation');
+      return;
+    }
 
-    const projectAction = createProject('My Animation Project', 30, 800, 600);
-    store.dispatch(projectAction);
-    console.log('[SDK.createNewProject] Project created');
+    // Create project in Rust kernel (also creates a DefaultScene + background + drawing layers)
+    const projectId = kernel.createProject('My Animation Project', 30, 800, 600);
+    console.log('[SDK.createNewProject] Kernel project created:', projectId);
 
-    // Create default scene
+    // The kernel auto-creates DefaultScene + background/drawing layers (see lib.rs CreateProject).
+    // Now sync scene/layer objects into the TS-side Scene system for Paper.js rendering.
     const scene = this.Scene.createScene('DefaultScene');
-    console.log('[SDK.createNewProject] Scene created:', scene);
+    console.log('[SDK.createNewProject] TS Scene created:', scene.id);
 
-    // Add scene to project
-    store.dispatch(addSceneToProject({ sceneId: scene.id }));
-    console.log('[SDK.createNewProject] Scene added to project');
-
-    // Add default layers
-    const backgroundLayer = scene.addLayer('background');
+    // Add default layers (Paper.js side)
+    const backgroundLayer = scene.addLayer('background') as Layer;
     console.log('[SDK.createNewProject] Background layer created:', backgroundLayer.id);
 
-    const drawingLayer = scene.addLayer('drawing');
+    const drawingLayer = scene.addLayer('drawing') as Layer;
     console.log('[SDK.createNewProject] Drawing layer created:', drawingLayer.id);
 
     // Lock background layer to prevent selection
     backgroundLayer.locked = true;
-    console.log('[SDK.createNewProject] Background layer locked');
-
 
     // Get Paper.js layer contexts
     const backgroundLayerContext = backgroundLayer.getLayerContext();
     const drawingLayerContext = drawingLayer.getLayerContext();
 
-    console.log('[SDK.createNewProject] Background layer context:', {
-      exists: !!backgroundLayerContext,
-      applyMatrix: backgroundLayerContext?.applyMatrix,
-      name: backgroundLayerContext?.name
-    });
-
-    // IMPORTANT: Activate background layer before creating the white canvas
-    // This ensures the white canvas is created directly in this layer
+    // Activate background layer before creating the white canvas
     backgroundLayerContext.activate();
 
-    // Get the Paper.js scope for creating items
     const scope = this.engine.getSceneContext();
-    console.log('[SDK.createNewProject] Got scope:', !!scope);
-    console.log('[SDK.createNewProject] Active layer before creating canvas:', scope.project.activeLayer?.name || 'null');
 
-    // Create white canvas background rectangle (800x600, 4:3 aspect ratio)
-    // It will be automatically added to the currently active layer (backgroundLayerContext)
+    // Create white canvas background rectangle
     const whiteCanvas = new scope.Path.Rectangle({
       point: [0, 0],
       size: [800, 600],
@@ -110,31 +94,8 @@ export class SDK {
     whiteCanvas.name = 'whiteCanvas';
     whiteCanvas.locked = true;
 
-    console.log('[SDK.createNewProject] White canvas created and added:', {
-      name: whiteCanvas.name,
-      bounds: whiteCanvas.bounds.toString(),
-      fillColor: whiteCanvas.fillColor?.toCSS(true),
-      parent: whiteCanvas.parent?.name || 'null',
-      parentChildrenCount: whiteCanvas.parent?.children?.length || 0
-    });
-
-    // Debug: Check Paper.js project structure
-    console.log('[SDK.createNewProject] Paper.js project info:');
-    console.log('  - Total layers:', scope.project.layers.length);
-    scope.project.layers.forEach((layer: any, index: number) => {
-      console.log(`  - Layer ${index}:`, {
-        name: layer.name || 'unnamed',
-        children: layer.children.length,
-        applyMatrix: layer.applyMatrix,
-        visible: layer.visible
-      });
-    });
-
     // Activate drawing layer for new items
     drawingLayerContext.activate();
-    console.log('[SDK.createNewProject] Drawing layer activated');
-    console.log('[SDK.createNewProject] Active layer:', scope.project.activeLayer?.name || 'null');
-
     console.log('[SDK.createNewProject] ===== END =====');
   }
 
@@ -143,7 +104,7 @@ export class SDK {
    */
   static get instance(): SDK {
     if (!SDK._instance) {
-      throw new Error('SDK not initialized. Call SDK.initialize(scope) first.');
+      throw new Error('SDK not initialized. Call SDK.initialize(canvas) first.');
     }
     return SDK._instance;
   }
@@ -151,9 +112,7 @@ export class SDK {
   /**
    * Check if SDK is initialized
    */
-  static isInitialized(): boolean {
-    return SDK._instance !== null;
-  }
+  static isInitialized(): boolean { return SDK._instance !== null; }
 
   /**
    * Execute a callback after SDK is initialized
@@ -163,14 +122,9 @@ export class SDK {
    */
   static executeAfterInit(callback: () => void): void {
     if (SDK.isInitialized()) {
-      // Already initialized, execute immediately
-      try {
-        callback();
-      } catch (error) {
-        console.error('Error executing callback:', error);
-      }
+      try { callback(); }
+      catch (error) { console.error('Error executing callback:', error); }
     } else {
-      // Not initialized yet, queue it
       SDK._initQueue.push(callback);
     }
   }
@@ -209,30 +163,17 @@ export class SDK {
   /**
    * Get the Paper.js scope (for tools and UI to use the same context)
    */
-  getPaperScope(): any {
-    return this.engine.getSceneContext();
-  }
+  getPaperScope(): any { return this.engine.getSceneContext(); }
 
   /**
    * Get the renderer (for tools to access render items)
    * @internal
    */
-  getRenderer(): any {
-    return this.engine.getRenderer();
-  }
-
-  /**
-   * Get the engine instance (for internal SDK use only)
-   */
-  private getEngine(): Engine {
-    return this.engine;
-  }
+  getRenderer(): any { return this.engine.getRenderer(); }
 
   /**
    * Reset the SDK (for testing)
    */
-  static reset(): void {
-    SDK._instance = null;
-  }
+  static reset(): void { SDK._instance = null; }
 }
 

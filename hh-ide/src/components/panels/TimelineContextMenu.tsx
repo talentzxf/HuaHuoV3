@@ -1,7 +1,7 @@
 import React from 'react';
 import { Dropdown } from 'antd';
 import type { MenuProps } from 'antd';
-import { getEngineStore, setAnimationEndFrame, splitTimelineClip } from '@huahuo/engine';
+import { getKernel } from '@huahuo/engine';
 import { useDispatch } from 'react-redux';
 import { requestCanvasRefresh } from '../../store/features/canvas/canvasSlice';
 
@@ -34,27 +34,17 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
 
   // Handle set animation end
   const handleSetAnimationEnd = () => {
-    const engineStore = getEngineStore();
-    engineStore.dispatch(setAnimationEndFrame({ frame: frameNumber }));
-    console.log(`Set animation end to frame ${frameNumber}`);
+    // TODO: SetAnimationEndFrame kernel command
+    console.warn('[TimelineContextMenu] SetAnimationEndFrame not yet in kernel', frameNumber);
     onClose();
   };
 
   // Handle split clip
   const handleSplitClip = () => {
     if (!clip || !trackId) return;
-
-    const engineStore = getEngineStore();
-    // trackId is actually layerId in CanvasPanel context
-    const layerId = trackId;
-
-    console.log('Split clip requested:', { layerId, clipId: clip.id, splitFrame: frameNumber });
-    engineStore.dispatch(splitTimelineClip(layerId, clip.id, frameNumber));
-
-    // Request canvas refresh via IDE store
+    // TODO: SplitTimelineClip kernel command
+    console.warn('[TimelineContextMenu] SplitTimelineClip not yet in kernel', { trackId, clipId: clip.id, splitFrame: frameNumber });
     dispatch(requestCanvasRefresh());
-
-    console.log(`Split clip ${clip.id} at frame ${frameNumber}`);
     onClose();
   };
 
@@ -103,4 +93,3 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
     </Dropdown>
   );
 };
-

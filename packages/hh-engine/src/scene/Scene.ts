@@ -1,14 +1,10 @@
-import { getEngineStore, getEngineState } from "../core/EngineGlobals";
+import { getKernel } from "../core/KernelBridge";
 import { Layer } from "./Layer";
-import {IScene} from "../core/IScene";
+import { IScene } from "../core/IScene";
 import { ILayer } from "../core/ILayer";
-import {addLayerToScene, createScene} from "../store/SceneSlice";
-import {createLayer} from "../store/LayerSlice";
-import { setProjectCurrentScene } from "../store/ProjectSlice";
-import { setSceneDurationAndExpandProject, setSceneFpsAndExpandProject } from "../store/actions";
 import { IRenderer } from "../renderer";
 import { RegistrableEntity } from "../core/RegistrableEntity";
-import {InstanceRegistry} from "../core/InstanceRegistry";
+import { InstanceRegistry } from "../core/InstanceRegistry";
 
 export class Scene extends RegistrableEntity implements IScene {
     private renderer: IRenderer;
@@ -23,107 +19,112 @@ export class Scene extends RegistrableEntity implements IScene {
     }
 
     get duration(): number {
-        const engineState = getEngineState();
-        const scene = engineState.scenes.byId[this.id];
-        return scene?.duration || 5.0; // Default 5 seconds
+        const kernel = getKernel();
+        if (!kernel.ready) return 5;
+        return kernel.getCurrentScene()?.duration ?? 5;
     }
 
     set duration(value: number) {
-        const store = getEngineStore();
-        // Use composite action that auto-expands Project totalFrames if needed
-        (store.dispatch as any)(setSceneDurationAndExpandProject(this.id, value));
+        // TODO: kernel SetSceneDuration command
+        console.warn('[Scene] set duration not yet in kernel:', value);
     }
 
     get fps(): number {
-        const engineState = getEngineState();
-        const scene = engineState.scenes.byId[this.id];
-        return scene?.fps || 30; // Default 30 fps
+        const kernel = getKernel();
+        if (!kernel.ready) return 30;
+        return kernel.getCurrentScene()?.fps ?? 30;
     }
 
     set fps(value: number) {
-        const store = getEngineStore();
-        // Use composite action that auto-expands Project totalFrames if needed
-        (store.dispatch as any)(setSceneFpsAndExpandProject(this.id, value));
-    }
-
-    getLayerByName(name: string): ILayer | undefined {
-        const engineState = getEngineState();
-        const scene = engineState.scenes.byId[this.id];
-        if (!scene) return undefined;
-
-        const layerId = scene.layerIds.find((id: string) => {
-            const layer = engineState.layers.byId[id];
-            return layer && layer.name === name;
-        });
-
-        if (!layerId) return undefined;
-
-        // Only return existing instance, don't create
-        return InstanceRegistry.getInstance().get<Layer>(layerId);
-    }
-
-    destroy(): void {
-        throw new Error("Method not implemented.");
-    }
-
-    static create(name: string, renderer: IRenderer, sceneContext: any): Scene {
-        const store = getEngineStore();
-        const sceneId = store.dispatch(createScene(name)).payload.id;
-
-        // Set as current scene in the project
-        store.dispatch(setProjectCurrentScene({ sceneId }));
-
-        console.debug('[Scene.create] Creating Scene:', sceneId);
-        return InstanceRegistry.getInstance().getOrCreate<Scene>(sceneId, () => {
-            console.debug('[Scene.create] Factory: new Scene:', sceneId);
-            return new Scene(sceneId, renderer, sceneContext);
-        });
+        // TODO: kernel SetSceneFps command
+        console.warn('[Scene] set fps not yet in kernel:', value);
     }
 
     get name(): string {
-        const engineState = getEngineState();
-        const scene = engineState.scenes.byId[this.id];
-        return scene?.name || 'Untitled Scene';
+        const kernel = getKernel();
+        if (!kernel.ready) return '';
+        return kernel.getCurrentScene()?.name ?? '';
     }
 
-    set name(value: string) {
-        const store = getEngineStore();
-        store.dispatch({
-            type: 'scenes/setSceneName',
-            payload: { sceneId: this.id, name: value }
-        });
+    set name(_value: string) {
+        // TODO: kernel RenameScene command
     }
 
     get layers(): Layer[] {
-        const engineState = getEngineState();
-        const scene = engineState.scenes.byId[this.id];
-
-        // Only return existing instances from InstanceRegistry
-        // DO NOT create new instances here - creation only happens in addLayer
-        return scene.layerIds
+        const kernel = getKernel();
+        if (!kernel.ready) return [];
+        const scene = kernel.getCurrentScene();
+        if (!scene) return [];
+        return Object.keys(scene.layers ?? {})
             .map((layerId: string) => InstanceRegistry.getInstance().get<Layer>(layerId))
             .filter((layer): layer is Layer => layer !== undefined);
     }
 
-    addLayer(name: string): Layer {
-        const store = getEngineStore();
-        const layerId = store.dispatch(createLayer(name)).payload.id;
-        store.dispatch(
-            addLayerToScene({ sceneId: this.id, layerId })
+    getLayerByName(name: string): ILayer | undefined {
+        const kernel = getKernel();
+        if (!kernel.ready) return undefined;
+        const scene = kernel.getCurrentScene();
+        if (!scene) return undefined;
+        const layerId = Object.entries(scene.layers ?? {})
+            .find(([, layer]: [string, any]) => layer.name === name)?.[0];
+        if (!layerId) return undefined;
+        return InstanceRegistry.getInstance().get<Layer>(layerId);
+    }
+
+    /** Create a Scene and register it in the kernel + TS registry */
+    static create(name: string, renderer: IRenderer, sceneContext: any): Scene {
+        const kernel = getKernel();
+
+        // If the kernel already has a scene (created by createProject), reuse its ID
+        let sceneId: string;
+        if (kernel.ready) {
+            const existing = kernel.getCurrentScene();
+            if (existing) {
+                sceneId = existing.id ?? name;
+            } else {
+                sceneId = kernel.createScene(name, 30, 5);
+            }
+        } else {
+            // Fallback: generate a random ID for offline/testing
+            sceneId = `scene_${Math.random().toString(36).slice(2)}`;
+        }
+
+        console.debug('[Scene.create] sceneId:', sceneId);
+        return InstanceRegistry.getInstance().getOrCreate<Scene>(sceneId, () =>
+            new Scene(sceneId, renderer, sceneContext)
         );
+    }
+
+    addLayer(name: string): Layer {
+        const kernel = getKernel();
+        let layerId: string;
+
+        if (kernel.ready) {
+            // Check if the kernel already created this layer (e.g. during createProject)
+            const scene = kernel.getCurrentScene();
+            const existing = Object.entries(scene?.layers ?? {})
+                .find(([, l]: [string, any]) => l.name === name)?.[0];
+            layerId = existing ?? kernel.createLayer(this.id, name);
+        } else {
+            layerId = `layer_${Math.random().toString(36).slice(2)}`;
+        }
 
         // Pass the name to renderer so Paper.js layer also has the name
         const layerContext = this.renderer.createLayerContext(this.sceneContext, name);
 
-        return InstanceRegistry.getInstance().getOrCreate<Layer>(layerId, () => {
-            return new Layer(layerId, this.renderer, layerContext);
-        });
+        return InstanceRegistry.getInstance().getOrCreate<Layer>(layerId, () =>
+            new Layer(layerId, this.renderer, layerContext)
+        );
     }
 
     removeLayer(layer: Layer): void {
         // TODO: Implement layer removal from Redux store
         layer.destroy();
         // Layer will be unregistered in its destroy() method
+    }
+
+    destroy(): void {
+        throw new Error("Method not implemented.");
     }
 
     update(deltaTime: number): void {
@@ -135,6 +136,4 @@ export class Scene extends RegistrableEntity implements IScene {
         });
     }
 }
-
-
 

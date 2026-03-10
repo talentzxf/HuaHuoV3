@@ -18,6 +18,7 @@ module.exports = (env, argv) => {
       extensions: ['.tsx', '.ts', '.js', '.jsx'],
       alias: {
         '@': path.resolve(__dirname, 'src'),
+        '@huahuo/kernel-wasm': path.resolve(__dirname, '../packages/kernel-wasm/index.js'),
       },
     },
     module: {

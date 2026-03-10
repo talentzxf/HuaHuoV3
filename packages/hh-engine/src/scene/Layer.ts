@@ -1,24 +1,17 @@
 import { ILayer } from "../core/ILayer";
 import { IGameObject } from "../core/IGameObject";
 import { GameObject } from "./GameObject";
-
-import { getEngineStore, getEngineState } from "../core/EngineGlobals";
-import {
-    setLayerVisible,
-    setLayerLocked,
-    setLayerHasTimeline,
-    addGameObjectToLayer,
-    removeGameObjectFromLayer,
-    addKeyFrame,
-} from "../store/LayerSlice";
-import {
-    createGameObject,
-    deleteGameObject,
-} from "../store/GameObjectSlice";
+import { getKernel } from "../core/KernelBridge";
 import { IRenderer } from "../renderer";
 import { RegistrableEntity } from "../core/RegistrableEntity";
-import {InstanceRegistry} from "../core/InstanceRegistry";
+import { InstanceRegistry } from "../core/InstanceRegistry";
 
+/**
+ * Layer — thin TS class that mirrors a Rust kernel Layer.
+ *
+ * Data (visibility, lock, hasTimeline, gameObjectIds) lives in the Rust kernel.
+ * This class owns the Paper.js layer context and the TS-side GameObject instances.
+ */
 export class Layer extends RegistrableEntity implements ILayer {
     private renderer: IRenderer;
     private layerContext: any;
@@ -47,12 +40,11 @@ export class Layer extends RegistrableEntity implements ILayer {
         const base = match ? match[1] : baseName;
 
         // Get current counter for this base name
-        const counter = this.nameCounters.get(base) || 0;
-        const newCounter = counter + 1;
-        this.nameCounters.set(base, newCounter);
+        const counter = (this.nameCounters.get(base) ?? 0) + 1;
+        this.nameCounters.set(base, counter);
 
         // Generate name with counter
-        const newName = `${base}-${newCounter}`;
+        const newName = `${base}-${counter}`;
 
         // Check if this name already exists in current gameObjects
         const exists = this.gameObjects.some(go => go.name === newName);
@@ -76,116 +68,95 @@ export class Layer extends RegistrableEntity implements ILayer {
     }
 
     get name(): string {
-        return getEngineState().layers.byId[this.id].name;
+        const kernel = getKernel();
+        if (!kernel.ready) return '';
+        const scene = kernel.getCurrentScene();
+        return scene?.layers?.[this.id]?.name ?? '';
     }
 
     get gameObjects(): ReadonlyArray<IGameObject> {
-        const engineState = getEngineState();
-        const layer = engineState.layers.byId[this.id];
+        const kernel = getKernel();
+        if (!kernel.ready) return [];
+        const scene = kernel.getCurrentScene();
+        const layer = scene?.layers?.[this.id];
         if (!layer) return [];
-
-        // Only return existing instances from InstanceRegistry
-        // DO NOT create new instances here - creation only happens in addGameObject
-        return layer.gameObjectIds
+        return (layer.game_object_ids ?? [])
             .map((goId: string) => InstanceRegistry.getInstance().get<GameObject>(goId))
-            .filter((go): go is GameObject => go !== undefined);
+            .filter((go: GameObject | undefined): go is GameObject => go !== undefined);
     }
 
     get visible(): boolean {
-        return getEngineState().layers.byId[this.id].visible;
+        const kernel = getKernel();
+        if (!kernel.ready) return true;
+        return kernel.getCurrentScene()?.layers?.[this.id]?.visible ?? true;
     }
-
     set visible(v: boolean) {
-        getEngineStore().dispatch(setLayerVisible({ layerId: this.id, visible: v }));
+        // TODO: kernel SetLayerVisible command
         this.renderer.setLayerVisible(this.layerContext, v);
     }
 
     get locked(): boolean {
-        return getEngineState().layers.byId[this.id].locked;
+        const kernel = getKernel();
+        if (!kernel.ready) return false;
+        return kernel.getCurrentScene()?.layers?.[this.id]?.locked ?? false;
     }
-
     set locked(v: boolean) {
-        getEngineStore().dispatch(setLayerLocked({ layerId: this.id, locked: v }));
+        // TODO: kernel SetLayerLocked command
         this.renderer.setLayerLocked(this.layerContext, v);
     }
 
     get hasTimeline(): boolean {
-        return getEngineState().layers.byId[this.id].hasTimeline;
+        const kernel = getKernel();
+        if (!kernel.ready) return true;
+        return kernel.getCurrentScene()?.layers?.[this.id]?.has_timeline ?? true;
     }
-
-    set hasTimeline(v: boolean) {
-        getEngineStore().dispatch(setLayerHasTimeline({ layerId: this.id, hasTimeline: v }));
+    set hasTimeline(_v: boolean) {
+        // TODO: kernel SetLayerHasTimeline command
     }
 
     addGameObject(name: string, renderItem?: any): IGameObject {
         // Generate unique name to avoid duplicates
         const uniqueName = this.generateUniqueName(name);
 
-        const store = getEngineStore();
-
+        const kernel = getKernel();
         // Get current frame to set as bornFrameId
-        const currentFrame = getEngineState().playback.currentFrame;
+        const currentFrame = kernel.ready ? (kernel.getPlaybackState()?.current_frame ?? 0) : 0;
 
-        // Create GameObject with current frame as bornFrameId
-        const action = createGameObject(uniqueName, this.id, currentFrame);
-        const { id: gameObjectId } = store.dispatch(action).payload;
+        // Create GO in Rust kernel (gets an ID back)
+        const gameObjectId = kernel.createGameObject(this.id, uniqueName, currentFrame);
 
-        store.dispatch(
-            addGameObjectToLayer({ layerId: this.id, gameObjectId })
+        // Create / reuse TS-side instance
+        const gameObject = InstanceRegistry.getInstance().getOrCreate<GameObject>(gameObjectId, () =>
+            this.createGameObjectInstance(gameObjectId, renderItem)
         );
-
-        // Add keyframe marker at current frame when GameObject is added
-        store.dispatch(addKeyFrame({ layerId: this.id, frame: currentFrame, gameObjectId }));
-
-        console.debug('[Layer.addGameObject] Creating GameObject:', gameObjectId, 'name:', uniqueName, 'at frame:', currentFrame, 'with renderItem:', !!renderItem);
-
-        // Create the GameObject instance (this will also create its components)
-        // ✅ Components will automatically record their initial keyframes on creation
-        const gameObject = InstanceRegistry.getInstance().getOrCreate<GameObject>(gameObjectId, () => {
-            return this.createGameObjectInstance(gameObjectId, renderItem);
-        });
 
         return gameObject;
     }
-
 
     findGameObject(name: string): IGameObject | undefined {
         return this.gameObjects.find(go => go.name === name);
     }
 
     removeGameObject(gameObject: IGameObject): void {
-        const store = getEngineStore();
-
-        // removeGameObjectFromLayer now auto-cleans keyframes
-        store.dispatch(
-            removeGameObjectFromLayer({
-                layerId: this.id,
-                gameObjectId: gameObject.id,
-            })
-        );
-        store.dispatch(deleteGameObject(gameObject.id));
+        getKernel().deleteGameObject(gameObject.id);
         gameObject.destroy();
     }
 
     destroy(): void {
-        const layerState = getEngineState().layers.byId[this.id];
-        if (layerState) {
-            layerState.gameObjectIds.forEach((goId: string) => {
+        const kernel = getKernel();
+        if (kernel.ready) {
+            const scene = kernel.getCurrentScene();
+            const layer = scene?.layers?.[this.id];
+            (layer?.game_object_ids ?? []).forEach((goId: string) => {
                 const go = InstanceRegistry.getInstance().get<GameObject>(goId);
-                if (go) {
-                    go.destroy();
-                }
+                if (go) go.destroy();
             });
         }
-
-        // Unregister this layer
         InstanceRegistry.getInstance().unregister(this.id);
     }
 
     update(deltaTime: number): void {
-        this.gameObjects.forEach((gameObject) => {
-            gameObject.update(deltaTime);
-        });
+        this.gameObjects.forEach(go => go.update(deltaTime));
     }
 
     /**
@@ -196,6 +167,3 @@ export class Layer extends RegistrableEntity implements ILayer {
         return this.layerContext;
     }
 }
-
-
-

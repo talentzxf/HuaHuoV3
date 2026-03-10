@@ -51,11 +51,101 @@ build-wasm.bat
 
 ## CLI Usage
 
+See **[docs/hhs-language-guide.md](docs/hhs-language-guide.md)** for the full HuaHuo Script language reference.
+
+### Quick Start
+
+```bash
+# Create a new project
+hhk new "MyAnimation" -o project.hhk --fps 30 --width 1280 --height 720
+
+# Inspect a project
+hhk info project.hhk
+hhk validate project.hhk
+
+# Export to JSON
+hhk export project.hhk --format json -o project.json
+
+# ── HuaHuo Script (.hhs) ──────────────────────────────────────────
+
+# Run a script file
+hhk run my_animation.hhs
+
+# Dry-run (no files written)
+hhk run my_animation.hhs --dry-run
+
+# Dump a .hhk back to a readable .hhs script
+hhk dump project.hhk
+hhk dump project.hhk -o project_dump.hhs
+
+# Interactive REPL
+hhk repl
+hhk repl --load project.hhk     # pre-load a project
+hhk repl --load setup.hhs       # pre-run a script, then enter REPL
 ```
-hhk new <name> [--output project.hhk] [--fps 30] [--width 800] [--height 600]
-hhk info <file>
-hhk validate <file>
-hhk export <file> [--output out.json] [--format json|binary]
+
+### HuaHuo Script example (`animation.hhs`)
+
+```hhs
+# Create project
+new_project("MyAnim", fps=30, w=1280, h=720)
+
+# Get default scene & layer
+let scene = project.scene("DefaultScene")
+let layer = scene.layer("drawing")
+
+# Create a game object
+let ball = layer.new_go("ball", born=0)
+ball.add_component("Transform")
+ball.add_component("Visual")
+
+# Keyframe animation
+ball.set_kf("Transform", "position", frame=0,  value=vec2(0, 360))
+ball.set_kf("Transform", "position", frame=30, value=vec2(640, 360), easing="ease-in-out")
+ball.set_kf("Transform", "position", frame=60, value=vec2(1280, 360))
+ball.set_kf("Visual",    "fillColor", frame=0,  value=hex("#FF4444"))
+ball.set_kf("Visual",    "fillColor", frame=60, value=hex("#4444FF"))
+
+# Preview interpolation at frame 15
+ball.interpolate(frame=15)
+
+# ── Elements (reusable animation units) ─────────────────────────
+# Define a reusable element
+let coin = project.new_element("Coin", fps=30, duration=1, w=60, h=60)
+let coin_layer = coin.new_layer("main")
+let disk = coin_layer.new_go("disk", born=0)
+disk.add_component("Transform")
+disk.set_kf("Transform", "rotation", frame=0,  value=float(0))
+disk.set_kf("Transform", "rotation", frame=30, value=float(360))
+
+# Instantiate it in a scene layer (supports loop, time_offset, speed_scale)
+let c1 = layer.instantiate("Coin", "coin1", born=0)
+let c2 = layer.instantiate("Coin", "coin2", born=10, loop_playback=true)
+
+# Animate instance transform via the "ElementInstance" component
+c1.set_kf("ElementInstance", "position", frame=0,  value=vec2(0, 300))
+c1.set_kf("ElementInstance", "position", frame=60, value=vec2(800, 300), easing="ease-in-out")
+
+project.list_elements()
+
+# Save
+save("my_anim.hhk")
+```
+
+### Low-level subcommands (for shell scripts)
+
+```bash
+hhk scene add project.hhk "Cut02" --fps 24 --duration 8
+hhk scene list project.hhk
+
+hhk layer add project.hhk "fx"
+hhk layer list project.hhk
+
+hhk go add project.hhk "hero" <layer_id> --born-frame 0
+hhk go list project.hhk
+hhk go show project.hhk <go_id>
+hhk go set-kf project.hhk <go_id> Transform position 0 vec2:100,200
+hhk go interpolate project.hhk <go_id> 15
 ```
 
 ## TypeScript API (WASM)

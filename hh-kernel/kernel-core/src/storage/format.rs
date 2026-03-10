@@ -2,7 +2,7 @@
 pub const MAGIC: &[u8; 4] = b"HHKV";
 
 /// Current schema version.
-pub const CURRENT_VERSION: u32 = 1;
+pub const CURRENT_VERSION: u32 = 2;
 
 /// Fixed-size file envelope header (16 bytes).
 /// Layout:

@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Select, Collapse, Typography, Space, Tag } from 'antd';
-import { EasingType, type AnimationSegment, getEngineStore, getEngineState, setKeyFrameEasing } from '@huahuo/engine';
-import { subscribeToKeyframeChanges } from '../../../store/listeners/keyframeListener';
+import { EasingType, type AnimationSegment, getKernel } from '@huahuo/engine';
 
 const { Text } = Typography;
 const { Option } = Select;
@@ -10,157 +9,118 @@ interface AnimationSegmentEditorProps {
   gameObjectId: string;
 }
 
-// Helper function to extract keyframes data from store
-const extractComponentsKeyFrames = (gameObjectId: string) => {
-  const state = getEngineState();
-  const gameObject = state.gameObjects.byId[gameObjectId];
-  if (!gameObject) return [];
-
-  const result = [];
-  for (const compId of gameObject.componentIds) {
-    const comp = state.components.byId[compId];
-    if (comp && comp.type !== 'Timeline') {
-      result.push({
-        id: comp.id,
-        type: comp.type,
-        keyFrames: comp.keyFrames
-      });
-    }
-  }
-  return result;
-};
-
 /**
  * Animation Segment Editor
- * Displays all animation segments from all components and allows editing easing per segment
- *
- * Performance: Uses Redux Toolkit Listener Middleware
- * - Only updates when keyframe-related actions are dispatched
- * - Ignores all other actions (drag, playback, selection, etc.)
- * 2. JSON.stringify comparison (faster than lodash.isEqual for simple data)
- * 3. DRY - extracted duplicate data extraction logic
- * 4. Only compares keyframes (not full component objects)
+ * Reads keyframe data directly from KernelBridge.
+ * Subscribes to keyframe events for the specific GO — no full store diff.
  */
-const AnimationSegmentEditorInner: React.FC<AnimationSegmentEditorProps> = ({
-  gameObjectId
-}) => {
-  // State to hold keyframes data
-  const [componentsKeyFrames, setComponentsKeyFrames] = useState<any[]>(() =>
-    extractComponentsKeyFrames(gameObjectId)
-  );
+const AnimationSegmentEditorInner: React.FC<AnimationSegmentEditorProps> = ({ gameObjectId }) => {
+  const [componentsKeyFrames, setComponentsKeyFrames] = useState<any[]>([]);
+  const subIdRef = useRef<number | null>(null);
 
-  // Subscribe to keyframe changes via listener middleware
-  useEffect(() => {
-    // Update on mount
-    setComponentsKeyFrames(extractComponentsKeyFrames(gameObjectId));
+  const refreshKeyFrames = useCallback(() => {
+    const kernel = getKernel();
+    if (!kernel.ready) return;
+    const go = kernel.getGameObject(gameObjectId);
+    if (!go) { setComponentsKeyFrames([]); return; }
 
-    // Subscribe to keyframe changes
-    // ✅ Only triggers on keyframe-related actions (setPropertyKeyFrame, etc.)
-    // ❌ Ignores all other actions (updateComponentProps, playback, etc.)
-    const unsubscribe = subscribeToKeyframeChanges((changedGameObjectId) => {
-      // Only update if this is our GameObject
-      if (changedGameObjectId === gameObjectId) {
-        setComponentsKeyFrames(extractComponentsKeyFrames(gameObjectId));
+    // The Rust GO stores keyframes per component type
+    const result: any[] = [];
+    for (const [compType, compData] of Object.entries(go.components ?? {})) {
+      const cd = compData as any;
+      if (compType === 'Timeline') continue;
+      if (cd.keyFrames && Object.keys(cd.keyFrames).length > 0) {
+        result.push({
+          id: `${gameObjectId}_${compType}`,
+          type: compType,
+          keyFrames: cd.keyFrames,
+        });
       }
-    });
-
-    return unsubscribe;
+    }
+    setComponentsKeyFrames(result);
   }, [gameObjectId]);
 
-  // Collect animation segments directly from keyframes data
+  useEffect(() => {
+    if (!gameObjectId) { setComponentsKeyFrames([]); return; }
+    refreshKeyFrames();
+
+    const kernel = getKernel();
+    if (!kernel.ready) return;
+
+    // Only listen to keyframe events for this specific GO
+    subIdRef.current = kernel.subscribe(`keyframe/${gameObjectId}/*/*`, () => refreshKeyFrames());
+    return () => {
+      if (subIdRef.current !== null) {
+        kernel.unsubscribe(subIdRef.current);
+        subIdRef.current = null;
+      }
+    };
+  }, [gameObjectId, refreshKeyFrames]);
+
   const segments = useMemo((): AnimationSegment[] => {
     const result: AnimationSegment[] = [];
-
     componentsKeyFrames.forEach((component: any) => {
-      // Iterate through all properties with keyframes
       for (const propertyName in component.keyFrames) {
         const keyFrames = component.keyFrames[propertyName];
-        if (keyFrames.length < 2) continue;
-
-        // Create segments between consecutive keyframes
+        if (!Array.isArray(keyFrames) || keyFrames.length < 2) continue;
         for (let i = 0; i < keyFrames.length - 1; i++) {
-          const startFrame = keyFrames[i].frame;
-          const endFrame = keyFrames[i + 1].frame;
-          const easingType = keyFrames[i + 1].easingType || EasingType.Linear;
-
           result.push({
             componentId: component.id,
             componentType: component.type,
             propertyName,
-            startFrame,
-            endFrame,
-            easingType
+            startFrame: keyFrames[i].frame,
+            endFrame: keyFrames[i + 1].frame,
+            easingType: keyFrames[i + 1].easing ?? EasingType.Linear,
           });
         }
       }
     });
-
     return result;
   }, [componentsKeyFrames]);
 
-  // Group segments by component type
   const groupedSegments = useMemo(() => {
     const groups: Record<string, AnimationSegment[]> = {};
-    segments.forEach(segment => {
-      const key = segment.componentType;
-      if (!groups[key]) {
-        groups[key] = [];
-      }
-      groups[key].push(segment);
-    });
+    segments.forEach(s => { (groups[s.componentType] ??= []).push(s); });
     return groups;
   }, [segments]);
 
   const handleEasingChange = useCallback((segment: AnimationSegment, newEasing: EasingType) => {
-    const store = getEngineStore();
-    store.dispatch(setKeyFrameEasing({
-      componentId: segment.componentId,
-      propName: segment.propertyName,
-      frame: segment.endFrame,
-      easingType: newEasing
-    }));
-  }, []);
+    const kernel = getKernel();
+    if (!kernel.ready) return;
+    // Store easing as part of the keyframe value (the Rust side preserves it)
+    kernel.setKeyframe(gameObjectId, segment.componentType, segment.propertyName, segment.endFrame,
+      undefined, newEasing);
+  }, [gameObjectId]);
 
   const easingOptions = useMemo(() => [
-    { label: 'Linear', value: EasingType.Linear },
-    { label: 'Ease In', value: EasingType.EaseIn },
-    { label: 'Ease Out', value: EasingType.EaseOut },
-    { label: 'Ease In Out', value: EasingType.EaseInOut },
-    { label: 'Custom', value: EasingType.Custom }
+    { label: 'Linear',      value: EasingType.Linear     },
+    { label: 'Ease In',     value: EasingType.EaseIn     },
+    { label: 'Ease Out',    value: EasingType.EaseOut    },
+    { label: 'Ease In Out', value: EasingType.EaseInOut  },
+    { label: 'Custom',      value: EasingType.Custom     },
   ], []);
 
-  // Must define collapseItems BEFORE the early return to follow Hooks rules
-  const collapseItems = useMemo(() => {
-    return Object.entries(groupedSegments).map(([componentLabel, componentSegments]) => ({
-      key: componentLabel,
+  const collapseItems = useMemo(() =>
+    Object.entries(groupedSegments).map(([compLabel, compSegments]) => ({
+      key: compLabel,
       label: (
         <Text strong style={{ fontSize: '12px' }}>
-          {componentLabel}
+          {compLabel}
           <Tag style={{ marginLeft: '8px', fontSize: '10px' }}>
-            {componentSegments.length} segment{componentSegments.length > 1 ? 's' : ''}
+            {compSegments.length} segment{compSegments.length > 1 ? 's' : ''}
           </Tag>
         </Text>
       ),
       children: (
         <Space direction="vertical" style={{ width: '100%' }} size="small">
-          {componentSegments.map((segment) => (
+          {compSegments.map(segment => (
             <div
-              key={`${segment.componentId}-${segment.propertyName}-${segment.startFrame}-${segment.endFrame}`}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '4px 6px',
-                background: '#1a1a1a',
-                borderRadius: '4px',
-                fontSize: '10px',
-                gap: '8px'
-              }}
+              key={`${segment.componentId}-${segment.propertyName}-${segment.startFrame}`}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                       padding: '4px 6px', background: '#1a1a1a', borderRadius: '4px', gap: '8px' }}
             >
               <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'baseline', gap: '6px' }}>
-                <Text style={{ fontSize: '11px', color: '#ffffff', whiteSpace: 'nowrap' }}>
-                  {segment.propertyName}
-                </Text>
+                <Text style={{ fontSize: '11px', color: '#fff', whiteSpace: 'nowrap' }}>{segment.propertyName}</Text>
                 <Text type="secondary" style={{ fontSize: '9px', whiteSpace: 'nowrap' }}>
                   {segment.startFrame + 1}→{segment.endFrame + 1}
                   <span style={{ marginLeft: '4px', color: '#666' }}>
@@ -170,24 +130,20 @@ const AnimationSegmentEditorInner: React.FC<AnimationSegmentEditorProps> = ({
               </div>
               <Select
                 value={segment.easingType}
-                onChange={(value) => handleEasingChange(segment, value)}
-                style={{ width: '90px', fontSize: '10px', flexShrink: 0 }}
+                onChange={v => handleEasingChange(segment, v)}
+                style={{ width: '90px', flexShrink: 0 }}
                 size="small"
               >
-                {easingOptions.map(opt => (
-                  <Option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </Option>
-                ))}
+                {easingOptions.map(o => <Option key={o.value} value={o.value}>{o.label}</Option>)}
               </Select>
             </div>
           ))}
         </Space>
       )
-    }));
-  }, [groupedSegments, easingOptions, handleEasingChange]);
+    })),
+    [groupedSegments, easingOptions, handleEasingChange]
+  );
 
-  // NOW we can do early return after all hooks are defined
   if (segments.length === 0) {
     return (
       <div style={{ padding: '12px' }}>
@@ -200,12 +156,7 @@ const AnimationSegmentEditorInner: React.FC<AnimationSegmentEditorProps> = ({
 
   return (
     <div style={{ padding: '8px 0' }}>
-      <Collapse
-        ghost
-        defaultActiveKey={Object.keys(groupedSegments)}
-        items={collapseItems}
-        style={{ fontSize: '12px' }}
-      />
+      <Collapse ghost defaultActiveKey={Object.keys(groupedSegments)} items={collapseItems} style={{ fontSize: '12px' }} />
     </div>
   );
 };

@@ -1,13 +1,10 @@
-import React, { useState, useEffect, memo, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, memo, useMemo, useCallback, useRef } from 'react';
 import { Typography, Collapse, Input, Switch } from 'antd';
 import { useTranslation } from 'react-i18next';
-import { SDK } from '@huahuo/sdk';
-import { getEngineStore, getEngineState, ComponentRegistry, updateComponentPropsWithKeyFrame, ComponentPropertyRendererRegistry } from '@huahuo/engine';
-import type { ComponentSlice } from '@huahuo/sdk';
+import { getKernel, ComponentRegistry, ComponentPropertyRendererRegistry } from '@huahuo/engine';
 import PropertyTypeRegistry from './PropertyTypeRegistry';
 import { registerDefaultPropertyRenderers } from './defaultPropertyRenderers';
 import { registerCustomPropertyRenderers } from './registerCustomPropertyRenderers';
-import { subscribeToGameObjectChanges } from '../../../store/listeners/gameObjectListener';
 
 const { Text } = Typography;
 
@@ -19,82 +16,68 @@ interface GameObjectPropertyPanelProps {
   gameObjectId: string;
 }
 
-// Memoized component for rendering a single property field
+/** A single property row — only re-renders when its value changes */
 const PropertyField = memo<{
-  componentId: string;
+  goId: string;
   componentType: string;
   propName: string;
   propValue: any;
-  onPropertyChange: (componentId: string, propName: string, value: any) => void;
-}>(({ componentId, componentType, propName, propValue, onPropertyChange }) => {
+  onPropertyChange: (compType: string, propName: string, value: any) => void;
+}>(({ goId, componentType, propName, propValue, onPropertyChange }) => {
   const handleChange = useCallback((value: any) => {
-    onPropertyChange(componentId, propName, value);
-  }, [componentId, propName, onPropertyChange]);
+    onPropertyChange(componentType, propName, value);
+  }, [componentType, propName, onPropertyChange]);
 
   const registry = ComponentRegistry.getInstance();
   const propertyMeta = registry.getPropertyMetadata(componentType, propName);
-
-  // Get the appropriate renderer from PropertyTypeRegistry
-  const propertyTypeRegistry = PropertyTypeRegistry.getInstance();
-  const renderer = propertyTypeRegistry.getRenderer(propValue);
+  const renderer = PropertyTypeRegistry.getInstance().getRenderer(propValue);
 
   if (!renderer) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-        <Text style={{ color: '#ffffff', fontSize: '12px' }}>{propName}</Text>
-        <Text style={{ color: '#999999', fontSize: '12px', fontStyle: 'italic' }}>
+        <Text style={{ color: '#fff', fontSize: '12px' }}>{propName}</Text>
+        <Text style={{ color: '#999', fontSize: '12px', fontStyle: 'italic' }}>
           Unsupported type
         </Text>
       </div>
     );
   }
-
-  return renderer({
-    propName,
-    propValue,
-    propertyMeta,
-    onChange: handleChange,
-  });
-}, (prevProps, nextProps) => {
-  // Custom comparison: only re-render if the specific property value changed
-  return (
-    prevProps.componentId === nextProps.componentId &&
-    prevProps.componentType === nextProps.componentType &&
-    prevProps.propName === nextProps.propName &&
-    JSON.stringify(prevProps.propValue) === JSON.stringify(nextProps.propValue) &&
-    prevProps.onPropertyChange === nextProps.onPropertyChange
-  );
-});
-
+  return renderer({ propName, propValue, propertyMeta, onChange: handleChange });
+}, (p, n) =>
+  p.goId === n.goId &&
+  p.componentType === n.componentType &&
+  p.propName === n.propName &&
+  JSON.stringify(p.propValue) === JSON.stringify(n.propValue) &&
+  p.onPropertyChange === n.onPropertyChange
+);
 PropertyField.displayName = 'PropertyField';
 
-// Memoized component for rendering a single component's properties
+/** One component's properties panel */
 const ComponentPropertiesPanel = memo<{
-  component: ComponentSlice;
-  gameObjectId: string;
-  onPropertyChange: (componentId: string, propName: string, value: any) => void;
-}>(({ component, gameObjectId, onPropertyChange }) => {
-  // Check if there's a custom renderer registered for this component type
+  componentType: string;
+  props: Record<string, any>;
+  goId: string;
+  onPropertyChange: (compType: string, propName: string, value: any) => void;
+}>(({ componentType, props, goId, onPropertyChange }) => {
   const rendererRegistry = ComponentPropertyRendererRegistry.getInstance();
-  const customRenderer = rendererRegistry.getRenderer(component.type);
+  const customRenderer = rendererRegistry.getRenderer(componentType);
 
   if (customRenderer) {
-    // Use custom renderer if registered
+    // Pass a minimal compatible object
     return customRenderer({
-      component,
-      gameObjectId,
-      onPropertyChange
+      component: { id: `${goId}_${componentType}`, type: componentType, props, parentId: goId, enabled: true, keyFrames: {} },
+      gameObjectId: goId,
+      onPropertyChange: (compId: string, propName: string, value: any) => onPropertyChange(componentType, propName, value),
     });
   }
 
-  // Default rendering for components without custom renderer
   return (
     <div style={{ padding: '4px 0' }}>
-      {Object.entries(component.props).map(([propName, propValue]) => (
+      {Object.entries(props).map(([propName, propValue]) => (
         <PropertyField
           key={propName}
-          componentId={component.id}
-          componentType={component.type}
+          goId={goId}
+          componentType={componentType}
           propName={propName}
           propValue={propValue}
           onPropertyChange={onPropertyChange}
@@ -102,152 +85,134 @@ const ComponentPropertiesPanel = memo<{
       ))}
     </div>
   );
-}, (prevProps, nextProps) => {
-  // Custom comparison: only re-render if component data actually changed
-  return (
-    prevProps.component.id === nextProps.component.id &&
-    prevProps.component.type === nextProps.component.type &&
-    prevProps.gameObjectId === nextProps.gameObjectId &&
-    JSON.stringify(prevProps.component.props) === JSON.stringify(nextProps.component.props) &&
-    prevProps.onPropertyChange === nextProps.onPropertyChange
-  );
-});
-
+}, (p, n) =>
+  p.componentType === n.componentType &&
+  p.goId === n.goId &&
+  JSON.stringify(p.props) === JSON.stringify(n.props) &&
+  p.onPropertyChange === n.onPropertyChange
+);
 ComponentPropertiesPanel.displayName = 'ComponentPropertiesPanel';
+
+// ── Main panel ────────────────────────────────────────────────────────────────
 
 const GameObjectPropertyPanel: React.FC<GameObjectPropertyPanelProps> = memo(({ gameObjectId }) => {
   const { t } = useTranslation();
-  const [gameObjectData, setGameObjectData] = useState<any>(null);
-  const [components, setComponents] = useState<ComponentSlice[]>([]);
+  const [goData, setGoData] = useState<any>(null);
+  // Map: componentType → props snapshot
+  const [componentProps, setComponentProps] = useState<Map<string, Record<string, any>>>(new Map());
+  const [componentTypes, setComponentTypes] = useState<string[]>([]);
   const [activeKeys, setActiveKeys] = useState<string[]>([]);
+  const prevTypesRef = useRef<string[]>([]);
+  // Kernel event subscriptions
+  const subIdsRef = useRef<number[]>([]);
 
-  // ✅ Use ref to track previous component IDs (avoid stale closure)
-  const prevComponentIdsRef = React.useRef<string[]>([]);
+  const refreshFromKernel = useCallback(() => {
+    const kernel = getKernel();
+    if (!kernel.ready) return;
+
+    const go = kernel.getGameObject(gameObjectId);
+    if (!go) {
+      setGoData(null);
+      setComponentProps(new Map());
+      setComponentTypes([]);
+      return;
+    }
+    setGoData(go);
+
+    // Read interpolated props for all components at current frame
+    const frame = kernel.getPlaybackState()?.current_frame ?? 0;
+    const interpolated = kernel.getInterpolatedProps(gameObjectId, frame) ?? {};
+
+    const newMap = new Map<string, Record<string, any>>();
+    const newTypes: string[] = [];
+    for (const [compType, props] of Object.entries(interpolated)) {
+      newMap.set(compType, props as Record<string, any>);
+      newTypes.push(compType);
+    }
+    setComponentProps(newMap);
+
+    const typesChanged =
+      newTypes.length !== prevTypesRef.current.length ||
+      newTypes.some((t, i) => t !== prevTypesRef.current[i]);
+
+    setComponentTypes(newTypes);
+    prevTypesRef.current = newTypes;
+    if (typesChanged) setActiveKeys(newTypes);
+  }, [gameObjectId]);
 
   useEffect(() => {
-    if (!gameObjectId || !SDK.isInitialized()) {
-      setGameObjectData(null);
-      setComponents([]);
-      setActiveKeys([]);
-      prevComponentIdsRef.current = [];
+    if (!gameObjectId) {
+      setGoData(null);
+      setComponentProps(new Map());
+      setComponentTypes([]);
       return;
     }
 
-    const updateData = () => {
-      const state = getEngineState();
-      const gameObject = state.gameObjects.byId[gameObjectId];
+    // Initial read
+    refreshFromKernel();
 
-      if (!gameObject) {
-        setGameObjectData(null);
-        setComponents([]);
-        setActiveKeys([]);
-        prevComponentIdsRef.current = [];
-        return;
-      }
+    const kernel = getKernel();
+    if (!kernel.ready) return;
 
-      setGameObjectData(gameObject);
+    // Subscribe to keyframe changes for this specific GO
+    const kfSub = kernel.subscribe(`keyframe/${gameObjectId}/*/*`, () => refreshFromKernel());
+    // Subscribe to GO changes (active, name, etc.)
+    const goSub = kernel.subscribe(`go/${gameObjectId}`, () => refreshFromKernel());
+    // Subscribe to playback frame changes to re-interpolate
+    const pbSub = kernel.subscribe('playback/frame_changed', () => refreshFromKernel());
 
-      const gameObjectComponents = gameObject.componentIds
-        .map((compId: string) => state.components.byId[compId])
-        .filter(Boolean);
-
-      // ✅ Check if component list actually changed
-      const newComponentIds = gameObjectComponents.map((c: ComponentSlice) => c.id);
-      const oldComponentIds = prevComponentIdsRef.current;
-
-      const componentsChanged =
-        newComponentIds.length !== oldComponentIds.length ||
-        newComponentIds.some((id, idx) => id !== oldComponentIds[idx]);
-
-      setComponents(gameObjectComponents);
-      prevComponentIdsRef.current = newComponentIds;
-
-      // ✅ Only reset activeKeys if components list changed (added/removed components)
-      // Otherwise preserve the user's collapse/expand state
-      if (componentsChanged) {
-        setActiveKeys(newComponentIds);
-      }
+    subIdsRef.current = [kfSub, goSub, pbSub];
+    return () => {
+      subIdsRef.current.forEach(id => kernel.unsubscribe(id));
+      subIdsRef.current = [];
     };
+  }, [gameObjectId, refreshFromKernel]);
 
-    // Initial update
-    updateData();
+  const handlePropertyChange = useCallback((componentType: string, propName: string, value: any) => {
+    const kernel = getKernel();
+    if (!kernel.ready) return;
+    const frame = kernel.getPlaybackState()?.current_frame ?? 0;
 
-    // Subscribe to GameObject changes via listener middleware
-    // ✅ Only triggers on GameObject/Component-related actions
-    // ❌ Ignores all other actions (playback, canvas, selection changes without property changes, etc.)
-    const unsubscribe = subscribeToGameObjectChanges((event) => {
-      // Only update if this is our GameObject or if gameObjectId is undefined (affects all)
-      if (!event.gameObjectId || event.gameObjectId === gameObjectId) {
-        updateData();
-      }
-    });
-
-    return () => unsubscribe();
-  }, [gameObjectId]);
-
-  const handlePropertyChange = useCallback((componentId: string, propName: string, value: any) => {
-    if (!SDK.isInitialized()) return;
-
-    const store = getEngineStore();
-    const engineState = getEngineState();
-
-    const component = engineState.components.byId[componentId];
-    if (!component) return;
-
-    const currentPropValue = component.props[propName];
+    // Merge with existing value if both are objects
+    const currentProps = componentProps.get(componentType) ?? {};
+    const current = currentProps[propName];
     let finalValue = value;
-
-    // Merge objects if needed
-    if (typeof currentPropValue === 'object' && currentPropValue !== null &&
-        typeof value === 'object' && value !== null) {
-      finalValue = { ...currentPropValue, ...value };
+    if (typeof current === 'object' && current !== null && typeof value === 'object' && value !== null) {
+      finalValue = { ...current, ...value };
     }
 
-    // Use updateComponentPropsWithKeyFrame to update both component props AND keyframes
-    (store.dispatch as any)(updateComponentPropsWithKeyFrame({
-      id: componentId,
-      patch: { [propName]: finalValue }
-    }));
-  }, []);
+    kernel.setKeyframe(gameObjectId, componentType, propName, frame, finalValue);
+  }, [gameObjectId, componentProps]);
 
-  // Use useMemo to cache component items - each component is independently memoized
-  const componentItems = useMemo(() => {
-    return components.map((component: ComponentSlice) => ({
-      key: component.id,
-      label: component.type,
+  const componentItems = useMemo(() =>
+    componentTypes.map(compType => ({
+      key: compType,
+      label: compType,
       children: (
         <ComponentPropertiesPanel
-          component={component}
-          gameObjectId={gameObjectId}
+          key={compType}
+          componentType={compType}
+          props={componentProps.get(compType) ?? {}}
+          goId={gameObjectId}
           onPropertyChange={handlePropertyChange}
         />
       ),
-    }));
-  }, [components, gameObjectId, handlePropertyChange]);
+    })),
+    [componentTypes, componentProps, gameObjectId, handlePropertyChange]
+  );
 
-  if (!gameObjectData) {
+  if (!goData) {
     return (
       <div className="property-panel" style={{ padding: '12px' }}>
-        <Text style={{ color: '#999999', fontStyle: 'italic', fontSize: '12px' }}>
+        <Text style={{ color: '#999', fontStyle: 'italic', fontSize: '12px' }}>
           {t('propertyPanel.selectGameObject', 'Select a GameObject to view properties')}
         </Text>
       </div>
     );
   }
 
-  const rowStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    marginBottom: '8px',
-    gap: '8px',
-  };
-
-  const labelStyle: React.CSSProperties = {
-    width: '80px',
-    flexShrink: 0,
-    color: '#999',
-    fontSize: '12px',
-  };
+  const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', marginBottom: '8px', gap: '8px' };
+  const labelStyle: React.CSSProperties = { width: '80px', flexShrink: 0, color: '#999', fontSize: '12px' };
 
   return (
     <div className="property-panel" style={{ padding: '12px' }}>
@@ -255,23 +220,23 @@ const GameObjectPropertyPanel: React.FC<GameObjectPropertyPanelProps> = memo(({ 
       <div style={rowStyle}>
         <Text style={labelStyle}>Name:</Text>
         <Input
-          value={gameObjectData.name}
-          onChange={(e) => handlePropertyChange(gameObjectId, 'name', e.target.value)}
+          value={goData.name}
+          onChange={(e) => {/* TODO: kernel rename GO */}}
           onKeyDown={(e) => e.stopPropagation()}
           size="small"
           style={{ flex: 1 }}
         />
         <Text style={{ ...labelStyle, width: 'auto', marginLeft: '8px' }}>Active:</Text>
         <Switch
-          checked={gameObjectData.active}
-          onChange={(checked) => handlePropertyChange(gameObjectId, 'active', checked)}
+          checked={goData.active}
+          onChange={(checked) => getKernel().setGameObjectActive(gameObjectId, checked)}
           size="small"
         />
       </div>
 
       {/* Components */}
       <div className="property-panel-components">
-        {components.length > 0 ? (
+        {componentTypes.length > 0 ? (
           <Collapse
             activeKey={activeKeys}
             onChange={(keys) => setActiveKeys(keys as string[])}
@@ -281,7 +246,7 @@ const GameObjectPropertyPanel: React.FC<GameObjectPropertyPanelProps> = memo(({ 
             style={{ background: 'transparent' }}
           />
         ) : (
-          <Text style={{ color: '#999999', fontStyle: 'italic', fontSize: '12px' }}>
+          <Text style={{ color: '#999', fontStyle: 'italic', fontSize: '12px' }}>
             {t('propertyPanel.noComponents')}
           </Text>
         )}

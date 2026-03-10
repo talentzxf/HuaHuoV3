@@ -13,7 +13,7 @@ export type PropertyRendererFunction = (props: {
  * Registry for custom property renderers
  * Maps component types to their custom renderers
  */
-class ComponentPropertyRendererRegistry {
+export class ComponentPropertyRendererRegistry {
   private static instance: ComponentPropertyRendererRegistry;
   private renderers: Map<string, PropertyRendererFunction>;
 
@@ -51,7 +51,6 @@ class ComponentPropertyRendererRegistry {
   }
 }
 
-export default ComponentPropertyRendererRegistry;
 
 /**
  * Decorator to register a custom property renderer for a component

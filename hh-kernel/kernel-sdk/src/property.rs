@@ -5,6 +5,8 @@ use std::collections::HashMap;
 ///
 /// NOTE: Uses tuple variants (not struct variants) for bincode compatibility.
 /// Field order: Vec2(x, y)  Vec3(x, y, z)  Color(r, g, b, a)
+///
+/// **Stability note:** Add new variants at the end only to preserve bincode ordering.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum PropertyValue {
     Float(f64),
@@ -15,6 +17,9 @@ pub enum PropertyValue {
     Bool(bool),
     String(String),
     Int(i64),
+    /// Reference to an embedded resource file by its `FileEntry` id.
+    /// Not interpolatable — always snaps to the current value.
+    FileRef(String),
 }
 
 impl PropertyValue {
@@ -93,4 +98,82 @@ impl PropertyMeta {
 
 /// Snapshot of all property values for a component instance.
 pub type PropertyMap = HashMap<String, PropertyValue>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── FileRef lerp behaviour ─────────────────────────────────────────────────
+
+    #[test]
+    fn test_file_ref_lerp_snaps_to_self() {
+        let a = PropertyValue::FileRef("file-a".to_string());
+        let b = PropertyValue::FileRef("file-b".to_string());
+
+        // At any t, result should always be `a` (the start value).
+        for &t in &[0.0_f64, 0.25, 0.5, 0.75, 1.0] {
+            assert_eq!(a.lerp(&b, t), Some(a.clone()),
+                "FileRef lerp should snap to start at t={}", t);
+        }
+    }
+
+    #[test]
+    fn test_file_ref_lerp_with_different_type_snaps_to_self() {
+        let a = PropertyValue::FileRef("id".to_string());
+        let b = PropertyValue::Float(1.0);
+        assert_eq!(a.lerp(&b, 0.5), Some(a.clone()));
+    }
+
+    // ── FileRef is non-interpolatable (unlike Float) ───────────────────────────
+
+    #[test]
+    fn test_float_lerp_interpolates() {
+        let a = PropertyValue::Float(0.0);
+        let b = PropertyValue::Float(10.0);
+        assert_eq!(a.lerp(&b, 0.5), Some(PropertyValue::Float(5.0)));
+    }
+
+    // ── FileRef equality ──────────────────────────────────────────────────────
+
+    #[test]
+    fn test_file_ref_equality() {
+        assert_eq!(
+            PropertyValue::FileRef("abc".into()),
+            PropertyValue::FileRef("abc".into())
+        );
+        assert_ne!(
+            PropertyValue::FileRef("abc".into()),
+            PropertyValue::FileRef("xyz".into())
+        );
+    }
+
+    // ── FileRef bincode round-trip ─────────────────────────────────────────────
+
+    #[test]
+    fn test_file_ref_serde_roundtrip() {
+        let original = PropertyValue::FileRef("roundtrip-id".to_string());
+        let bytes = bincode::serialize(&original).expect("serialize");
+        let decoded: PropertyValue = bincode::deserialize(&bytes).expect("deserialize");
+        assert_eq!(original, decoded);
+    }
+
+    #[test]
+    fn test_all_variants_serde_roundtrip() {
+        let values = vec![
+            PropertyValue::Float(3.14),
+            PropertyValue::Vec2(1.0, 2.0),
+            PropertyValue::Vec3(1.0, 2.0, 3.0),
+            PropertyValue::Color(255, 128, 0, 255),
+            PropertyValue::Bool(true),
+            PropertyValue::String("hello".into()),
+            PropertyValue::Int(-42),
+            PropertyValue::FileRef("file-id".into()),
+        ];
+        for v in &values {
+            let bytes = bincode::serialize(v).expect("serialize");
+            let decoded: PropertyValue = bincode::deserialize(&bytes).expect("deserialize");
+            assert_eq!(*v, decoded, "Round-trip failed for {:?}", v);
+        }
+    }
+}
 

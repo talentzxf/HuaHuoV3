@@ -2,15 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Dropdown } from 'antd';
 import type { MenuProps } from 'antd';
 import { Timeline } from '@huahuo/timeline';
-import { getEngineStore, getEngineState, setAnimationEndFrame } from '@huahuo/engine';
-import { addTimelineClip, splitTimelineClip, setCurrentFrame } from '@huahuo/engine';
-import { useSelector } from 'react-redux';
-import type { RootState } from '../../store/store';
+import { getKernel } from '@huahuo/engine';
 
 /**
- * TimelinePanel - Integrates the Timeline component with the engine
- * Acts as an adapter layer between Engine and Timeline component
- * Keeps the Timeline component independent from Engine concepts
+ * TimelinePanel — driven by KernelBridge events instead of Redux store diffs.
  */
 const TimelinePanel: React.FC = () => {
   const [tracks, setTracks] = useState<Array<{
@@ -19,164 +14,94 @@ const TimelinePanel: React.FC = () => {
     clips?: Array<{ id: string; startFrame: number; length: number }>;
     keyFrames?: number[];
   }>>([]);
-  const [currentFrame, setCurrentFrameState] = useState(0);
+  const [currentFrameState, setCurrentFrameState] = useState(0);
+  const [totalFrames, setTotalFrames] = useState(120);
+  const [fps, setFps] = useState(30);
+  const [animationEndFrame, setAnimationEndFrame] = useState<number | null>(null);
   const [timelineHeight, setTimelineHeight] = useState<number | undefined>(undefined);
 
-  // Get project totalFrames and fps from Redux
-  const totalFrames = useSelector((state: RootState) => state.engine.project.current?.totalFrames || 120);
-  const fps = useSelector((state: RootState) => state.engine.project.current?.fps || 30);
-  const animationEndFrame = useSelector((state: RootState) => state.engine.project.current?.animationEndFrame ?? null);
-
-  // Context menu state
   const [contextMenu, setContextMenu] = useState<{
-    visible: boolean;
-    x: number;
-    y: number;
-    frameNumber: number;
+    visible: boolean; x: number; y: number; frameNumber: number;
   } | null>(null);
 
-  // Internal mapping: Timeline trackId (generated UUID) -> Engine layerId
-  const trackToLayerMap = useRef<Map<string, string>>(new Map());
+  const subIdsRef = useRef<number[]>([]);
 
-  // Load layers from engine and map to timeline tracks
   useEffect(() => {
-    const engineStore = getEngineStore();
+    const kernel = getKernel();
+    if (!kernel.ready) return;
 
-    const updateTracks = () => {
-      const state = engineStore.getState();
-      const engineState = state.engine || state;
+    const refreshProject = () => {
+      const p = kernel.getProject();
+      if (!p) return;
+      setTotalFrames(p.total_frames ?? 120);
+      setFps(p.fps ?? 30);
+      setAnimationEndFrame(p.animation_end_frame ?? null);
+    };
 
-      // Update current frame from playback state
-      setCurrentFrameState(engineState.playback.currentFrame);
+    const refreshTracks = () => {
+      const pb = kernel.getPlaybackState();
+      setCurrentFrameState(pb?.current_frame ?? 0);
 
-      // Clear previous mapping
-      trackToLayerMap.current.clear();
+      const scene = kernel.getCurrentScene();
+      if (!scene) { setTracks([]); return; }
 
-      // Map engine layers to simple track data
-      const trackList = Object.values(engineState.layers.byId)
-        .filter((layer: any) => layer.hasTimeline)
-        .map((layer: any) => {
-          // Store internal mapping for callbacks
-          trackToLayerMap.current.set(layer.id, layer.id);
-
-          // Return clean track data with clips
-          return {
-            id: layer.id,
-            name: layer.name,
-            clips: layer.clips || [],
-            keyFrames: layer.keyFrames ? layer.keyFrames.map((kf: any) => kf.frame) : []
-          };
-        });
+      const trackList = Object.entries(scene.layers ?? {})
+        .filter(([, layer]: [string, any]) => layer.has_timeline !== false)
+        .map(([layerId, layer]: [string, any]) => ({
+          id: layerId,
+          name: layer.name ?? layerId,
+          clips: layer.clips ?? [],
+          keyFrames: (layer.key_frames ?? []).map((kf: any) => kf.frame ?? kf),
+        }));
 
       setTracks(trackList);
 
-      // Calculate timeline height including scrollbar space
-      const HEADER_HEIGHT = 30;
-      const TRACK_HEIGHT = 30;
-      const SCROLLBAR_HEIGHT = 20;
-      const calculatedHeight = HEADER_HEIGHT + trackList.length * TRACK_HEIGHT + SCROLLBAR_HEIGHT;
-      const minHeight = 50;
-      const MAX_HEIGHT_BEFORE_SCROLL = 200;
-
-      // If content is small, use calculated height; otherwise let it use 100%
-      if (calculatedHeight <= MAX_HEIGHT_BEFORE_SCROLL) {
-        setTimelineHeight(Math.max(minHeight, calculatedHeight));
-      } else {
-        setTimelineHeight(undefined); // Use 100%
-      }
+      const HEADER_HEIGHT = 30, TRACK_HEIGHT = 30, SCROLLBAR_HEIGHT = 20;
+      const calc = HEADER_HEIGHT + trackList.length * TRACK_HEIGHT + SCROLLBAR_HEIGHT;
+      setTimelineHeight(calc <= 200 ? Math.max(50, calc) : undefined);
     };
 
-    updateTracks();
+    refreshProject();
+    refreshTracks();
 
-    // Selector: only subscribe to layers and playback changes
-    let previousLayers: any;
-    let previousCurrentFrame: number;
+    const ids: number[] = [];
+    ids.push(kernel.subscribe('playback/frame_changed', refreshTracks));
+    ids.push(kernel.subscribe('playback/looped_back',   refreshTracks));
+    ids.push(kernel.subscribe('playback/stopped',       refreshTracks));
+    ids.push(kernel.subscribe('keyframe',               refreshTracks));
+    ids.push(kernel.subscribe('go',                     refreshTracks));
+    ids.push(kernel.subscribe('layer',                  refreshTracks));
+    ids.push(kernel.subscribe('project',                refreshProject));
+    subIdsRef.current = ids;
 
-    const selector = (state: any) => {
-      const engineState = state.engine || state;
-      return {
-        layers: engineState.layers,
-        currentFrame: engineState.playback.currentFrame
-      };
-    };
-
-    const unsubscribe = engineStore.subscribe(() => {
-      const selected = selector(engineStore.getState());
-
-      // Only update if selected state changed
-      if (selected.layers !== previousLayers || selected.currentFrame !== previousCurrentFrame) {
-        previousLayers = selected.layers;
-        previousCurrentFrame = selected.currentFrame;
-        updateTracks();
-      }
-    });
-
-    return () => unsubscribe();
+    return () => { ids.forEach(id => kernel.unsubscribe(id)); };
   }, []);
 
-  const handleCellClick = (trackId: string, frameNumber: number) => {
-    console.log('Cell clicked:', trackId, frameNumber);
-    const engineStore = getEngineStore();
-    engineStore.dispatch(setCurrentFrame(frameNumber));
-  };
+  const handleCellClick = (_trackId: string, frameNumber: number) =>
+    getKernel().setCurrentFrame(frameNumber);
 
-  const handleCurrentFrameChange = (frame: number) => {
-    console.log('Frame changed:', frame);
-    const engineStore = getEngineStore();
-    engineStore.dispatch(setCurrentFrame(frame));
-  };
+  const handleCurrentFrameChange = (frame: number) =>
+    getKernel().setCurrentFrame(frame);
 
   const handleMergeCells = (trackId: string, startFrame: number, endFrame: number) => {
-    console.log('Merge cells requested:', { trackId, startFrame, endFrame });
-
-    // Use internal mapping to get layer ID
-    const layerId = trackToLayerMap.current.get(trackId);
-    if (layerId) {
-      const length = endFrame - startFrame + 1;
-      const engineStore = getEngineStore();
-
-      console.log('Dispatching addTimelineClip:', { layerId, startFrame, length });
-      engineStore.dispatch(addTimelineClip(layerId, startFrame, length));
-    }
+    console.warn('[TimelinePanel] AddTimelineClip not yet in kernel', { trackId, startFrame, endFrame });
   };
 
   const handleSplitClip = (trackId: string, clipId: string, splitFrame: number) => {
-    console.log('Split clip requested:', { trackId, clipId, splitFrame });
-
-    // Use internal mapping to get layer ID
-    const layerId = trackToLayerMap.current.get(trackId);
-    if (layerId) {
-      const engineStore = getEngineStore();
-
-      console.log('Dispatching splitTimelineClip:', { layerId, clipId, splitFrame });
-      engineStore.dispatch(splitTimelineClip(layerId, clipId, splitFrame));
-    }
+    console.warn('[TimelinePanel] SplitTimelineClip not yet in kernel', { trackId, clipId, splitFrame });
   };
 
-  const handleCellRightClick = (trackId: string, frameNumber: number, x: number, y: number) => {
-    console.log('Cell right-clicked:', { trackId, frameNumber, x, y });
-
-    // Show context menu
-    setContextMenu({
-      visible: true,
-      x,
-      y,
-      frameNumber
-    });
+  const handleCellRightClick = (_trackId: string, frameNumber: number, x: number, y: number) => {
+    setContextMenu({ visible: true, x, y, frameNumber });
   };
 
   const handleSetProjectEnd = () => {
     if (!contextMenu) return;
-
-    const engineStore = getEngineStore();
-
-    engineStore.dispatch(setAnimationEndFrame({ frame: contextMenu.frameNumber }));
-    console.log(`Set animation end to frame ${contextMenu.frameNumber}`);
-
+    // TODO: SetAnimationEndFrame kernel command
+    console.warn('[TimelinePanel] SetAnimationEndFrame not yet in kernel', contextMenu.frameNumber);
     setContextMenu(null);
   };
 
-  // Context menu items
   const contextMenuItems: MenuProps['items'] = [
     {
       key: 'set-animation-end',
@@ -186,15 +111,11 @@ const TimelinePanel: React.FC = () => {
   ];
 
   return (
-    <div style={{
-      width: '100%',
-      height: timelineHeight ? `${timelineHeight}px` : '100%',
-      background: '#1e1e1e'
-    }}>
+    <div style={{ width: '100%', height: timelineHeight ? `${timelineHeight}px` : '100%', background: '#1e1e1e' }}>
       <Timeline
         frameCount={totalFrames}
         fps={fps}
-        currentFrame={currentFrame}
+        currentFrame={currentFrameState}
         animationEndFrame={animationEndFrame}
         tracks={tracks}
         onCellClick={handleCellClick}
@@ -204,25 +125,13 @@ const TimelinePanel: React.FC = () => {
         onCellRightClick={handleCellRightClick}
       />
 
-      {/* Context menu for Timeline */}
       {contextMenu && (
         <Dropdown
           menu={{ items: contextMenuItems }}
           open={contextMenu.visible}
-          onOpenChange={(visible) => {
-            if (!visible) setContextMenu(null);
-          }}
+          onOpenChange={(open) => { if (!open) setContextMenu(null); }}
         >
-          <div
-            style={{
-              position: 'fixed',
-              left: contextMenu.x,
-              top: contextMenu.y,
-              width: 1,
-              height: 1,
-              pointerEvents: 'none',
-            }}
-          />
+          <div style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, width: 1, height: 1, pointerEvents: 'none' }} />
         </Dropdown>
       )}
     </div>

@@ -1,0 +1,9 @@
+{
+  "name": "@huahuo/kernel-wasm",
+  "version": "0.1.0",
+  "description": "Rust/WASM kernel stub — replace with wasm-pack output once built",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "sideEffects": false
+}
+

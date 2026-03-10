@@ -1,9 +1,6 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Modal, Form, Input, InputNumber, Space, Typography } from 'antd';
-import { useSelector } from 'react-redux';
-import { getEngineStore } from '@huahuo/engine';
-import { updateProjectName, updateProjectTotalFrames, updateProjectFps, updateProjectCanvasSize } from '@huahuo/engine';
-import type { RootState } from '../../store/store';
+import { getKernel } from '@huahuo/engine';
 
 const { Text } = Typography;
 
@@ -14,165 +11,67 @@ interface ProjectSettingsModalProps {
 
 const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ open, onClose }) => {
   const [form] = Form.useForm();
-
-  const project = useSelector((state: RootState) => state.engine.project.current);
+  const [project, setProject] = useState<any>(null);
 
   useEffect(() => {
-    if (project && open) {
-      form.setFieldsValue({
-        name: project.name,
-        totalFrames: project.totalFrames,
-        fps: project.fps,
-        canvasWidth: project.canvasWidth,
-        canvasHeight: project.canvasHeight,
-      });
+    if (open) {
+      const p = getKernel().ready ? getKernel().getProject() : null;
+      setProject(p);
+      if (p) {
+        form.setFieldsValue({
+          name: p.name,
+          totalFrames: p.total_frames,
+          fps: p.fps,
+          canvasWidth: p.canvas_width,
+          canvasHeight: p.canvas_height,
+        });
+      }
     }
-  }, [project, open, form]);
+  }, [open, form]);
 
   const handleOk = () => {
     form.validateFields().then((values) => {
-      const store = getEngineStore();
-
-      if (values.name !== project?.name) {
-        store.dispatch(updateProjectName({ name: values.name }));
-      }
-
-      if (values.totalFrames !== project?.totalFrames) {
-        store.dispatch(updateProjectTotalFrames({ totalFrames: values.totalFrames }));
-      }
-
-      if (values.fps !== project?.fps) {
-        store.dispatch(updateProjectFps({ fps: values.fps }));
-      }
-
-      if (values.canvasWidth !== project?.canvasWidth || values.canvasHeight !== project?.canvasHeight) {
-        store.dispatch(updateProjectCanvasSize({
-          width: values.canvasWidth,
-          height: values.canvasHeight
-        }));
-      }
-
+      // TODO: dispatch project update commands once kernel supports them
+      console.info('[ProjectSettingsModal] Project settings updated (kernel commands not yet implemented):', values);
       onClose();
     });
   };
 
-  const handleCancel = () => {
-    form.resetFields();
-    onClose();
-  };
+  const handleCancel = () => { form.resetFields(); onClose(); };
 
-  if (!project) {
-    return null;
-  }
+  if (!project) return null;
 
-  const duration = ((project.totalFrames / project.fps) * 1000).toFixed(0);
+  const duration = ((( project.total_frames ?? 0) / (project.fps ?? 30)) * 1000).toFixed(0);
 
   return (
-    <Modal
-      title="Project Settings"
-      open={open}
-      onOk={handleOk}
-      onCancel={handleCancel}
-      width={500}
-    >
-      <Form
-        form={form}
-        layout="vertical"
-        autoComplete="off"
-      >
-        <Form.Item
-          label="Project Name"
-          name="name"
-          rules={[{ required: true, message: 'Please input project name!' }]}
-        >
+    <Modal title="Project Settings" open={open} onOk={handleOk} onCancel={handleCancel} width={500}>
+      <Form form={form} layout="vertical" autoComplete="off">
+        <Form.Item label="Project Name" name="name" rules={[{ required: true }]}>
           <Input placeholder="My Animation Project" />
         </Form.Item>
 
         <Form.Item
-          label={
-            <Space>
-              <span>Total Frames</span>
-              <Text type="secondary" style={{ fontSize: '12px' }}>
-                (Duration: {duration}ms)
-              </Text>
-            </Space>
-          }
+          label={<Space><span>Total Frames</span><Text type="secondary" style={{ fontSize: '12px' }}>(Duration: {duration}ms)</Text></Space>}
           name="totalFrames"
-          rules={[
-            { required: true, message: 'Please input total frames!' },
-            { type: 'number', min: 1, message: 'Must be at least 1 frame' }
-          ]}
+          rules={[{ required: true }, { type: 'number', min: 1 }]}
         >
-          <InputNumber
-            min={1}
-            max={10000}
-            style={{ width: '100%' }}
-            placeholder="120"
-          />
+          <InputNumber min={1} max={10000} style={{ width: '100%' }} />
         </Form.Item>
 
-        <Form.Item
-          label="FPS (Frames Per Second)"
-          name="fps"
-          rules={[
-            { required: true, message: 'Please input FPS!' },
-            { type: 'number', min: 1, max: 120, message: 'FPS must be between 1 and 120' }
-          ]}
+        <Form.Item label="FPS" name="fps" rules={[{ required: true }, { type: 'number', min: 1, max: 120 }]}
         >
-          <InputNumber
-            min={1}
-            max={120}
-            style={{ width: '100%' }}
-            placeholder="30"
-          />
+          <InputNumber min={1} max={120} style={{ width: '100%' }} />
         </Form.Item>
 
         <Form.Item label="Canvas Size">
           <Space.Compact style={{ width: '100%' }}>
-            <Form.Item
-              name="canvasWidth"
-              noStyle
-              rules={[
-                { required: true, message: 'Width required' },
-                { type: 'number', min: 1, message: 'Must be at least 1' }
-              ]}
-            >
-              <InputNumber
-                min={1}
-                max={10000}
-                placeholder="Width"
-                addonBefore="W"
-                style={{ width: '50%' }}
-              />
+            <Form.Item name="canvasWidth" noStyle rules={[{ required: true }]}>
+              <InputNumber min={1} max={10000} addonBefore="W" style={{ width: '50%' }} />
             </Form.Item>
-            <Form.Item
-              name="canvasHeight"
-              noStyle
-              rules={[
-                { required: true, message: 'Height required' },
-                { type: 'number', min: 1, message: 'Must be at least 1' }
-              ]}
-            >
-              <InputNumber
-                min={1}
-                max={10000}
-                placeholder="Height"
-                addonBefore="H"
-                style={{ width: '50%' }}
-              />
+            <Form.Item name="canvasHeight" noStyle rules={[{ required: true }]}>
+              <InputNumber min={1} max={10000} addonBefore="H" style={{ width: '50%' }} />
             </Form.Item>
           </Space.Compact>
-        </Form.Item>
-
-        <Form.Item>
-          <Space direction="vertical" style={{ width: '100%' }}>
-            <Text type="secondary" style={{ fontSize: '12px' }}>
-              Created: {new Date(project.created).toLocaleString()}
-            </Text>
-            <Text type="secondary" style={{ fontSize: '12px' }}>
-              Modified: {new Date(project.modified).toLocaleString()}
-            </Text>
-          </Space>
         </Form.Item>
       </Form>
     </Modal>

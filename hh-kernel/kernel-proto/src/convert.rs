@@ -28,6 +28,8 @@ pub fn core_value_to_proto(v: &PropertyValue) -> PropertyValueProto {
         PropertyValue::Bool(b) => PropertyValueProto::Bool(*b),
         PropertyValue::String(s) => PropertyValueProto::String(s.clone()),
         PropertyValue::Int(i) => PropertyValueProto::Int(*i),
+        // FileRef is not representable in the proto API; transmit as string id.
+        PropertyValue::FileRef(id) => PropertyValueProto::String(id.clone()),
     }
 }
 

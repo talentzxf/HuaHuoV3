@@ -8,7 +8,7 @@ import {
 } from '@ant-design/icons';
 import paper from 'paper';
 import { SDK } from '@huahuo/sdk';
-import { getEngineStore, addTimelineClip, splitTimelineClip, setCurrentFrame as setEngineFrame, getAnimationPlayer } from '@huahuo/engine';
+import { getKernel } from '@huahuo/engine';
 import { Timeline } from '@huahuo/timeline';
 import { store } from '../../store/store';
 import type { RootState } from '../../store/store';
@@ -37,10 +37,10 @@ const CanvasPanel: React.FC = () => {
   // Paper.js references
   const paperScopeRef = useRef<paper.PaperScope | null>(null);
 
-  // Get project totalFrames and fps from Redux
-  const totalFrames = useSelector((state: RootState) => state.engine.project.current?.totalFrames || 120);
-  const fps = useSelector((state: RootState) => state.engine.project.current?.fps || 30);
-  const animationEndFrame = useSelector((state: RootState) => state.engine.project.current?.animationEndFrame ?? null);
+  // Get project totalFrames and fps from Kernel
+  const [totalFrames, setTotalFrames] = useState(120);
+  const [fps, setFps] = useState(30);
+  const [animationEndFrame, setAnimationEndFrame] = useState<number | null>(null);
 
   // Get canvas refresh flag from Redux store
   const needsRefresh = useSelector((state: RootState) => state.canvas.needsRefresh);
@@ -65,132 +65,105 @@ const CanvasPanel: React.FC = () => {
     clip?: { id: string; startFrame: number; length: number };
   } | null>(null);
 
-  // Load Scene data
+  // Load Scene data — driven by Kernel events instead of Redux store diff
   useEffect(() => {
-    let unsubscribe: (() => void) | null = null;
+    const subIds: number[] = [];
+
+    const updateProjectMeta = () => {
+      const kernel = getKernel();
+      if (!kernel.ready) return;
+      const project = kernel.getProject();
+      if (project) {
+        setTotalFrames(project.total_frames ?? 120);
+        setFps(project.fps ?? 30);
+        setAnimationEndFrame(project.animation_end_frame ?? null);
+      }
+    };
 
     const updateTimelineData = () => {
       if (!SDK.isInitialized()) return;
+      const kernel = getKernel();
+      if (!kernel.ready) return;
 
       const scene = SDK.instance.Scene.getCurrentScene();
       if (!scene) return;
 
+      // Current frame from kernel playback state
+      const pb = kernel.getPlaybackState();
+      if (pb) setCurrentFrame(pb.current_frame ?? 0);
 
-      // Get current frame from playback state
-      const engineStore = getEngineStore();
-      const state = engineStore.getState();
-      const engineState = state.engine || state;
-      setCurrentFrame(engineState.playback.currentFrame);
-
-      // Get layers that have timeline (filter by hasTimeline)
+      // Build tracks from kernel scene data (layers + keyframes)
+      const kernelScene = kernel.getCurrentScene();
       const trackList = scene.layers
-        .filter((layer) => layer.hasTimeline)
-        .map((layer) => {
-          // Get clips from engine store
-          const layerData = engineState.layers.byId[layer.id];
-
+        .filter((layer: any) => layer.hasTimeline)
+        .map((layer: any) => {
+          const kLayer = kernelScene?.layers?.[layer.id];
           return {
             id: layer.id,
             name: layer.name,
-            clips: layerData?.clips || [],  // Include clips from engine store
-            keyFrames: layerData?.keyFrames ? layerData.keyFrames.map((kf: any) => kf.frame) : []  // Extract frame numbers from KeyFrameInfo[]
+            clips: kLayer?.clips ?? [],
+            keyFrames: (kLayer?.keyFrames ?? []).map((kf: any) => kf.frame ?? kf),
           };
         });
       setTracks(trackList);
 
-      // Calculate timeline height: HEADER_HEIGHT + (track count × TRACK_HEIGHT) + SCROLLBAR_HEIGHT
       const HEADER_HEIGHT = 30;
       const TRACK_HEIGHT = 30;
       const SCROLLBAR_HEIGHT = 20;
-      const calculatedHeight = HEADER_HEIGHT + trackList.length * TRACK_HEIGHT + SCROLLBAR_HEIGHT;
-      const minHeight = 50; // Minimum height even if no tracks
-      setTimelineHeight(Math.max(minHeight, calculatedHeight));
+      setTimelineHeight(Math.max(50, HEADER_HEIGHT + trackList.length * TRACK_HEIGHT + SCROLLBAR_HEIGHT));
     };
 
-    // Execute after SDK is initialized
     SDK.executeAfterInit(() => {
+      updateProjectMeta();
       updateTimelineData();
 
-      // Start AnimationPlayer
-      const animationPlayer = getAnimationPlayer();
-      animationPlayer.start();
+      const kernel = getKernel();
+      if (!kernel.ready) return;
 
-      // Subscribe to engine store changes
-      const engineStore = getEngineStore();
-      unsubscribe = engineStore.subscribe(() => {
-        updateTimelineData();
-      });
+      // React to frame changes for timeline cursor
+      subIds.push(kernel.subscribe('playback/frame_changed', () => updateTimelineData()));
+      subIds.push(kernel.subscribe('playback/looped_back',   () => updateTimelineData()));
+      subIds.push(kernel.subscribe('playback/stopped',       () => updateTimelineData()));
+      // React to layer / GO changes for keyframe dots
+      subIds.push(kernel.subscribe('keyframe',               () => updateTimelineData()));
+      subIds.push(kernel.subscribe('go',                     () => updateTimelineData()));
+      subIds.push(kernel.subscribe('layer',                  () => updateTimelineData()));
+      subIds.push(kernel.subscribe('project',                () => updateProjectMeta()));
     });
 
     return () => {
-      if (unsubscribe) {
-        unsubscribe();
-      }
-      // Stop AnimationPlayer
-      if (SDK.isInitialized()) {
-        const animationPlayer = getAnimationPlayer();
-        animationPlayer.stop();
-      }
+      const kernel = getKernel();
+      subIds.forEach(id => kernel.unsubscribe(id));
     };
   }, []);
 
-  // Handle dirty flag to refresh canvas
+  // Handle dirty flag to refresh canvas (e.g. after clip merge)
   useEffect(() => {
     if (!needsRefresh) return;
-
-    if (SDK.isInitialized()) {
-      // Trigger AnimationPlayer to update all GameObjects based on current frame
-      // This will recalculate visibility and interpolate components according to clips
-      const animationPlayer = getAnimationPlayer();
-      console.log('[CanvasPanel] Triggering AnimationPlayer force update due to timeline changes');
-
-      // Force update to recalculate GameObject visibility based on new clips
-      animationPlayer.forceUpdate();
-    }
-
-    // Clear dirty flag via Redux action
+    // KernelAdapter already redraws on every kernel event;
+    // just clear the flag so CanvasPanel's own refreshes don't double-fire.
     dispatch(clearCanvasRefreshFlag());
   }, [needsRefresh, dispatch]);
 
   // Timeline event handlers
   const handleCellClick = (trackId: string, frameNumber: number) => {
-    console.log('Cell clicked:', trackId, frameNumber);
-    const engineStore = getEngineStore();
-    engineStore.dispatch(setEngineFrame(frameNumber));
+    getKernel().setCurrentFrame(frameNumber);
   };
 
   const handleCurrentFrameChange = (frame: number) => {
-    console.log('Frame changed:', frame);
-    const engineStore = getEngineStore();
-    engineStore.dispatch(setEngineFrame(frame));
+    getKernel().setCurrentFrame(frame);
   };
 
   const handleMergeCells = (trackId: string, startFrame: number, endFrame: number) => {
-    console.log('Merge cells requested:', { trackId, startFrame, endFrame });
-
-    // In CanvasPanel, trackId is actually the layerId from Scene
-    const layerId = trackId;
+    // TODO: add AddTimelineClip command to kernel
     const length = endFrame - startFrame + 1;
-    const engineStore = getEngineStore();
-
-    console.log('Dispatching addTimelineClip:', { layerId, startFrame, length });
-    engineStore.dispatch(addTimelineClip(layerId, startFrame, length));
-
-    // Request canvas refresh via IDE store
+    console.warn('[CanvasPanel] AddTimelineClip not yet in kernel — layerId:', trackId, 'start:', startFrame, 'length:', length);
     dispatch(requestCanvasRefresh());
   };
 
   const handleSplitClip = (trackId: string, clipId: string, splitFrame: number) => {
-    console.log('Split clip requested:', { trackId, clipId, splitFrame });
-
-    // In CanvasPanel, trackId is actually the layerId from Scene
-    const layerId = trackId;
-    const engineStore = getEngineStore();
-
-    console.log('Dispatching splitTimelineClip:', { layerId, clipId, splitFrame });
-    engineStore.dispatch(splitTimelineClip(layerId, clipId, splitFrame));
-
-    // Request canvas refresh via IDE store
+    // TODO: add SplitTimelineClip command to kernel
+    console.warn('[CanvasPanel] SplitTimelineClip not yet in kernel — layerId:', trackId, 'clipId:', clipId, 'frame:', splitFrame);
     dispatch(requestCanvasRefresh());
   };
 
@@ -232,9 +205,8 @@ const CanvasPanel: React.FC = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Initialize SDK with canvas element and selector
-    // SDK will handle Paper.js scope setup internally
-    SDK.initialize(canvas, store, (state) => state.engine);
+    // Initialize SDK with canvas element (no Redux store needed — data layer is now Rust/WASM)
+    SDK.initialize(canvas);
 
     // Get the Paper.js scope from SDK (same scope as engine uses)
     const scope = SDK.instance.getPaperScope();

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSelector } from 'react-redux';
+import { getKernel } from '@huahuo/engine';
 import {
   SaveOutlined,
   FolderOpenOutlined,
@@ -15,7 +15,6 @@ import {
 import { Button, Tooltip, Space } from 'antd';
 import LanguageSwitcher from './LanguageSwitcher';
 import ProjectSettingsModal from './modals/ProjectSettingsModal';
-import type { RootState } from '../../store/store';
 import './MainMenu.css';
 
 interface MainMenuProps {
@@ -41,8 +40,16 @@ const MainMenu: React.FC<MainMenuProps> = ({
 }) => {
   const { t } = useTranslation();
 
-  // Get isPlaying directly from Engine playback state
-  const isPlaying = useSelector((state: RootState) => state.engine.playback.isPlaying);
+  // Read isPlaying from the Rust kernel (no Redux engine state anymore)
+  const [isPlaying, setIsPlaying] = useState(false);
+  useEffect(() => {
+    const kernel = getKernel();
+    if (!kernel.ready) return;
+    const id1 = kernel.subscribe('playback/started', () => setIsPlaying(true));
+    const id2 = kernel.subscribe('playback/paused',  () => setIsPlaying(false));
+    const id3 = kernel.subscribe('playback/stopped', () => setIsPlaying(false));
+    return () => { kernel.unsubscribe(id1); kernel.unsubscribe(id2); kernel.unsubscribe(id3); };
+  }, []);
   const [projectSettingsOpen, setProjectSettingsOpen] = useState(false);
 
   // Add keyboard shortcuts

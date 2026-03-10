@@ -1,96 +1,53 @@
 import { TransformHandlerBase } from './TransformHandlerBase';
-import { getEngineStore } from '@huahuo/engine';
-import { updateComponentPropsWithKeyFrame } from '@huahuo/sdk';
+import { getKernel } from '@huahuo/engine';
 
 /**
  * ShapeTranslateHandler
- * Handles translation (position) transformation of GameObjects
- * Updates Redux store with keyframes during drag
+ * Handles translation (position) transformation of GameObjects.
+ * Reads/writes transform data via KernelBridge instead of Redux.
  */
 export class ShapeTranslateHandler extends TransformHandlerBase {
   private initialPositions: Map<string, { x: number; y: number }> = new Map();
-  private transformComponentIds: Map<string, string> = new Map(); // Cache component IDs
-  private currentPosition: { x: number; y: number } | null = null; // Track current position during drag
+  // goId → transformComponentId (stored in Rust GO as component type "Transform")
+  private currentPosition: { x: number; y: number } | null = null;
 
   protected onBeginMove(position: { x: number; y: number }): void {
-    // Store initial positions of all target GameObjects
     this.initialPositions.clear();
-    this.transformComponentIds.clear();
-
-    // Initialize currentPosition to handle click without drag
     this.currentPosition = position;
 
-    const engineStore = getEngineStore();
-    const state = engineStore.getState();
-    const engineState = state.engine || state;
+    const kernel = getKernel();
+    const frame = kernel.getPlaybackState()?.current_frame ?? 0;
 
-    this.targetGameObjects.forEach(gameObjectId => {
-      const gameObject = engineState.gameObjects.byId[gameObjectId];
-      if (gameObject && gameObject.componentIds.length > 0) {
-        // Find Transform component (should be first component)
-        const transformComponentId = gameObject.componentIds[0];
-        const transformComponent = engineState.components.byId[transformComponentId];
-
-        if (transformComponent && transformComponent.type === 'Transform') {
-          const currentPos = transformComponent.props.position;
-          this.initialPositions.set(gameObjectId, {
-            x: currentPos.x,
-            y: currentPos.y
-          });
-          // Cache the transform component ID
-          this.transformComponentIds.set(gameObjectId, transformComponentId);
-        }
-      }
+    this.targetGameObjects.forEach(goId => {
+      const props = kernel.getInterpolatedProps(goId, frame);
+      const pos = props?.Transform?.position ?? { x: 0, y: 0 };
+      this.initialPositions.set(goId, { x: pos.x, y: pos.y });
     });
   }
 
   protected onDragging(position: { x: number; y: number }): void {
     if (!this.startPosition) return;
-
-    // Track current position for final update
     this.currentPosition = position;
 
-    // Calculate delta from start position
     const deltaX = position.x - this.startPosition.x;
     const deltaY = position.y - this.startPosition.y;
 
-    // Update Redux store with new positions and create keyframes
-    this.targetGameObjects.forEach(gameObjectId => {
-      const initialPos = this.initialPositions.get(gameObjectId);
-      const transformComponentId = this.transformComponentIds.get(gameObjectId);
+    const kernel = getKernel();
+    const frame = kernel.getPlaybackState()?.current_frame ?? 0;
 
-      if (!initialPos || !transformComponentId) return;
-
-      const newPosition = {
+    this.targetGameObjects.forEach(goId => {
+      const initialPos = this.initialPositions.get(goId);
+      if (!initialPos) return;
+      kernel.setKeyframe(goId, 'Transform', 'position', frame, {
         x: initialPos.x + deltaX,
-        y: initialPos.y + deltaY
-      };
-
-
-      const engineStore = getEngineStore();
-      // Update position and add keyframe automatically
-      (engineStore.dispatch as any)(updateComponentPropsWithKeyFrame({
-        id: transformComponentId,
-        patch: {
-          position: newPosition
-        }
-      }));
+        y: initialPos.y + deltaY,
+      });
     });
   }
 
   protected onEndMove(): void {
-    // ✅ FIX: Don't update position again in onEndMove
-    // Position has already been updated in onDragging
-    // Just clean up state to prevent teleporting bugs
-
-    // Clean up state
     this.initialPositions.clear();
-    this.transformComponentIds.clear();
     this.currentPosition = null;
-
-    // Note: No need to dispatch updateComponentPropsWithKeyFrame here
-    // because onDragging already updated the position on every mouse move.
-    // Updating again here would cause duplicate keyframes and potential teleport bugs.
   }
 }
 

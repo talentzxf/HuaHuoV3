@@ -1,242 +1,64 @@
-import { getEngineStore, getEngineState } from '../core/EngineGlobals';
-import { setGameObjectActive } from '../store/GameObjectSlice';
-import { setCurrentFrame } from '../store/PlaybackSlice';
-import { interpolateComponent, updateComponentProps } from '../store/ComponentSlice';
+import { getKernel } from './KernelBridge';
 
 /**
- * AnimationPlayer - Manages animation playback and GameObject visibility
- * Subscribes to playback state changes and updates GameObject visibility
- * based on timeline clips and bornFrameId
+ * AnimationPlayer — drives the Rust kernel's tick() each animation frame.
+ *
+ * All the heavy lifting (frame advance, interpolation, event delivery) is done
+ * inside the Rust WASM module.  KernelAdapter listens to the published events
+ * and updates Paper.js accordingly.
+ *
+ * @deprecated  Direct kernel calls (getKernel().play() / pause() / stop()) are
+ *              preferred.  This class exists for backward compatibility with
+ *              callers that still reference `getAnimationPlayer()`.
  */
 export class AnimationPlayer {
-    private unsubscribe: (() => void) | null = null;
     private rafId: number | null = null;
     private lastFrameTime: number = 0;
-    private lastProcessedFrame: number = -1; // Track the last frame we processed to avoid infinite loops
 
-    /**
-     * Start listening to store changes and update GameObject visibility
-     */
-    start() {
-        if (this.unsubscribe) {
-            console.warn('AnimationPlayer already started');
-            return;
-        }
-
-        const store = getEngineStore();
-
-        // Subscribe to store changes
-        this.unsubscribe = store.subscribe(() => {
-            const state = getEngineState();
-            const currentFrame = state.playback.currentFrame;
-
-            // Only update if frame actually changed (prevent infinite loop)
-            if (currentFrame !== this.lastProcessedFrame) {
-                this.lastProcessedFrame = currentFrame;
-                this.updateGameObjects();
-            }
-        });
-
-        // Initial update
-        this.updateGameObjects();
-
-        console.log('AnimationPlayer started');
+    start(): void {
+        // Nothing to subscribe to — kernel events are delivered via KernelAdapter
+        console.log('[AnimationPlayer] start() — kernel drives playback now');
     }
 
-    /**
-     * Stop listening to store changes
-     */
-    stop() {
-        if (this.unsubscribe) {
-            this.unsubscribe();
-            this.unsubscribe = null;
-        }
-
+    stop(): void {
         if (this.rafId) {
             cancelAnimationFrame(this.rafId);
             this.rafId = null;
         }
-
-        console.log('AnimationPlayer stopped');
+        console.log('[AnimationPlayer] stop()');
     }
 
-    /**
-     * Play animation (auto-advance frames)
-     */
-    play() {
-        // Don't check isPlaying here - the dispatch happens before this is called
-        // The animate loop will check isPlaying to continue or stop
+    play(): void {
         this.lastFrameTime = performance.now();
-        this.animate();
+        this._loop();
     }
 
-    /**
-     * Force update all GameObjects based on current frame
-     * This is useful when clips are merged/split and we need to recalculate visibility
-     */
-    forceUpdate() {
-        console.log('[AnimationPlayer] Force update triggered');
-        this.updateGameObjects();
+    forceUpdate(): void {
+        // Nothing to do — KernelAdapter reacts to kernel events automatically
     }
 
-    /**
-     * Animation loop
-     */
-    private animate = () => {
-        const state = getEngineState();
+    private _loop = () => {
+        const kernel = getKernel();
+        if (!kernel.ready) return;
 
-        if (!state.playback.isPlaying) {
+        const pb = kernel.getPlaybackState();
+        if (!pb?.is_playing) {
             this.rafId = null;
             return;
         }
 
         const now = performance.now();
-        const elapsed = now - this.lastFrameTime;
-        const frameDuration = 1000 / state.playback.fps;
+        const delta = (now - this.lastFrameTime) / 1000; // seconds
+        kernel.tick(delta);
+        this.lastFrameTime = now;
 
-        if (elapsed >= frameDuration) {
-            const store = getEngineStore();
-            const engineState = getEngineState();
-            const currentFrame = state.playback.currentFrame;
-
-            // Determine the end frame: use animationEndFrame if set, otherwise use totalFrames
-            const project = engineState.project.current;
-            const totalFrames = project?.totalFrames || 120;
-            const animationEndFrame = project?.animationEndFrame;
-
-            // End frame is where animation should loop back
-            let endFrame = totalFrames - 1;
-            if (animationEndFrame !== null && animationEndFrame !== undefined && animationEndFrame >= 0) {
-                endFrame = animationEndFrame;
-            }
-
-            // Calculate next frame
-            let nextFrame = currentFrame + 1;
-
-            // Loop back to start if we reached the end
-            if (nextFrame > endFrame) {
-                nextFrame = 0;
-            }
-
-            store.dispatch(setCurrentFrame(nextFrame));
-
-            this.lastFrameTime = now;
-        }
-
-        this.rafId = requestAnimationFrame(this.animate);
+        this.rafId = requestAnimationFrame(this._loop);
     };
-
-    /**
-     * Update GameObject visibility and interpolate component properties based on current frame
-     */
-    private updateGameObjects() {
-        const store = getEngineStore();
-        const state = getEngineState();
-        const currentFrame = state.playback.currentFrame;
-
-        // For each layer that has timeline
-        Object.values(state.layers.byId).forEach((layer: any) => {
-            if (!layer.hasTimeline) return;
-
-            const clips = layer.clips || [];
-
-            // For each GameObject in this layer
-            layer.gameObjectIds?.forEach((goId: string) => {
-                const gameObject = state.gameObjects.byId[goId];
-                if (!gameObject) return;
-
-                const bornFrame = gameObject.bornFrameId;
-
-                // GameObject should be invisible before its birth frame
-                if (currentFrame < bornFrame) {
-                    if (gameObject.active !== false) {
-                        store.dispatch(setGameObjectActive({ id: goId, active: false }));
-                    }
-                    return; // Skip interpolation for unborn GameObjects
-                }
-
-                // Find the clip that contains current frame
-                const currentClip = clips.find((clip: any) => {
-                    const clipEnd = clip.startFrame + clip.length - 1;
-                    return currentFrame >= clip.startFrame && currentFrame <= clipEnd;
-                });
-
-                // Show if: birth frame is in current clip OR birth frame equals current frame
-                let shouldBeVisible = false;
-                if (currentClip) {
-                    const clipEnd = currentClip.startFrame + currentClip.length - 1;
-                    shouldBeVisible = bornFrame >= currentClip.startFrame && bornFrame <= clipEnd;
-                }
-                shouldBeVisible = shouldBeVisible || bornFrame === currentFrame;
-
-                // Update visibility if it changed
-                if (gameObject.active !== shouldBeVisible) {
-                    store.dispatch(setGameObjectActive({ id: goId, active: shouldBeVisible }));
-                }
-
-                // Interpolate components for active GameObjects
-                if (shouldBeVisible) {
-                    this.interpolateGameObjectComponents(goId, currentFrame);
-                }
-            });
-        });
-    }
-
-    /**
-     * Interpolate all components of a GameObject
-     */
-    private interpolateGameObjectComponents(gameObjectId: string, currentFrame: number) {
-        const store = getEngineStore();
-        const state = getEngineState();
-        const gameObject = state.gameObjects.byId[gameObjectId];
-
-        if (!gameObject || !gameObject.componentIds) return;
-
-        // Iterate through each component of this GameObject
-        for (const componentId of gameObject.componentIds) {
-            const component = state.components.byId[componentId];
-            if (!component) continue;
-
-            // Skip Timeline component itself (it's just a UI helper)
-            if (component.type === 'Timeline') continue;
-
-            // Check if this component has any keyframes
-            const hasKeyFrames = Object.keys(component.keyFrames).length > 0;
-            if (!hasKeyFrames) continue;
-
-            // Interpolate the component
-            // Easing is read from each keyframe's easingType field
-            const interpolatedProps = interpolateComponent(component, currentFrame);
-
-            // Update the component props
-            store.dispatch(updateComponentProps({
-                id: componentId,
-                patch: interpolatedProps
-            }));
-        }
-    }
-
-    /**
-     * Check if frame is inside any clip
-     */
-    private isFrameInClips(
-        clips: Array<{ id: string; startFrame: number; length: number }>,
-        frame: number
-    ): boolean {
-        return clips.some(clip => {
-            const clipEnd = clip.startFrame + clip.length - 1;
-            return frame >= clip.startFrame && frame <= clipEnd;
-        });
-    }
 }
 
-// Singleton instance
-let animationPlayerInstance: AnimationPlayer | null = null;
+let _instance: AnimationPlayer | null = null;
 
 export function getAnimationPlayer(): AnimationPlayer {
-    if (!animationPlayerInstance) {
-        animationPlayerInstance = new AnimationPlayer();
-    }
-    return animationPlayerInstance;
+    if (!_instance) _instance = new AnimationPlayer();
+    return _instance;
 }
-

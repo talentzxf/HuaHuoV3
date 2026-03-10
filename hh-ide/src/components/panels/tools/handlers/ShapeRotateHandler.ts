@@ -1,6 +1,5 @@
 import { TransformHandlerBase } from './TransformHandlerBase';
-import { getEngineStore } from '@huahuo/engine';
-import { updateComponentPropsWithKeyFrame } from '@huahuo/sdk';
+import { getKernel } from '@huahuo/engine';
 import paper from 'paper';
 
 /**
@@ -50,35 +49,24 @@ export class ShapeRotateHandler extends TransformHandlerBase {
     this.initialRotations.clear();
     this.transformComponentIds.clear();
 
-    const engineStore = getEngineStore();
-    const state = engineStore.getState();
-    const engineState = state.engine || state;
+    const kernel = getKernel();
+    const frame = kernel.getPlaybackState()?.current_frame ?? 0;
 
     // Calculate rotation center (pivot point) - center of all selected objects
     let sumX = 0;
     let sumY = 0;
     let count = 0;
 
-    this.targetGameObjects.forEach(gameObjectId => {
-      const gameObject = engineState.gameObjects.byId[gameObjectId];
-      if (gameObject && gameObject.componentIds.length > 0) {
-        // Find Transform component (should be first component)
-        const transformComponentId = gameObject.componentIds[0];
-        const transformComponent = engineState.components.byId[transformComponentId];
-
-        if (transformComponent && transformComponent.type === 'Transform') {
-          // Store initial rotation
-          this.initialRotations.set(gameObjectId, transformComponent.props.rotation || 0);
-          // Cache the transform component ID
-          this.transformComponentIds.set(gameObjectId, transformComponentId);
-
-          // Accumulate position for center calculation
-          const pos = transformComponent.props.position;
-          sumX += pos.x;
-          sumY += pos.y;
-          count++;
-        }
-      }
+    this.targetGameObjects.forEach(goId => {
+      const props = kernel.getInterpolatedProps(goId, frame);
+      if (!props?.Transform) return;
+      const rotation = props.Transform.rotation ?? 0;
+      const pos = props.Transform.position ?? { x: 0, y: 0 };
+      this.initialRotations.set(goId, rotation);
+      this.transformComponentIds.set(goId, goId); // use goId as key (component type known)
+      sumX += pos.x;
+      sumY += pos.y;
+      count++;
     });
 
     // Calculate rotation center as the average position of all objects
@@ -122,24 +110,15 @@ export class ShapeRotateHandler extends TransformHandlerBase {
       effectiveRotation = Math.round(this.totalRotation / this.SNAP_ANGLE_DEGREE) * this.SNAP_ANGLE_DEGREE;
     }
 
-    // Update Redux store with new rotations and create keyframes
-    this.targetGameObjects.forEach(gameObjectId => {
-      const initialRotation = this.initialRotations.get(gameObjectId);
-      const transformComponentId = this.transformComponentIds.get(gameObjectId);
+    // Update kernel with new rotations and create keyframes
+    const kernel = getKernel();
+    const frame = kernel.getPlaybackState()?.current_frame ?? 0;
 
-      if (initialRotation === undefined || !transformComponentId) return;
-
-      // Calculate new rotation: initial + effective rotation delta
+    this.targetGameObjects.forEach(goId => {
+      const initialRotation = this.initialRotations.get(goId);
+      if (initialRotation === undefined) return;
       const newRotation = initialRotation + effectiveRotation;
-
-      const engineStore = getEngineStore();
-      // Update rotation and add keyframe automatically
-      (engineStore.dispatch as any)(updateComponentPropsWithKeyFrame({
-        id: transformComponentId,
-        patch: {
-          rotation: newRotation
-        }
-      }));
+      kernel.setKeyframe(goId, 'Transform', 'rotation', frame, newRotation);
     });
 
     // Update last angle for next drag event

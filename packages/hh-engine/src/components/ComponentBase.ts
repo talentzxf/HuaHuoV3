@@ -1,89 +1,62 @@
 import { IComponent } from '../core/IComponent';
 import { IGameObject } from '../core/IGameObject';
-import { getEngineStore, getEngineState } from '../core/EngineGlobals';
-import { updateComponentProps } from '../store/ComponentSlice';
+import { getKernel } from '../core/KernelBridge';
 import { createComponentProxy } from '../core/ComponentProxy';
-import {InstanceRegistry} from "../core/InstanceRegistry";
+import { InstanceRegistry } from "../core/InstanceRegistry";
 
 export abstract class ComponentBase implements IComponent {
   public enabled: boolean = true;
   public abstract readonly type: string;
 
   protected gameObject: IGameObject;
+  /** In the Kernel model, componentId = `${goId}_${type}` (synthetic key). */
   protected componentId: string | null = null;
 
   constructor(gameObject: IGameObject, config?: Record<string, any>) {
     this.gameObject = gameObject;
-
-    // Automatically wrap this component with a Proxy for auto-syncing properties
     return createComponentProxy(this, config);
   }
 
-  // Lifecycle methods
   onAdd(): void {
-    // Find this component's ID in the store
-    const state = getEngineState();
-    const component = Object.values(state.components.byId).find(
-      (c: any) => c.parentId === this.gameObject.id && c.type === this.type
-    );
-    if (component) {
-      this.componentId = (component as any).id;
-      // Register this component instance for ReduxAdapter to call applyToRenderer
-      if (this.componentId) {
-          InstanceRegistry.getInstance().register(this.componentId, this);
-      }
-    }
+    // Synthetic ID: goId + type is sufficient to address this component in the kernel
+    this.componentId = `${this.gameObject.id}_${this.type}`;
+    InstanceRegistry.getInstance().register(this.componentId, this);
   }
 
   onRemove(): void {
-    // Unregister from instance registry
     if (this.componentId) {
-        InstanceRegistry.getInstance().unregister(this.componentId);
+      InstanceRegistry.getInstance().unregister(this.componentId);
     }
   }
-  update(deltaTime: number): void {}
 
-  /**
-   * Apply this component's data to the renderer
-   * Override in subclasses to implement specific rendering logic
-   * @param renderer The renderer to apply changes to
-   * @param renderItem The render item to update
-   */
-  applyToRenderer(renderer: any, renderItem: any): void {
-    // Default: do nothing
-    // Subclasses override this to implement their specific rendering logic
-  }
+  update(_deltaTime: number): void {}
 
-  /**
-   * Get component props from Redux Store
-   */
+  applyToRenderer(_renderer: any, _renderItem: any): void {}
+
+  /** Read current interpolated props from the kernel at the current frame. */
   protected getProps(): Record<string, any> {
-    if (!this.componentId) return {};
-    const state = getEngineState();
-    return state.components.byId[this.componentId]?.props || {};
+    const kernel = getKernel();
+    if (!kernel.ready || !this.gameObject.id) return {};
+    const frame = kernel.getPlaybackState()?.current_frame ?? 0;
+    const allProps = kernel.getInterpolatedProps(this.gameObject.id, frame);
+    return allProps?.[this.type] ?? {};
   }
 
-  /**
-   * Update a single prop in Redux Store
-   */
+  /** Write a single prop as a keyframe at the current frame. */
   protected updateProp(key: string, value: any): void {
-    if (!this.componentId) return;
-    getEngineStore().dispatch(updateComponentProps({
-      id: this.componentId,
-      patch: { [key]: value }
-    }));
+    const kernel = getKernel();
+    if (!kernel.ready) return;
+    const frame = kernel.getPlaybackState()?.current_frame ?? 0;
+    kernel.setKeyframe(this.gameObject.id, this.type, key, frame, value);
   }
 
-  /**
-   * Update multiple props in Redux Store
-   */
+  /** Write multiple props as keyframes at the current frame. */
   protected updateProps(patch: Record<string, any>): void {
-    if (!this.componentId) return;
-    getEngineStore().dispatch(updateComponentProps({
-      id: this.componentId,
-      patch
-    }));
+    const kernel = getKernel();
+    if (!kernel.ready) return;
+    const frame = kernel.getPlaybackState()?.current_frame ?? 0;
+    for (const [key, value] of Object.entries(patch)) {
+      kernel.setKeyframe(this.gameObject.id, this.type, key, frame, value);
+    }
   }
 }
-
-

@@ -1,17 +1,23 @@
-
 // Core interfaces
 export * from './core/IComponent';
 export * from './core/IGameObject';
 export * from './core/ILayer';
 export * from './core/IScene';
+
+// Core registries and types
 export { ComponentRegistry } from './core/ComponentRegistry';
 export { InstanceRegistry } from './core/InstanceRegistry';
-export * from './core/EasingTypes';
-export { default as ComponentPropertyRendererRegistry, PropertyRenderer } from './core/PropertyRendererRegistry';
+export { EasingType } from './core/EasingTypes';
+export { ComponentPropertyRendererRegistry } from './core/PropertyRendererRegistry';
 export type { PropertyRendererFunction } from './core/PropertyRendererRegistry';
+
+// Kernel Bridge (data layer — replaces Redux engine slices)
+export { KernelBridge, getKernel } from './core/KernelBridge';
+export type { HhEvent, HhEventCategory, KernelCommandResult, KernelQueryResult } from './core/KernelBridge';
 
 // Renderer
 export * from './renderer';
+export { KernelAdapter } from './renderer/KernelAdapter';
 
 // Components
 export { ComponentBase } from './components/ComponentBase';
@@ -28,11 +34,12 @@ export { Scene } from './scene/Scene';
 
 // Engine
 export { Engine } from './Engine';
-export { getEngineStore, getEngineState } from './core/EngineGlobals';
+
+// Legacy compat shims (deprecated — will be removed after full migration)
+export { getEngineStore, getEngineState, initEngineStore } from './core/EngineGlobals';
 export { getAnimationPlayer } from './core/AnimationPlayer';
 
-// Redux Store - DO NOT export store instance, only reducers and types
-export * from './store';
-// Note: The store instance should NOT be exported
-// Host applications should create their own store combining these reducers
-
+// NOTE: Redux engine slices are intentionally NOT re-exported.
+// All data now lives in the Rust kernel (KernelBridge / KernelAPI WASM).
+// If you need to read engine data, use getKernel().getProject() / .getCurrentScene() etc.
+// If you need to write, use getKernel().dispatch({ ... }) or the convenience helpers.
