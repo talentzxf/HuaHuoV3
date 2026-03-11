@@ -1,6 +1,7 @@
 use anyhow::Result;
 use crate::dsl::Interpreter;
-use std::io::{self, BufRead, Write};
+use rustyline::error::ReadlineError;
+use rustyline::Editor;
 
 /// Interactive REPL for HuaHuo Script.
 pub fn run(initial_file: Option<String>) -> Result<()> {
@@ -26,74 +27,87 @@ pub fn run(initial_file: Option<String>) -> Result<()> {
         }
     }
 
-    let stdin = io::stdin();
+    let mut rl = Editor::<()>::new()?;
+    // Try loading history from .hhk_history in the current working directory (optional)
+    let hist_path = std::path::Path::new(".hhk_history");
+    let _ = rl.load_history(hist_path);
+
     let mut pending: Vec<String> = Vec::new(); // accumulates multi-line input
 
     loop {
         let prompt = if pending.is_empty() { "hhs> " } else { "  ... " };
-        print!("{}", prompt);
-        io::stdout().flush()?;
 
-        let mut line = String::new();
-        match stdin.lock().read_line(&mut line) {
-            Ok(0) => {
-                // EOF (Ctrl-D)
+        match rl.readline(prompt) {
+            Ok(line) => {
+                if !line.trim().is_empty() {
+                    let _ = rl.add_history_entry(line.as_str());
+                }
+                let trimmed = line.as_str();
+
+                // Special REPL commands
+                match trimmed {
+                    "exit" | "quit" => break,
+                    "help" => {
+                        print_help();
+                        pending.clear();
+                        continue;
+                    }
+                    "" => {
+                        // Empty line: flush accumulated lines if any
+                        if !pending.is_empty() {
+                            let src = pending.join("\n");
+                            pending.clear();
+                            exec_src(&mut interp, &src);
+                        }
+                        continue;
+                    }
+                    // Trailing backslash → line continuation
+                    s if s.ends_with('\\') => {
+                        pending.push(s.trim_end_matches('\\').to_string());
+                        continue;
+                    }
+                    _ => {}
+                }
+
+                pending.push(trimmed.to_string());
+
+                // Try to execute the accumulated lines
+                let src = pending.join("\n");
+                match try_parse_complete(&src) {
+                    ParseStatus::Complete => {
+                        pending.clear();
+                        exec_src(&mut interp, &src);
+                    }
+                    ParseStatus::Incomplete => {
+                        // Wait for more input
+                    }
+                    ParseStatus::Error => {
+                        // Execute anyway (will produce error message)
+                        pending.clear();
+                        exec_src(&mut interp, &src);
+                    }
+                }
+            }
+            Err(ReadlineError::Eof) => {
+                // Ctrl-D
                 println!();
                 break;
             }
-            Ok(_) => {}
+            Err(ReadlineError::Interrupted) => {
+                // Ctrl-C: clear pending input and continue
+                pending.clear();
+                continue;
+            }
             Err(e) => {
                 eprintln!("Input error: {}", e);
                 break;
             }
         }
-
-        let trimmed = line.trim_end_matches('\n').trim_end_matches('\r');
-
-        // Special REPL commands
-        match trimmed {
-            "exit" | "quit" => break,
-            "help" => {
-                print_help();
-                pending.clear();
-                continue;
-            }
-            "" => {
-                // Empty line: flush accumulated lines if any
-                if !pending.is_empty() {
-                    let src = pending.join("\n");
-                    pending.clear();
-                    exec_src(&mut interp, &src);
-                }
-                continue;
-            }
-            // Trailing backslash → line continuation
-            s if s.ends_with('\\') => {
-                pending.push(s.trim_end_matches('\\').to_string());
-                continue;
-            }
-            _ => {}
-        }
-
-        pending.push(trimmed.to_string());
-
-        // Try to execute the accumulated lines
-        let src = pending.join("\n");
-        match try_parse_complete(&src) {
-            ParseStatus::Complete => {
-                pending.clear();
-                exec_src(&mut interp, &src);
-            }
-            ParseStatus::Incomplete => {
-                // Wait for more input
-            }
-            ParseStatus::Error => {
-                // Execute anyway (will produce error message)
-                pending.clear();
-                exec_src(&mut interp, &src);
-            }
-        }
     }
+
+    // Try to save history; ignore errors
+    let hist_path = std::path::Path::new(".hhk_history");
+    let _ = rl.save_history(hist_path);
 
     println!("Bye!");
     Ok(())
@@ -185,6 +199,12 @@ fn print_help() {
         "Hashing:",
         "  md5_str(\"hello world\")   # MD5 of a string",
         "  md5(\"/bin/hhk.exe\")      # MD5 of an embedded file in the project",
+        "Custom commands (user scripts):",
+        "  Put a .hhs file at /bin/<name>.hhs in the project, then call name()",
+        "  Example:",
+        "    files_import(\"./my_cmd.hhs\", \"/bin/my_cmd.hhs\")",
+        "    save()",
+        "    my_cmd()   # executes the script",
         "----------------------------------------------------------------------",
         "",
     ];
