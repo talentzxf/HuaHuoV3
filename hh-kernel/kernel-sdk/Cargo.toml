@@ -13,3 +13,7 @@ indexmap.workspace = true
 
 [dev-dependencies]
 bincode.workspace = true
+
+[[example]]
+name = "poctest"
+path = "examples/poctest.rs"

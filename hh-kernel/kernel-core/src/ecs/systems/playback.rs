@@ -43,6 +43,14 @@ impl PlaybackState {
         let frames_to_advance = (delta_seconds * self.fps) as u32;
         let stop_at = self.end_frame.unwrap_or(self.total_frames);
         self.current_frame += frames_to_advance;
+
+        // NOTE: After advancing the frame, inform any registered runtime component
+        // hooks via a global callback if available. We don't add kernel-sdk as a
+        // dependency here to avoid cycles; instead, we'll call a weak global
+        // function provided by the application layer when available. For the PoC,
+        // the application (kernel-cli or kernel-wasm) can set a global hook to be
+        // invoked each frame.
+
         if self.current_frame >= stop_at {
             self.current_frame = 0;
             return true; // looped

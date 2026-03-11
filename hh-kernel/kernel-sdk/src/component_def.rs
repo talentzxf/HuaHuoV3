@@ -49,6 +49,21 @@ pub trait ComponentDef: Send + Sync + 'static {
     fn display_name(&self) -> &str {
         self.type_name()
     }
+
+    // ------------------ Runtime lifecycle hooks (default no-op) ------------------
+    /// Called when a component instance is added to a GameObject.
+    fn on_add(&self, _props: &mut PropertyMap) {}
+
+    /// Called when a component instance is removed from a GameObject.
+    fn on_remove(&self, _props: &mut PropertyMap) {}
+
+    /// Called on each tick/frame. `frame` is the current frame number.
+    /// `dt` is delta seconds since last tick (may be 0 in frame-based advances).
+    fn on_tick(&self, _props: &mut PropertyMap, _frame: u32, _dt: f64) {}
+
+    /// Called when an engine event is delivered to this component.
+    /// Default implementation does nothing.
+    // fn on_event(&self, _props: &mut PropertyMap, _event: &crate::event::HhEvent) {}
 }
 
 /// A boxed, type-erased component definition.
