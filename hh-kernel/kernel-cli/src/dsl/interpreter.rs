@@ -302,7 +302,25 @@ impl Interpreter {
                 Ok(HhsValue::Null)
             }
 
-            other => bail!("unknown function '{}'", other),
+            other => {
+                // Look up /bin/<name>.hhs in the VFS and execute it if found.
+                let vfs_path = format!("/bin/{}.hhs", other);
+                let script = self.project.as_ref()
+                    .and_then(|p| p.find_file_by_path(&vfs_path))
+                    .map(|e| String::from_utf8_lossy(&e.data).into_owned());
+
+                match script {
+                    Some(src) => {
+                        self.run_str(&src)
+                            .map_err(|e| anyhow::anyhow!("Error in '{}': {}", vfs_path, e))?;
+                        Ok(HhsValue::Null)
+                    }
+                    None => bail!(
+                        "unknown function '{}' (tip: put /bin/{}.hhs in the project to define it)",
+                        other, other
+                    ),
+                }
+            }
         }
     }
 
