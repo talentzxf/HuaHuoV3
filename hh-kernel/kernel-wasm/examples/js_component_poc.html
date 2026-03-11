@@ -42,6 +42,18 @@
       return __hh_component_registry.has(typeName);
     };
 
+    // Batch call: receives an array of { type, props, goId }
+    window.hh_call_components_batch = function(items, frame, dt) {
+      try {
+        if (!Array.isArray(items)) return;
+        for (const it of items) {
+          const cb = __hh_component_registry.get(it.type);
+          if (!cb || typeof cb.onTick !== 'function') continue;
+          try { cb.onTick(it.props, it.goId, frame, dt); } catch (e) { console.error('component.onTick threw', e); }
+        }
+      } catch (e) { console.error('hh_call_components_batch error', e); }
+    };
+
     (async () => {
       window.hh_register_component('Logging', {
         onAdd: (props, goId) => { log('[JS Logging] onAdd', goId, JSON.stringify(props)); },
@@ -49,7 +61,7 @@
       });
 
       setTimeout(() => {
-        window.hh_call_component_on_tick('Logging', { foo: 1, bar: 'baz' }, 'go-sample', 10, 0.016);
+        window.hh_call_components_batch([{type: 'Logging', props: {x:1}, goId: 'go-sample'}], 10, 0.016);
       }, 500);
     })();
   </script>

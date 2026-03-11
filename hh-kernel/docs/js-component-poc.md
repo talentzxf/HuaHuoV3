@@ -42,7 +42,5 @@
 
 下一步建议
 
-- 我可以将改动做成一个本地 git commit 并添加测试（单元测试/集成测试）以及更详细的文档示例。如果同意，我会提交并添加：
-  - kernel-wasm/tests/（如果可在 wasm 环境下运行）或使用 headless wasm testing
-  - 一个 README demo 脚本说明如何把 wasm + html 一起部署
-
+- 我已将改动做成本地 git 提交并添加了基础 wasm 测试（kernel-wasm/tests/js_component_poc.rs）和示例 HTML（kernel-wasm/examples/js_component_poc.html）。
+- 下一步我将补充更深入的集成测试和一个详细的 README demo 说明如何构建和运行在浏览器中的 PoC。

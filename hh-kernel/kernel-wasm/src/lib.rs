@@ -205,19 +205,25 @@ impl KernelAPI {
                             if go.active && go.born_frame_id <= new_frame {
                                 let props_map = kernel_core::interpolate_game_object(go, new_frame);
                                 // props_map: component_type -> (prop_name -> PropertyValue)
+                                // Collect items for batch call to reduce wasm->js crossings.
+                                let mut batch_items: Vec<serde_json::Value> = Vec::new();
                                 for (comp_type, comp_props) in props_map {
-                                    // Only call into JS if there's a registered JS implementation for this type
                                     if !has_js_component(&comp_type) {
                                         continue;
                                     }
-                                    // Serialize comp_props to JsValue using serde_wasm_bindgen
-                                    match serde_wasm_bindgen::to_value(&comp_props) {
-                                        Ok(js_val) => {
-                                            let _ = call_js_component_on_tick(&comp_type, js_val, &go.id, new_frame, delta_seconds);
+                                    match serde_json::to_value(&comp_props) {
+                                        Ok(json_props) => {
+                                            batch_items.push(serde_json::json!({ "type": comp_type, "props": json_props, "goId": go.id }));
                                         }
                                         Err(e) => {
-                                            log::warn!("Failed to serialize component props for {}: {}", comp_type, e);
+                                            log::warn!("Failed to convert component props to JSON for {}: {}", comp_type, e);
                                         }
+                                    }
+                                }
+                                if !batch_items.is_empty() {
+                                    match serde_wasm_bindgen::to_value(&batch_items) {
+                                        Ok(js_arr) => { let _ = call_js_components_batch(js_arr, new_frame, delta_seconds); },
+                                        Err(e) => { log::warn!("Failed to serialize batch items to JsValue: {}", e); }
                                     }
                                 }
                             }
@@ -251,12 +257,26 @@ extern "C" {
 
     #[wasm_bindgen(js_name = hh_has_component)]
     fn hh_has_component(type_name: &str) -> bool;
+
+    // Batch call: receive an array of { type: string, props: any, goId: string }
+    #[wasm_bindgen(js_name = hh_call_components_batch)]
+    fn hh_call_components_batch(items: JsValue, frame: u32, dt: f64);
 }
 
 fn call_js_component_on_tick(type_name: &str, props: JsValue, go_id: &str, frame: u32, dt: f64) -> Result<(), ()> {
     // Wrap the external call in a catch_unwind to avoid unwinding across wasm boundary
     let result = std::panic::catch_unwind(|| {
         hh_call_component_on_tick(type_name, props, go_id, frame, dt);
+    });
+    match result {
+        Ok(_) => Ok(()),
+        Err(_) => Err(()),
+    }
+}
+
+fn call_js_components_batch(items: JsValue, frame: u32, dt: f64) -> Result<(), ()> {
+    let result = std::panic::catch_unwind(|| {
+        hh_call_components_batch(items, frame, dt);
     });
     match result {
         Ok(_) => Ok(()),
