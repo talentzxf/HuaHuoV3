@@ -46,7 +46,8 @@ export const setupKeyframeListener = () => {
       // Find which GameObject was affected
       // For component actions, we need to find the GameObject that owns the component
       if (action.type.startsWith('components/')) {
-        const componentId = action.payload?.id;
+        // Support multiple payload shapes: { id } (createComponent) and { componentId } (setPropertyKeyFrame)
+        const componentId = action.payload?.componentId ?? action.payload?.id ?? null;
         if (componentId) {
           const component = engineState.components.byId[componentId];
           if (component) {

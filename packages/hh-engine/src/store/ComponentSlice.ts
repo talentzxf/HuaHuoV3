@@ -142,10 +142,19 @@ const componentSlice = createSlice({
 
             if (existingIndex !== -1) {
                 // Update existing keyframe
-                keyFrames[existingIndex].value = value;
+                const existing = keyFrames[existingIndex];
+
+                // If both existing value and incoming value are plain objects, do a shallow merge
+                const isPlainObject = (v: any) => v && typeof v === 'object' && !Array.isArray(v);
+
+                if (isPlainObject(existing.value) && isPlainObject(value)) {
+                    existing.value = { ...existing.value, ...value };
+                } else {
+                    existing.value = value;
+                }
             } else {
-                // Add new keyframe and keep sorted by frame
-                keyFrames.push({ frame, value });
+                // Add new keyframe with default easing and keep sorted by frame
+                keyFrames.push({ frame, value, easingType: EasingType.Linear });
                 keyFrames.sort((a, b) => a.frame - b.frame);
             }
         },
