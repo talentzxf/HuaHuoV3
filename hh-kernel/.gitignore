@@ -6,3 +6,7 @@ Cargo.lock
 .claude/
 .claude/*
 
+# REPL history file (ignore runtime history files)
+.hhk_history
+hh-kernel/.hhk_history
+
