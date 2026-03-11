@@ -1,7 +1,7 @@
 use anyhow::Result;
 use crate::dsl::Interpreter;
 use rustyline::error::ReadlineError;
-use rustyline::Editor;
+use rustyline::DefaultEditor;
 
 /// Interactive REPL for HuaHuo Script.
 pub fn run(initial_file: Option<String>) -> Result<()> {
@@ -27,7 +27,7 @@ pub fn run(initial_file: Option<String>) -> Result<()> {
         }
     }
 
-    let mut rl = Editor::<()>::new()?;
+    let mut rl = DefaultEditor::new()?;
     // Try loading history from .hhk_history in the current working directory (optional)
     let hist_path = std::path::Path::new(".hhk_history");
     let _ = rl.load_history(hist_path);
@@ -39,9 +39,6 @@ pub fn run(initial_file: Option<String>) -> Result<()> {
 
         match rl.readline(prompt) {
             Ok(line) => {
-                if !line.trim().is_empty() {
-                    let _ = rl.add_history_entry(line.as_str());
-                }
                 let trimmed = line.as_str();
 
                 // Special REPL commands
@@ -57,6 +54,10 @@ pub fn run(initial_file: Option<String>) -> Result<()> {
                         if !pending.is_empty() {
                             let src = pending.join("\n");
                             pending.clear();
+                            // record executed source to history
+                            if !src.trim().is_empty() {
+                                let _ = rl.add_history_entry(src.as_str());
+                            }
                             exec_src(&mut interp, &src);
                         }
                         continue;
@@ -76,6 +77,10 @@ pub fn run(initial_file: Option<String>) -> Result<()> {
                 match try_parse_complete(&src) {
                     ParseStatus::Complete => {
                         pending.clear();
+                        // add executed source to history
+                        if !src.trim().is_empty() {
+                            let _ = rl.add_history_entry(src.as_str());
+                        }
                         exec_src(&mut interp, &src);
                     }
                     ParseStatus::Incomplete => {
@@ -84,6 +89,9 @@ pub fn run(initial_file: Option<String>) -> Result<()> {
                     ParseStatus::Error => {
                         // Execute anyway (will produce error message)
                         pending.clear();
+                        if !src.trim().is_empty() {
+                            let _ = rl.add_history_entry(src.as_str());
+                        }
                         exec_src(&mut interp, &src);
                     }
                 }
