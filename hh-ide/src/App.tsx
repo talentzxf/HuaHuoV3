@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { getKernel, KernelBridge } from '@huahuo/engine';
+import { getKernel, KernelBridge, getAnimationPlayer } from '@huahuo/engine';
 import FlexLayoutWrapper from './components/FlexLayoutWrapper';
 import MainMenu from './components/MainMenu';
 import { message, Spin } from 'antd';
@@ -14,6 +14,20 @@ const App: React.FC = () => {
     KernelBridge.getInstance().init().then(() => {
       console.info('🎉 HuaHuo IDE loaded — Rust kernel ready');
       setKernelReady(true);
+
+      // Wire Kernel playback events to the AnimationPlayer so RAF loop drives kernel.tick()
+      try {
+        const player = getAnimationPlayer();
+        const kernel = KernelBridge.getInstance();
+        // Subscribe and keep ids for cleanup (if needed in future)
+        const subStart = kernel.subscribe('playback/started', () => { player.play(); });
+        const subPause = kernel.subscribe('playback/paused',  () => { player.stop(); });
+        const subStop = kernel.subscribe('playback/stopped', () => { player.stop(); });
+        console.info('[App] AnimationPlayer subscribed to kernel playback events', { subStart, subPause, subStop });
+      } catch (e) {
+        console.warn('[App] Failed to wire AnimationPlayer:', e);
+      }
+
     }).catch(err => {
       console.error('Failed to initialize Rust kernel:', err);
       message.error('Failed to load animation engine');

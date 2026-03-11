@@ -1,32 +1,48 @@
-# JS Component PoC
+# JS Component PoC (WASM)
 
-目标：在不改变现有数据模型的前提下，增加一个 PoC，让用户可以通过组件生命周期钩子（on_add/on_tick/on_remove）在运行时扩展行为。此 PoC 使用 Rust 原生的 ComponentDef 扩展（未嵌入 JS 引擎），为后续集成 JS 运行时做准备。
+目标：在浏览器中让用户以 JavaScript 编写组件生命周期钩子（onAdd/onTick/onRemove），并在 kernel-wasm 的播放循环里调用这些钩子。
 
-主要改动
+实现要点
 
-- kernel-sdk/src/component_def.rs
-  - 为 ComponentDef 添加 runtime 钩子：on_add/on_remove/on_tick（均提供默认空实现），以兼容现有实现。
+- Rust (wasm) -> JS 边界：在 kernel-wasm 的 tick() 中计算每个活跃 GameObject 的插值属性（InterpolatedProps），并对每个组件类型调用导入的 JS 函数 `hh_call_component_on_tick(typeName, props, goId, frame, dt)`。
+- 防止不必要的序列化：在调用前先询问 JS 是否已注册该组件类型（导入函数 `hh_has_component(typeName)`），若未注册则跳过序列化。
+- 数据转换：使用 serde_wasm_bindgen 将 Rust 的 PropertyMap 序列化为 JsValue。PropertyValue 已 derive Serialize/Deserialize，因此转换会按下面规则映射到 JS 原生类型：
+  - Float -> number
+  - Vec2/Vec3 -> { x, y, z }
+  - Color -> { r, g, b, a }
+  - Bool -> boolean
+  - String -> string
+  - Int -> number
+  - FileRef -> string
 
-- kernel-core
-  - 为播放/推进流程预留钩子调用点（在 PlaybackState.advance 中记录 advance 动作，PoC 主要在 example 中演示注册与调用链）。
+代码变更（摘要）
 
-PoC 示例
+- kernel-wasm/src/lib.rs
+  - 在 tick() 中新增对每帧组件钩子的调用逻辑（只对已注册的组件类型进行序列化与调用）。
+  - 新增 extern 导入：`hh_call_component_on_tick`, `hh_has_component`。
+- kernel-wasm/Cargo.toml
+  - 新增依赖：serde_wasm_bindgen = "0.5"。
+- kernel-wasm/examples/js_component_poc.html
+  - 提供 JS-side 注册与实现：`window.hh_register_component`, `window.hh_call_component_on_tick`, `window.hh_has_component`。
 
-- kernel-sdk/examples/poctest.rs
-  - 注册了一个 LoggingComp（实现 on_add/on_tick），在注册时打印注册信息。用于验证 ComponentRegistry 注册流程。
+如何运行 PoC
 
-测试方案
+1. 构建 wasm 包（需要已安装 wasm-pack / wasm-bindgen 工具链）：
+   - cargo build -p kernel-wasm --target wasm32-unknown-unknown --release
+   - 然后运行 wasm-bindgen 生成绑定或使用 wasm-pack
+2. 在网页中加载生成的 wasm 绑定 JS（示例 HTML 中有注释说明加载点）。示例 HTML 也可直接用于展示注册与模拟调用。
 
-1. 本地构建：
-   cargo build -p kernel-sdk
+安全提示
 
-2. 运行 PoC example：
-   cargo run -p kernel-sdk --example poctest
-   - 期望输出显示已注册类型 Logging
+- 当前设计假定 JS 侧脚本由页面所有者托管并可信。若需要提供给第三方用户提交脚本，必须考虑沙箱（例如在 sandboxed iframe 或 Worker 中运行并仅暴露受限 API）。
 
-3. 后续集成（手动）：
-   - 将一个 Logging 类型附加到一个 GameObject，并在 playback tick 时触发 on_tick（需要在 kernel-core 的播放循环里调用 registry 中对应 type 的 on_tick，PoC 将在下一步实现）
+性能注意
 
-中英文用户文档
+- 每帧为每个活跃对象的每个已注册组件进行序列化与一次 wasm->js 调用。若场景很大可考虑批量调用或限制每帧的回调数量。
 
-- 见下面的 README 片段。
+下一步建议
+
+- 我可以将改动做成一个本地 git commit 并添加测试（单元测试/集成测试）以及更详细的文档示例。如果同意，我会提交并添加：
+  - kernel-wasm/tests/（如果可在 wasm 环境下运行）或使用 headless wasm testing
+  - 一个 README demo 脚本说明如何把 wasm + html 一起部署
+

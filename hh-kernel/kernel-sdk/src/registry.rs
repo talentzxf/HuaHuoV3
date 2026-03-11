@@ -5,6 +5,8 @@ use std::collections::HashMap;
 ///
 /// Use `ComponentRegistry::global()` for the singleton, or create a local
 /// registry for testing.
+use std::sync::{Arc, Mutex};
+
 pub struct ComponentRegistry {
     defs: HashMap<String, BoxedComponentDef>,
 }
@@ -34,6 +36,15 @@ impl ComponentRegistry {
     /// Check if a type is registered.
     pub fn contains(&self, type_name: &str) -> bool {
         self.defs.contains_key(type_name)
+    }
+
+    /// Global singleton access. Use ComponentRegistry::global() to get a
+    /// shared Arc<Mutex<ComponentRegistry>> for simplicity in PoC; this avoids
+    /// complex dependency injection during early prototyping.
+    pub fn global() -> Arc<Mutex<ComponentRegistry>> {
+        use std::sync::OnceLock;
+        static GLOBAL: OnceLock<Arc<Mutex<ComponentRegistry>>> = OnceLock::new();
+        GLOBAL.get_or_init(|| Arc::new(Mutex::new(ComponentRegistry::new()))).clone()
     }
 }
 

@@ -1,0 +1,57 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>kernel-wasm JS Component PoC</title>
+</head>
+<body>
+  <h1>kernel-wasm JS Component PoC</h1>
+  <pre id="out"></pre>
+  <script type="module">
+    const out = document.getElementById('out');
+    function log(...args) { out.textContent += args.join(' ') + '\n'; console.log(...args); }
+
+    // Registry: typeName -> callbacks object
+    const __hh_component_registry = new Map();
+
+    // Called by the app to register a component implementation written in JS
+    window.hh_register_component = function(typeName, callbacks) {
+      if (typeof typeName !== 'string') throw new Error('typeName must be string');
+      __hh_component_registry.set(typeName, callbacks || {});
+      log(`[hh] registered component: ${typeName}`);
+    };
+
+    // Called from wasm (import) when a component on_tick should be invoked.
+    window.hh_call_component_on_tick = function(typeName, props, goId, frame, dt) {
+      try {
+        const cb = __hh_component_registry.get(typeName);
+        if (!cb) {
+          log(`[hh] no component registered for ${typeName}`);
+          return;
+        }
+        if (typeof cb.onTick === 'function') {
+          try { cb.onTick(props, goId, frame, dt); } catch (e) { console.error('component.onTick threw', e); }
+        }
+      } catch (e) {
+        console.error('hh_call_component_on_tick error', e);
+      }
+    };
+
+    // Called by wasm to quickly check if a component is registered (avoid serializing props if not)
+    window.hh_has_component = function(typeName) {
+      return __hh_component_registry.has(typeName);
+    };
+
+    (async () => {
+      window.hh_register_component('Logging', {
+        onAdd: (props, goId) => { log('[JS Logging] onAdd', goId, JSON.stringify(props)); },
+        onTick: (props, goId, frame, dt) => { log('[JS Logging] onTick', goId, 'frame=', frame, 'dt=', dt, 'props=', JSON.stringify(props)); }
+      });
+
+      setTimeout(() => {
+        window.hh_call_component_on_tick('Logging', { foo: 1, bar: 'baz' }, 'go-sample', 10, 0.016);
+      }, 500);
+    })();
+  </script>
+</body>
+</html>

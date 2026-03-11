@@ -196,6 +196,35 @@ impl KernelAPI {
                     PlaybackEventKind::FrameChanged
                 };
                 self.bus.publish(HhEvent::Playback(PlaybackEvent { frame: new_frame, kind }));
+
+                // --- New: call JS-side component hooks for each interpolated component ---
+                if let Some(project) = &self.project {
+                    if let Some(scene) = project.current_scene() {
+                        // For each active game object, compute interpolated props and call JS hook
+                        for (_id, go) in &scene.game_objects {
+                            if go.active && go.born_frame_id <= new_frame {
+                                let props_map = kernel_core::interpolate_game_object(go, new_frame);
+                                // props_map: component_type -> (prop_name -> PropertyValue)
+                                for (comp_type, comp_props) in props_map {
+                                    // Only call into JS if there's a registered JS implementation for this type
+                                    if !has_js_component(&comp_type) {
+                                        continue;
+                                    }
+                                    // Serialize comp_props to JsValue using serde_wasm_bindgen
+                                    match serde_wasm_bindgen::to_value(&comp_props) {
+                                        Ok(js_val) => {
+                                            let _ = call_js_component_on_tick(&comp_type, js_val, &go.id, new_frame, delta_seconds);
+                                        }
+                                        Err(e) => {
+                                            log::warn!("Failed to serialize component props for {}: {}", comp_type, e);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 self.deliver_to_js_subs();
             }
             new_frame
@@ -211,6 +240,37 @@ impl KernelAPI {
             Some(pb) => serde_json::to_string(pb).unwrap_or_default(),
             None => "null".to_string(),
         }
+    }
+}
+
+// External JS import for calling component hooks. Implemented in the webpage JS.
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_name = hh_call_component_on_tick)]
+    fn hh_call_component_on_tick(type_name: &str, props: JsValue, go_id: &str, frame: u32, dt: f64);
+
+    #[wasm_bindgen(js_name = hh_has_component)]
+    fn hh_has_component(type_name: &str) -> bool;
+}
+
+fn call_js_component_on_tick(type_name: &str, props: JsValue, go_id: &str, frame: u32, dt: f64) -> Result<(), ()> {
+    // Wrap the external call in a catch_unwind to avoid unwinding across wasm boundary
+    let result = std::panic::catch_unwind(|| {
+        hh_call_component_on_tick(type_name, props, go_id, frame, dt);
+    });
+    match result {
+        Ok(_) => Ok(()),
+        Err(_) => Err(()),
+    }
+}
+
+fn has_js_component(type_name: &str) -> bool {
+    // Call into JS to check whether a JS implementation exists for this component type.
+    // If the import is missing, default to false.
+    let res = std::panic::catch_unwind(|| hh_has_component(type_name));
+    match res {
+        Ok(b) => b,
+        Err(_) => false,
     }
 }
 
