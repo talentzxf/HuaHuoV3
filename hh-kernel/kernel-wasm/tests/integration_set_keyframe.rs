@@ -35,7 +35,11 @@ fn test_set_keyframe_command_integration() {
         "game_object_id": go_id,
         "component_type": "Transform",
         "prop_name": "position",
-        "keyframe": { "frame": 10, "value": { "x": 100.0, "y": 200.0 }, "easing": "linear" }
+        "keyframe": {
+            "frame": 10,
+            "value": { "type": "Vec2", "value": { "x": 100.0, "y": 200.0 } },
+            "easing": { "easing_type": "Linear" }
+        }
     });
     let resp: Value = serde_json::from_str(&api.dispatch(&setkf.to_string())).unwrap();
     println!("setkf resp: {}", resp);
@@ -52,7 +56,24 @@ fn test_set_keyframe_command_integration() {
     // Expect Transform.position to exist
     assert!(props.get("Transform").and_then(|t| t.get("position")).is_some());
     let pos = &props["Transform"]["position"];
-    let x = pos.get("x").and_then(|v| v.as_f64()).unwrap_or(0.0);
-    let y = pos.get("y").and_then(|v| v.as_f64()).unwrap_or(0.0);
+    // Support multiple serialization shapes: { "x":.., "y":.. } or { "Vec2": [x,y] } or tuple-like array
+    let mut x = None::<f64>;
+    let mut y = None::<f64>;
+    if let Some(px) = pos.get("x").and_then(|v| v.as_f64()) {
+        x = Some(px);
+        y = pos.get("y").and_then(|v| v.as_f64());
+    } else if let Some(arr) = pos.get("Vec2").and_then(|v| v.as_array()) {
+        if arr.len() >= 2 {
+            x = arr[0].as_f64();
+            y = arr[1].as_f64();
+        }
+    } else if let Some(arr) = pos.as_array() {
+        if arr.len() >= 2 {
+            x = arr[0].as_f64();
+            y = arr[1].as_f64();
+        }
+    }
+    let x = x.unwrap_or(0.0);
+    let y = y.unwrap_or(0.0);
     assert!((x - 100.0).abs() < 1e-6 && (y - 200.0).abs() < 1e-6, "position mismatch: {} {}", x, y);
 }
