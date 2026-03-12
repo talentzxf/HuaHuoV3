@@ -73,6 +73,16 @@ export class KernelAdapter {
         const frame = ev.frame ?? ev.Playback?.frame ?? 0;
         this.updateAllActiveGameObjects(frame);
         this.renderer.render();
+        // Dev instrumentation: POST minimal playback info to dev server so tests can collect logs
+        try {
+          if (typeof fetch === 'function') {
+            fetch('/__hh_playback_log', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ topic: 'playback/frame_changed', frame, ev })
+            }).catch(() => {});
+          }
+        } catch (e) { /* ignore */ }
       })
     );
 
