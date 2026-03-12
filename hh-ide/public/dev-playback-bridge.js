@@ -17,16 +17,55 @@
             const { id, method, params } = msg;
             let result = null; let error = null;
             try {
+              // KernelBridge methods
               if (method === 'kernel.dispatch') {
                 result = window.getKernel().dispatch(params.cmd);
               } else if (method === 'kernel.query') {
                 result = window.getKernel().query(params.q);
+
+              // Playback controls
               } else if (method === 'kernel.play') {
                 window.getKernel().play(); result = {ok:true};
               } else if (method === 'kernel.pause') {
                 window.getKernel().pause(); result = {ok:true};
               } else if (method === 'kernel.stop') {
                 window.getKernel().stop(); result = {ok:true};
+
+              // SDK / Editor helpers
+              } else if (method === 'sdk.editor.setTool') {
+                if (window.SDK && SDK.isInitialized()) { SDK.instance.Editor.setCurrentTool(params.tool); result = {ok:true}; }
+                else error = 'SDK not initialized';
+              } else if (method === 'sdk.editor.createGameObject') {
+                // params: layerName, paperItemProps
+                if (window.SDK && SDK.isInitialized()) {
+                  // Create a simple paper item via SDK/engine path: use SDK.instance.Engine.createGameObjectFromPaperItem is internal; we try Editor API if exists
+                  try {
+                    const canvasScope = SDK.instance.getPaperScope();
+                    // Create a temporary Paper.js shape if props provided
+                    const p = params.paper || { type: 'rect', x: 10, y: 10, w: 50, h: 50 };
+                    let item = null;
+                    if (p.type === 'rect') {
+                      item = new canvasScope.Path.Rectangle({ point: [p.x, p.y], size: [p.w, p.h], fillColor: p.fillColor || null });
+                    } else if (p.type === 'circle') {
+                      item = new canvasScope.Path.Circle({ center: [p.x, p.y], radius: p.r || 20, fillColor: p.fillColor || null });
+                    }
+                    if (item) {
+                      const go = SDK.instance.createGameObjectFromPaperItem(item, params.layerName);
+                      result = { ok: true, gameObjectId: go?.id ?? null };
+                    } else {
+                      error = 'failed to create paper item';
+                    }
+                  } catch (e) { error = String(e); }
+                } else error = 'SDK not initialized';
+
+              // Timeline helpers
+              } else if (method === 'timeline.mergeKeyframes') {
+                // Forward as kernel.dispatch if kernel has MergeKeyFrames command implemented
+                if (window.getKernel) {
+                  try { result = window.getKernel().dispatch({ MergeKeyFrames: params }); }
+                  catch(e) { error = String(e); }
+                } else error = 'kernel not available';
+
               } else {
                 error = 'unknown method';
               }

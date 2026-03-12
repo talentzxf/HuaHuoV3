@@ -19,9 +19,9 @@ pub use ecs::{
 };
 
 // PoC bridge export - application layers can call into these helper functions
-pub mod bridge {
-    pub use crate::bridge::component_bridge::call_on_tick_for_go;
-}
+pub mod bridge;
+pub use bridge::component_bridge::call_on_tick_for_go;
+
 pub use event::{EventBus, HhEvent};
 pub use project::{GameObjectData, Layer, Project, Scene, FileEntry};
 pub use storage::{deserialize_project, serialize_project};

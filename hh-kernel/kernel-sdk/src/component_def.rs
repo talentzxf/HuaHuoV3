@@ -61,8 +61,8 @@ pub trait ComponentDef: Send + Sync + 'static {
     /// `dt` is delta seconds since last tick (may be 0 in frame-based advances).
     fn on_tick(&self, _props: &mut PropertyMap, _frame: u32, _dt: f64) {}
 
-    /// Called when an engine event is delivered to this component.
-    /// Default implementation does nothing.
+    // Called when an engine event is delivered to this component.
+    // Default implementation does nothing.
     // fn on_event(&self, _props: &mut PropertyMap, _event: &crate::event::HhEvent) {}
 }
 

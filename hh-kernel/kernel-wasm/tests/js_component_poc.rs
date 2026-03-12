@@ -1,12 +1,10 @@
-use wasm_bindgen_test::*;
+// Converted to a plain Rust unit test so it runs in non-wasm test environments.
 use kernel_wasm::KernelAPI;
 
-wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
-
-#[wasm_bindgen_test]
+#[test]
 fn smoke() {
     // Basic smoke test: construct KernelAPI and ensure methods are callable.
-    let mut k = KernelAPI::new();
+    let k = KernelAPI::new();
     let q = k.get_playback_state_json();
-    assert!(q == "null" || q.len() > 0);
+    assert!(q == "null" || !q.is_empty());
 }

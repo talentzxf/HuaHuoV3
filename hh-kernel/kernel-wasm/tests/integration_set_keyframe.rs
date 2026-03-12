@@ -5,41 +5,47 @@ fn test_set_keyframe_command_integration() {
     // Use the wasm-exposed KernelAPI in native tests (it is a normal Rust type here).
     let mut api = kernel_wasm::KernelAPI::new();
 
-    let resp: Value = serde_json::from_str(&api.dispatch(r#"{\"CreateProject\":{\"name\":\"test\",\"fps\":30,\"canvas_width\":800,\"canvas_height\":600}}"#)).unwrap();
+    // Build commands using the expected serde-internal-tag format: { "cmd": "Variant", ...fields }
+    let create_project = serde_json::json!({ "cmd": "CreateProject", "name": "test", "fps": 30.0, "canvas_width": 800, "canvas_height": 600 });
+    let resp: Value = serde_json::from_str(&api.dispatch(&create_project.to_string())).unwrap();
+    println!("create_project resp: {}", resp);
     assert!(resp.get("ok").and_then(Value::as_bool) == Some(true));
-    let project_id = resp.get("created_id").and_then(Value::as_str).unwrap_or_default().to_string();
 
-    let resp: Value = serde_json::from_str(&api.dispatch(r#"{\"CreateScene\":{\"name\":\"s\",\"fps\":30,\"duration\":5}}"#)).unwrap();
+    let create_scene = serde_json::json!({ "cmd": "CreateScene", "name": "s", "fps": 30.0, "duration": 5.0 });
+    let resp: Value = serde_json::from_str(&api.dispatch(&create_scene.to_string())).unwrap();
+    println!("create_scene resp: {}", resp);
     assert!(resp.get("ok").and_then(Value::as_bool) == Some(true));
     let scene_id = resp.get("created_id").and_then(Value::as_str).unwrap_or_default().to_string();
 
-    let resp: Value = serde_json::from_str(&api.dispatch(&format!(r#"{{\"CreateLayer\":{{\"scene_id\":\"{}\",\"name\":\"layer1\"}}}}"#, scene_id))).unwrap();
+    let create_layer = serde_json::json!({ "cmd": "CreateLayer", "scene_id": scene_id, "name": "layer1" });
+    let resp: Value = serde_json::from_str(&api.dispatch(&create_layer.to_string())).unwrap();
+    println!("create_layer resp: {}", resp);
     assert!(resp.get("ok").and_then(Value::as_bool) == Some(true));
     let layer_id = resp.get("created_id").and_then(Value::as_str).unwrap_or_default().to_string();
 
-    let resp: Value = serde_json::from_str(&api.dispatch(&format!(r#"{{\"CreateGameObject\":{{\"layer_id\":\"{}\",\"name\":\"go1\",\"born_frame\":0}}}}"#, layer_id))).unwrap();
+    let create_go = serde_json::json!({ "cmd": "CreateGameObject", "layer_id": layer_id, "name": "go1", "born_frame": 0 });
+    let resp: Value = serde_json::from_str(&api.dispatch(&create_go.to_string())).unwrap();
+    println!("create_go resp: {}", resp);
     assert!(resp.get("ok").and_then(Value::as_bool) == Some(true));
     let go_id = resp.get("created_id").and_then(Value::as_str).unwrap_or_default().to_string();
 
     // Set a keyframe
     let setkf = serde_json::json!({
-        "SetKeyFrame": {
-            "game_object_id": go_id,
-            "component_type": "Transform",
-            "prop_name": "position",
-            "keyframe": { "frame": 10, "value": { "x": 100.0, "y": 200.0 }, "easing": "linear" }
-        }
+        "cmd": "SetKeyFrame",
+        "game_object_id": go_id,
+        "component_type": "Transform",
+        "prop_name": "position",
+        "keyframe": { "frame": 10, "value": { "x": 100.0, "y": 200.0 }, "easing": "linear" }
     });
     let resp: Value = serde_json::from_str(&api.dispatch(&setkf.to_string())).unwrap();
+    println!("setkf resp: {}", resp);
     assert!(resp.get("ok").and_then(Value::as_bool) == Some(true));
 
     // Query interpolated props at frame 10
-    let query = serde_json::json!({ "GetInterpolatedProps": { "game_object_id": go_id, "frame": 10 } });
+    let query = serde_json::json!({ "query": "GetInterpolatedProps", "game_object_id": go_id, "frame": 10 });
     let qres: Value = serde_json::from_str(&api.query(&query.to_string())).unwrap();
+    println!("query resp: {}", qres);
     assert!(qres.get("ok").and_then(Value::as_bool) == Some(true));
-    let data = qres.get("payload").and_then(Value::as_str).unwrap_or_default();
-    // In the wasm API, GetInterpolatedProps returns QueryResponse with payload bytes (Vec<u8>), serialized as base64 in JSON.
-    // But kernel-wasm::KernelAPI::query actually returns JSON string of QueryResponse. For simplicity parse via the public helper get_interpolated_props_json.
 
     let props_json = api.get_interpolated_props_json(&go_id, 10);
     let props: serde_json::Value = serde_json::from_str(&props_json).unwrap();
