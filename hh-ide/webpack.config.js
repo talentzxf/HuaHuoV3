@@ -59,6 +59,27 @@ module.exports = (env, argv) => {
       }),
     ],
     devServer: {
+      setupMiddlewares: (middlewares, devServer) => {
+        const fs = require('fs');
+        const path = require('path');
+        // Endpoint to receive playback logs from browser during dev
+        devServer.app.post('/__hh_playback_log', (req, res) => {
+          let body = '';
+          req.setEncoding('utf8');
+          req.on('data', chunk => body += chunk);
+          req.on('end', () => {
+            try {
+              const p = path.join('/tmp', 'hh_playback.log');
+              const entry = `[${new Date().toISOString()}] ${body}\n`;
+              fs.appendFileSync(p, entry, { encoding: 'utf8' });
+            } catch (e) {
+              console.warn('[devServer] failed to write playback log', e);
+            }
+            res.status(204).end();
+          });
+        });
+        return middlewares;
+      },
       static: {
         directory: path.join(__dirname, 'public'),
       },
