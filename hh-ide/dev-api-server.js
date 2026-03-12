@@ -107,7 +107,9 @@ app.get('/api/status', requireToken, (req, res) => {
   res.json({ browserConnected: !!browserClient, browserClientId });
 });
 
-server.listen(PORT, '127.0.0.1', () => {
+// Bind to all interfaces so Windows host browser can reach the WSL service (development only)
+const BIND_HOST = process.env.HH_DEV_API_HOST || '0.0.0.0';
+server.listen(PORT, BIND_HOST, () => {
   console.log(`[dev-api] listening on http://127.0.0.1:${PORT}`);
 });
 
