@@ -14,6 +14,49 @@ use kernel_core::event::types::{
 };
 use kernel_proto::generated::*;
 use kernel_proto::convert::proto_keyframe_to_core;
+
+// Helper: average numeric property values
+fn average_property_values(samples: &[&kernel_sdk::property::PropertyValue]) -> Option<kernel_sdk::property::PropertyValue> {
+    use kernel_sdk::property::PropertyValue;
+    if samples.is_empty() { return None; }
+    match samples[0] {
+        PropertyValue::Float(_) => {
+            let sum: f64 = samples.iter().filter_map(|s| match s { PropertyValue::Float(v) => Some(*v), _ => None }).sum();
+            let n = samples.len() as f64;
+            Some(PropertyValue::Float(sum / n))
+        }
+        PropertyValue::Vec2(_, _) => {
+            let mut sx = 0.0; let mut sy = 0.0; let mut cnt = 0.0;
+            for s in samples.iter() {
+                if let PropertyValue::Vec2(x,y) = s { sx += *x; sy += *y; cnt += 1.0; }
+            }
+            if cnt == 0.0 { return None; }
+            Some(PropertyValue::Vec2(sx/cnt, sy/cnt))
+        }
+        PropertyValue::Vec3(_,_,_) => {
+            let mut sx = 0.0; let mut sy = 0.0; let mut sz = 0.0; let mut cnt = 0.0;
+            for s in samples.iter() {
+                if let PropertyValue::Vec3(x,y,z) = s { sx += *x; sy += *y; sz += *z; cnt += 1.0; }
+            }
+            if cnt == 0.0 { return None; }
+            Some(PropertyValue::Vec3(sx/cnt, sy/cnt, sz/cnt))
+        }
+        PropertyValue::Color(_,_,_,_) => {
+            let mut sr=0.0; let mut sg=0.0; let mut sb=0.0; let mut sa=0.0; let mut cnt=0.0;
+            for s in samples.iter() {
+                if let PropertyValue::Color(r,g,b,a) = s { sr += *r as f64; sg += *g as f64; sb += *b as f64; sa += *a as f64; cnt += 1.0; }
+            }
+            if cnt == 0.0 { return None; }
+            Some(PropertyValue::Color((sr/cnt) as u8, (sg/cnt) as u8, (sb/cnt) as u8, (sa/cnt) as u8))
+        }
+        PropertyValue::Int(_) => {
+            let sum: i64 = samples.iter().filter_map(|s| match s { PropertyValue::Int(v) => Some(*v), _ => None }).sum();
+            let n = samples.len() as i64;
+            Some(PropertyValue::Int(sum / n))
+        }
+        _ => None,
+    }
+}
 use nanoid::nanoid;
 
 /// The main WASM-exposed kernel API.
@@ -527,6 +570,74 @@ impl KernelAPI {
                             kind: KeyframeEventKind::Set,
                         }));
                         CommandResponse::ok_empty()
+                    }
+                    None => CommandResponse::err("GameObject not found"),
+                }
+            }
+
+            // Merge keyframes command: combine keyframes in a range into one per strategy
+            CommandEnvelope::MergeKeyFrames(c) => {
+                let project = match &mut self.project {
+                    Some(p) => p,
+                    None => return CommandResponse::err("No project loaded"),
+                };
+                let scene = match project.current_scene_mut() {
+                    Some(s) => s,
+                    None => return CommandResponse::err("No current scene"),
+                };
+                match scene.game_objects.get_mut(&c.game_object_id) {
+                    Some(go) => {
+                        use kernel_sdk::property::PropertyValue;
+                        // Locate component and prop keyframes
+                        if let Some(comp_kfs) = go.components.get_mut(&c.component_type) {
+                            if let Some(prop_kfs) = comp_kfs.get_mut(&c.prop_name) {
+                                let start = c.start_frame;
+                                let end = c.end_frame;
+                                let mut indices: Vec<usize> = prop_kfs.iter().enumerate()
+                                    .filter(|(_, kf)| kf.frame >= start && kf.frame <= end)
+                                    .map(|(i, _)| i)
+                                    .collect();
+                                if indices.is_empty() {
+                                    return CommandResponse::err("No keyframes in range");
+                                }
+                                // Compute merged value according to strategy
+                                let strategy = c.strategy.clone().unwrap_or_else(|| "keep_first".to_string());
+                                let merged_value: PropertyValue = match strategy.as_str() {
+                                    "keep_last" => prop_kfs[ *indices.last().unwrap() ].value.clone(),
+                                    "average" => {
+                                        // Average numeric types (Float, Vec2, Vec3, Color, Int). Fallback to first.
+                                        let samples: Vec<&PropertyValue> = indices.iter().map(|&i| &prop_kfs[i].value).collect();
+                                        average_property_values(&samples).unwrap_or_else(|| samples[0].clone())
+                                    }
+                                    _ => prop_kfs[ indices[0] ].value.clone(), // keep_first
+                                };
+                                // Remove in reverse order and insert merged keyframe at start
+                                // Determine insert frame = start
+                                let insert_frame = start;
+                                // Remove from highest index to lowest
+                                for &i in indices.iter().rev() {
+                                    prop_kfs.remove(i);
+                                }
+                                // Insert new keyframe keeping order
+                                let new_kf = kernel_core::ecs::components::keyframe::KeyFrame::new(insert_frame, merged_value.clone());
+                                let pos = prop_kfs.partition_point(|kf| kf.frame < insert_frame);
+                                prop_kfs.insert(pos, new_kf);
+                                // Publish keyframe event
+                                self.bus.publish(HhEvent::Keyframe(KeyframeEvent {
+                                    go_id: go.id.clone(),
+                                    go_name: go.name.clone(),
+                                    comp_type: c.component_type.clone(),
+                                    prop_name: c.prop_name.clone(),
+                                    frame: insert_frame,
+                                    kind: KeyframeEventKind::Set,
+                                }));
+                                CommandResponse::ok_empty()
+                            } else {
+                                CommandResponse::err("Property not found")
+                            }
+                        } else {
+                            CommandResponse::err("Component not found")
+                        }
                     }
                     None => CommandResponse::err("GameObject not found"),
                 }

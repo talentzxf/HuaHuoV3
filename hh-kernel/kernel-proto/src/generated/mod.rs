@@ -68,6 +68,7 @@ pub enum CommandEnvelope {
     SetGameObjectActive(SetGameObjectActiveCmd),
     SetKeyFrame(SetKeyFrameCmd),
     RemoveKeyFrame(RemoveKeyFrameCmd),
+    MergeKeyFrames(MergeKeyFramesCmd),
     Play,
     Pause,
     Stop,
@@ -133,6 +134,16 @@ pub struct RemoveKeyFrameCmd {
     pub component_type: String,
     pub prop_name: String,
     pub frame: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MergeKeyFramesCmd {
+    pub game_object_id: String,
+    pub component_type: String,
+    pub prop_name: String,
+    pub start_frame: u32,
+    pub end_frame: u32,
+    pub strategy: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
