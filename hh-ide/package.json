@@ -4,7 +4,7 @@
   "description": "React + Redux + Ant Design IDE",
   "main": "index.js",
   "scripts": {
-    "start": "webpack serve --mode development --open",
+    "start": "node ./dev-api-server.js & webpack serve --mode development --open",
     "build": "webpack --mode production",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
