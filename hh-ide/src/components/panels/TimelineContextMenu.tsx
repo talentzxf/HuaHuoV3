@@ -55,7 +55,7 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
   const menuItems: MenuProps['items'] = [
     {
       key: 'set-animation-end',
-      label: `Set Animation End (Frame ${frameNumber})`,
+      label: `Set Animation End (Frame ${frameNumber + 1})`,
       onClick: handleSetAnimationEnd,
     },
     // Conditionally add split clip option
@@ -63,7 +63,7 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
       ? [
           {
             key: 'split-clip',
-            label: `Split Clip at Frame ${frameNumber}`,
+            label: `Split Clip at Frame ${frameNumber + 1}`,
             onClick: handleSplitClip,
           },
         ]

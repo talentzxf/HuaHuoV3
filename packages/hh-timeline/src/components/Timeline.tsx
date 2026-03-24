@@ -290,24 +290,24 @@ export const Timeline: React.FC<TimelineProps> = ({
           ctx.stroke();
         }
 
-        // Draw clip label with frame range
+        // Draw clip label with frame range (1-based display)
         ctx.fillStyle = '#fff';
         ctx.font = 'bold 11px Arial';
         ctx.textAlign = 'center';
         ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
         ctx.shadowBlur = 2;
-        const label = `${clip.startFrame}-${clipEndFrame}`;
+        const label = `${clip.startFrame + 1}-${clipEndFrame + 1}`;
         ctx.fillText(label, clipX + clipWidth / 2, trackY + TRACK_HEIGHT / 2);
         ctx.shadowBlur = 0;
 
-        // Draw small frame numbers at start and end
+        // Draw small frame numbers at start and end (1-based display)
         if (clipWidth > 60) {
           ctx.font = '9px Arial';
           ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
           ctx.textAlign = 'left';
-          ctx.fillText(String(clip.startFrame), clipX + 4, trackY + TRACK_HEIGHT - 5);
+          ctx.fillText(String(clip.startFrame + 1), clipX + 4, trackY + TRACK_HEIGHT - 5);
           ctx.textAlign = 'right';
-          ctx.fillText(String(clipEndFrame), clipX + clipWidth - 4, trackY + TRACK_HEIGHT - 5);
+          ctx.fillText(String(clipEndFrame + 1), clipX + clipWidth - 4, trackY + TRACK_HEIGHT - 5);
         }
       });
     }
@@ -666,7 +666,7 @@ export const Timeline: React.FC<TimelineProps> = ({
                 Merge Cells
               </div>
               <div style={{ color: '#ccc', fontSize: '14px', marginBottom: '20px' }}>
-                Merge frames {selection.startFrame} to {selection.endFrame} ({selection.endFrame - selection.startFrame + 1} cells)?
+                Merge frames {selection.startFrame + 1} to {selection.endFrame + 1} ({selection.endFrame - selection.startFrame + 1} cells)?
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
                 <button
@@ -740,7 +740,7 @@ export const Timeline: React.FC<TimelineProps> = ({
                 Split Clip
               </div>
               <div style={{ color: '#ccc', fontSize: '14px', marginBottom: '20px' }}>
-                Split clip at frame {splitContext.frame}?
+                Split clip at frame {splitContext.frame + 1}?
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
                 <button

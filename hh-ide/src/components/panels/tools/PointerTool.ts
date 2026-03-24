@@ -3,6 +3,7 @@ import {BaseTool} from './BaseTool';
 import {store} from '../../../store/store';
 import {selectObject, clearSelection} from '../../../store/features/selection/selectionSlice';
 import {RotatableSelectionBox} from './RotatableSelectionBox';
+import { getKernel } from '@huahuo/engine';
 import {
     shapeTranslateHandler,
     shapeRotateHandler,
@@ -21,6 +22,40 @@ export class PointerTool extends BaseTool {
         super(color);
         // ✅ 直接创建 RotatableSelectionBox，不需要延迟创建
         this.rotatableSelection = new RotatableSelectionBox();
+
+        // ── Auto-clear selection when selected shape goes out of lifecycle ──
+        // When the frame changes or clips are modified, KernelAdapter hides
+        // shapes that are outside their lifecycle (renderItem.visible = false).
+        // The RotatableSelectionBox is unaware of this — we must clear it here.
+        this._subscribeToLifecycleEvents();
+    }
+
+    /**
+     * Subscribe to kernel events that can cause a selected shape to become
+     * invisible (frame change, clip merge/split).  If any selected Paper.js
+     * item is no longer visible, clear the selection box and the Redux state.
+     */
+    private _subscribeToLifecycleEvents(): void {
+        const clearIfInvisible = () => {
+            const selectedItems = this.rotatableSelection.getSelectedItems();
+            if (selectedItems.length === 0) return;
+
+            const hasHiddenItem = selectedItems.some(item => !item.visible);
+            if (hasHiddenItem) {
+                this.rotatableSelection.clear();
+                store.dispatch(clearSelection());
+            }
+        };
+
+        try {
+            const kernel = getKernel();
+            kernel.subscribe('playback/frame_changed', clearIfInvisible);
+            kernel.subscribe('playback/looped_back',   clearIfInvisible);
+            kernel.subscribe('layer',                  clearIfInvisible);
+        } catch (e) {
+            // Kernel not ready yet (should not happen in normal init order)
+            console.warn('[PointerTool] Could not subscribe to lifecycle events:', e);
+        }
     }
 
     onMouseDown(event: paper.ToolEvent, scope: paper.PaperScope): void {

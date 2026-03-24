@@ -11,10 +11,21 @@ export class KernelAdapter {
   private renderer: IRenderer;
   private kernel: KernelBridge;
   private subIds: number[] = [];
+  /**
+   * Optional callback that returns the currently selected GameObject ID.
+   * Used to re-apply Paper.js `selected` state when a GO re-enters view,
+   * so the selection box isn't lost when the user returns to a frame.
+   */
+  private getSelectedGoId: () => string | null;
 
-  constructor(renderer: IRenderer, kernel: KernelBridge) {
+  constructor(
+    renderer: IRenderer,
+    kernel: KernelBridge,
+    getSelectedGoId: () => string | null = () => null,
+  ) {
     this.renderer = renderer;
     this.kernel = kernel;
+    this.getSelectedGoId = getSelectedGoId;
   }
 
   startListening(): void {
@@ -97,6 +108,9 @@ export class KernelAdapter {
     // ── Scene changes → rebuild Paper layers ─────────────────────────────
     this.subIds.push(
       this.kernel.subscribe('layer', (_ev) => {
+        // Clip structure changed — re-evaluate every GO's lifecycle visibility.
+        const frame = this.kernel.getPlaybackState()?.current_frame ?? 0;
+        this.updateAllActiveGameObjects(frame);
         this.renderer.render();
       })
     );
@@ -160,20 +174,44 @@ export class KernelAdapter {
     const scene = this.kernel.getCurrentScene();
     if (!scene) return;
 
-    const allGoIds = Object.keys(scene.game_objects ?? {});
-    for (const goId of allGoIds) {
-      const go = scene.game_objects[goId];
-      if (!go) continue;
+    // GetActiveGameObjects is the single source of truth for lifecycle visibility.
+    // It reads directly from _state.layers (never stale) and applies:
+    //   • born_frame check
+    //   • clip-based lifecycle (if layer has clips, GO only active inside one)
+    const activeGoIds = new Set<string>(
+      this.kernel.getActiveGameObjects(scene.id, frame)
+    );
 
-      // Born-frame visibility
-      const shouldBeVisible = go.active && go.born_frame_id <= frame;
-      const renderItem = (this.renderer as any).getRenderItem?.(goId);
-      if (renderItem && renderItem.visible !== undefined) {
-        renderItem.visible = shouldBeVisible;
-      }
+    // The currently selected GO (if any) — used to restore the selection box
+    // when a GO re-enters view after being hidden at another frame.
+    const selectedGoId = this.getSelectedGoId();
 
-      if (shouldBeVisible) {
-        this.applyInterpolatedProps(goId, frame);
+    // Walk every GO known to the scene (via scene.layers) and set visibility.
+    for (const layer of Object.values(scene.layers ?? {})) {
+      for (const goId of (layer as any).game_object_ids ?? []) {
+        const shouldBeVisible = activeGoIds.has(goId);
+
+        const renderItem = (this.renderer as any).getRenderItem?.(goId);
+        if (renderItem && renderItem.visible !== undefined) {
+          renderItem.visible = shouldBeVisible;
+
+          if (!shouldBeVisible) {
+            // Hide: also clear the Paper.js selection box so it doesn't
+            // float above the canvas as a ghost when the object is invisible.
+            if (renderItem.selected) renderItem.selected = false;
+          } else {
+            // Show: re-apply selection if this GO is still the active selection.
+            // This restores the selection box when the user returns to a frame
+            // where the object was previously selected.
+            if (selectedGoId === goId && !renderItem.selected) {
+              renderItem.selected = true;
+            }
+          }
+        }
+
+        if (shouldBeVisible) {
+          this.applyInterpolatedProps(goId, frame);
+        }
       }
     }
   }

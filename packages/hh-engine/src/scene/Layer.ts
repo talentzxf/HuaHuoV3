@@ -125,10 +125,25 @@ export class Layer extends RegistrableEntity implements ILayer {
         // Create GO in Rust kernel (gets an ID back)
         const gameObjectId = kernel.createGameObject(this.id, uniqueName, currentFrame);
 
-        // Create / reuse TS-side instance
+        // Create / reuse TS-side instance (also registers the Paper.js render item)
         const gameObject = InstanceRegistry.getInstance().getOrCreate<GameObject>(gameObjectId, () =>
             this.createGameObjectInstance(gameObjectId, renderItem)
         );
+
+        // Auto-create a 1-frame FrameSpan at the born frame.
+        // Every shape starts with a lifecycle of exactly 1 frame — the frame it
+        // was drawn on.  Use "Merge Cells" to extend the span.
+        // MergeFrameSpan absorbs any existing overlapping clips, so calling this
+        // multiple times at the same frame is safe.
+        if (kernel.ready) {
+            kernel.dispatch({
+                MergeFrameSpan: {
+                    layer_id:    this.id,
+                    start_frame: currentFrame,
+                    end_frame:   currentFrame,
+                },
+            });
+        }
 
         return gameObject;
     }

@@ -6,7 +6,12 @@
   "scripts": {
     "start": "node ./dev-api-server.js & webpack serve --mode development --open",
     "build": "webpack --mode production",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "pretest:e2e": "playwright install --with-deps",
+    "test:e2e": "playwright test",
+    "pretest:e2e:ui": "playwright install --with-deps",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:report": "playwright show-report"
   },
   "keywords": [
     "react",
@@ -27,6 +32,9 @@
     "@types/react-dom": "^19.1.9",
     "@types/react-redux": "^7.1.34",
     "antd": "^5.27.2",
+    "axios": "^1.13.6",
+    "body-parser": "^2.2.2",
+    "express": "^5.2.1",
     "flexlayout-react": "^0.8.17",
     "i18next": "^25.6.3",
     "paper": "^0.12.18",
@@ -36,7 +44,9 @@
     "react-redux": "^9.2.0",
     "redux": "^5.0.1",
     "reflect-metadata": "^0.2.2",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "uuid": "^13.0.0",
+    "ws": "^8.19.0"
   },
   "devDependencies": {
     "@babel/core": "^7.28.4",
@@ -51,6 +61,7 @@
     "ts-loader": "^9.5.4",
     "webpack": "^5.101.3",
     "webpack-cli": "^6.0.1",
-    "webpack-dev-server": "^5.2.2"
+    "webpack-dev-server": "^5.2.2",
+    "@playwright/test": "^1.50.0"
   }
 }

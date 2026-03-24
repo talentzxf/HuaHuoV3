@@ -38,9 +38,15 @@ const TimelinePanel: React.FC = () => {
       setAnimationEndFrame(p.animation_end_frame ?? null);
     };
 
-    const refreshTracks = () => {
+    // Cheap: only update the playhead cursor position — no scene query needed.
+    const refreshFrame = () => {
       const pb = kernel.getPlaybackState();
       setCurrentFrameState(pb?.current_frame ?? 0);
+    };
+
+    // Expensive: rebuild the full track list. Only call when structure may have changed.
+    const refreshTracks = () => {
+      refreshFrame();
 
       const scene = kernel.getCurrentScene();
       if (!scene) { setTracks([]); return; }
@@ -65,13 +71,19 @@ const TimelinePanel: React.FC = () => {
     refreshTracks();
 
     const ids: number[] = [];
-    ids.push(kernel.subscribe('playback/frame_changed', refreshTracks));
-    ids.push(kernel.subscribe('playback/looped_back',   refreshTracks));
-    ids.push(kernel.subscribe('playback/stopped',       refreshTracks));
-    ids.push(kernel.subscribe('keyframe',               refreshTracks));
-    ids.push(kernel.subscribe('go',                     refreshTracks));
-    ids.push(kernel.subscribe('layer',                  refreshTracks));
-    ids.push(kernel.subscribe('project',                refreshProject));
+    // Frame cursor: cheap update only
+    ids.push(kernel.subscribe('playback/frame_changed', refreshFrame));
+    ids.push(kernel.subscribe('playback/looped_back',   refreshFrame));
+    // Stop resets to frame 0 — cheap update
+    ids.push(kernel.subscribe('playback/stopped',       refreshFrame));
+    // Keyframe: only rebuild if a new frame was added to the track
+    ids.push(kernel.subscribe('keyframe', (ev) => {
+      if (ev.is_new_frame) refreshTracks();
+    }));
+    // Structure changes always require a full rebuild
+    ids.push(kernel.subscribe('go',      refreshTracks));
+    ids.push(kernel.subscribe('layer',   refreshTracks));
+    ids.push(kernel.subscribe('project', refreshProject));
     subIdsRef.current = ids;
 
     return () => { ids.forEach(id => kernel.unsubscribe(id)); };
@@ -105,7 +117,7 @@ const TimelinePanel: React.FC = () => {
   const contextMenuItems: MenuProps['items'] = [
     {
       key: 'set-animation-end',
-      label: `Set Animation End (Frame ${contextMenu?.frameNumber ?? 0})`,
+      label: `Set Animation End (Frame ${(contextMenu?.frameNumber ?? 0) + 1})`,
       onClick: handleSetProjectEnd,
     },
   ];

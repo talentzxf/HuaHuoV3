@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add:*)",
+      "Bash(GIT_COMMITTER_NAME=\"talentzxf\" GIT_COMMITTER_EMAIL=\"talentzxf@hotmail.com\" git add hh-ide/src/store/listeners/keyframeListener.ts packages/hh-engine/src/store/ComponentSlice.ts && GIT_COMMITTER_NAME=\"talentzxf\" GIT_COMMITTER_EMAIL=\"talentzxf@hotmail.com\" git commit --author=\"talentzxf <talentzxf@hotmail.com>\" -m \"fix\\(keyframes\\): notify correct componentId in keyframe listener; shallow-merge keyframe values and set default easing on new keyframes\n\n- keyframe listener now reads componentId from payload.componentId or payload.id\n- setPropertyKeyFrame merges object values shallowly to avoid losing subfields and sets default easing when creating new keyframes\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>\")",
+      "Bash(pnpm -v)",
+      "Bash(pnpm -w -s i --ignore-scripts)",
+      "Bash(pnpm -w -s install --ignore-scripts)",
+      "Bash(pnpm -v --silent && node -v && npm -v)",
+      "Bash(pnpm install:*)",
+      "Bash(CI=true pnpm install --silent)",
+      "Bash(pnpm -w -s -C . -y run -w -r build)",
+      "Bash(pnpm -w -s -C . recursive run build)",
+      "Bash(pnpm -w -s -r run build)",
+      "Bash(pnpm -w -s -r run build --silent)",
+      "Bash(git config:*)",
+      "Bash(git --no-pager status --porcelain --branch && git --no-pager log -n5 --oneline --decorate && git --no-pager show --name-only --pretty=\"format:%h %s\" HEAD)",
+      "Bash(pnpm --filter hh-ide start)",
+      "Bash(node /tmp/hh_ide_play_test.js)",
+      "Bash(npm --version && node --version && pnpm --version)",
+      "Bash(npm i:*)",
+      "Bash(node -e \"console.log\\('cwd:', process.cwd\\(\\)\\)\" && ls -la /tmp | sed -n '1,120p')",
+      "Bash(cd hh-ide:*)",
+      "Bash(pnpm --filter hh-ide add express ws axios body-parser --workspace-root=false)",
+      "Bash(pnpm --filter hh-ide add uuid --workspace-root=false)",
+      "Bash(node hh-ide/scripts/run-headless.js)",
+      "Bash(node hh-kernel/tests/check_record_keyframes.js)",
+      "Bash(cargo test:*)",
+      "Bash(pnpm --filter hh-ide add axios --workspace-root=false)",
+      "Bash(node -e \"const axios=require\\('axios'\\);console.log\\('axios ok'\\);\")"
+    ]
+  }
+}

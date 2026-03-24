@@ -26,7 +26,11 @@ export class Engine {
     this.sceneContext = this.renderer.createSceneContext();
 
     // KernelAdapter subscribes to WASM events → updates Paper.js
-    this.kernelAdapter = new KernelAdapter(this.renderer, this.kernel);
+    this.kernelAdapter = new KernelAdapter(
+      this.renderer,
+      this.kernel,
+      () => this.selectedGameObjectId,
+    );
     this.kernelAdapter.startListening();
 
     // Register built-in components

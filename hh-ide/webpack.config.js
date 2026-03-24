@@ -59,6 +59,9 @@ module.exports = (env, argv) => {
       }),
     ],
     devServer: {
+      client: {
+        overlay: false,
+      },
       setupMiddlewares: (middlewares, devServer) => {
         const fs = require('fs');
         const path = require('path');

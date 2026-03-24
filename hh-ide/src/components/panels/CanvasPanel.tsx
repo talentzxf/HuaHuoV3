@@ -102,7 +102,7 @@ const CanvasPanel: React.FC = () => {
             id: layer.id,
             name: layer.name,
             clips: kLayer?.clips ?? [],
-            keyFrames: (kLayer?.keyFrames ?? []).map((kf: any) => kf.frame ?? kf),
+            keyFrames: (kLayer?.key_frames ?? []).map((kf: any) => kf.frame ?? kf),
           };
         });
       setTracks(trackList);
@@ -120,15 +120,23 @@ const CanvasPanel: React.FC = () => {
       const kernel = getKernel();
       if (!kernel.ready) return;
 
-      // React to frame changes for timeline cursor
-      subIds.push(kernel.subscribe('playback/frame_changed', () => updateTimelineData()));
-      subIds.push(kernel.subscribe('playback/looped_back',   () => updateTimelineData()));
-      subIds.push(kernel.subscribe('playback/stopped',       () => updateTimelineData()));
-      // React to layer / GO changes for keyframe dots
-      subIds.push(kernel.subscribe('keyframe',               () => updateTimelineData()));
-      subIds.push(kernel.subscribe('go',                     () => updateTimelineData()));
-      subIds.push(kernel.subscribe('layer',                  () => updateTimelineData()));
-      subIds.push(kernel.subscribe('project',                () => updateProjectMeta()));
+      // Cheap: only move the playhead cursor — no scene rebuild needed.
+      const updateFrameOnly = () => {
+        const pb = kernel.getPlaybackState();
+        if (pb) setCurrentFrame(pb.current_frame ?? 0);
+      };
+
+      subIds.push(kernel.subscribe('playback/frame_changed', updateFrameOnly));
+      subIds.push(kernel.subscribe('playback/looped_back',   updateFrameOnly));
+      subIds.push(kernel.subscribe('playback/stopped',       updateFrameOnly));
+      // Only rebuild track keyframe dots when a new frame is actually added.
+      subIds.push(kernel.subscribe('keyframe', (ev) => {
+        if (ev.is_new_frame) updateTimelineData();
+      }));
+      // Structure changes always need a full rebuild.
+      subIds.push(kernel.subscribe('go',      () => updateTimelineData()));
+      subIds.push(kernel.subscribe('layer',   () => updateTimelineData()));
+      subIds.push(kernel.subscribe('project', () => updateProjectMeta()));
     });
 
     return () => {
@@ -155,8 +163,6 @@ const CanvasPanel: React.FC = () => {
   };
 
   const handleMergeCells = (trackId: string, startFrame: number, endFrame: number) => {
-    // Try to merge keyframes via kernel MergeKeyFrames command for all game objects in this layer.
-    // This is a fallback until AddTimelineClip / layer-clip support exists in kernel.
     const kernel = getKernel();
     if (!kernel.ready) {
       console.warn('[CanvasPanel] Kernel not ready — cannot merge');
@@ -164,47 +170,19 @@ const CanvasPanel: React.FC = () => {
       return;
     }
 
-    const scene = kernel.getCurrentScene();
-    if (!scene) {
-      console.warn('[CanvasPanel] No current scene — cannot merge');
-      dispatch(requestCanvasRefresh());
-      return;
-    }
-
-    // Find all game objects that belong to this layer
-    const goIds = Object.keys(scene.game_objects ?? {}).filter(goId => {
-      const go = scene.game_objects[goId];
-      return go && go.layer_id === trackId;
-    });
-
-    if (goIds.length === 0) {
-      console.warn('[CanvasPanel] No game objects found in layer for merge — layerId:', trackId);
-      dispatch(requestCanvasRefresh());
-      return;
-    }
-
-    // For each game object, inspect its components and keyframes and issue MergeKeyFrames per prop
-    for (const goId of goIds) {
-      const go = kernel.getGameObject(goId);
-      if (!go || !go.components) continue;
-      for (const compType of Object.keys(go.components)) {
-        const comp = go.components[compType];
-        if (!comp || !comp.keyFrames) continue;
-        for (const propName of Object.keys(comp.keyFrames)) {
-          try {
-            const cmd = { MergeKeyFrames: { game_object_id: goId, component_type: compType, prop_name: propName, start_frame: startFrame, end_frame: endFrame, strategy: 'average' } };
-            const res = kernel.dispatch(cmd);
-            if (!res.ok) {
-              console.warn('[CanvasPanel] MergeKeyFrames failed for', { goId, compType, propName, res });
-            }
-          } catch (e) {
-            console.warn('[CanvasPanel] MergeKeyFrames exception', e);
-          }
-        }
+    // MergeFrameSpan is a pure layer-level operation — no GameObject needed.
+    // It creates a FrameSpan (clip) covering [startFrame, endFrame] and merges
+    // any existing clips that overlap with that range.
+    try {
+      const cmd = { MergeFrameSpan: { layer_id: trackId, start_frame: startFrame, end_frame: endFrame } };
+      const res = kernel.dispatch(cmd);
+      if (!res.ok) {
+        console.warn('[CanvasPanel] MergeFrameSpan failed', res);
       }
+    } catch (e) {
+      console.warn('[CanvasPanel] MergeFrameSpan exception', e);
     }
 
-    // Request a canvas refresh after merges
     dispatch(requestCanvasRefresh());
   };
 
